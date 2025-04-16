@@ -68,6 +68,7 @@ FROM
         company
 )
 GROUP BY company
+SETTINGS use_hive_partitioning = 1
 
 Query id: e49980c8-f60c-4a47-ad20-a4d69a7efb97
 
@@ -109,6 +110,7 @@ INNER JOIN
 ) AS pk ON act.company = pk.company
 GROUP BY company
 ORDER BY q[2] ASC
+SETTINGS use_hive_partitioning = 1
 
 Query id: 26a030a0-6801-4f23-b967-564b0367f577
 
