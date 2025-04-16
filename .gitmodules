@@ -1,0 +1,3 @@
+[submodule "transitland-atlas"]
+	path = transitland-atlas
+	url = git@github.com:transitland/transitland-atlas.git
