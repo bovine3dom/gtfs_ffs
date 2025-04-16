@@ -82,4 +82,45 @@ Query id: e49980c8-f60c-4a47-ad20-a4d69a7efb97
 
 6 rows in set. Elapsed: 2.313 sec. Processed 20.02 million rows, 1.85 GB (8.65 million rows/s., 801.06 MB/s.)
 Peak memory usage: 17.21 MiB.
+
+
+WITH activity AS
+    (
+        SELECT
+            company,
+            count(*) AS c,
+            toTime(tumbleStart(parseDateTimeBestEffortOrNull(departure_time), toIntervalHour(1))) AS t
+        FROM file('../data/company=*/stop_times.txt', 'CSVWithNames')
+        GROUP BY
+            t,
+            company
+    )
+SELECT
+    company,
+    arrayMap(q -> round(q, 2), quantiles(0.25, 0.5, 0.75)(c / peak)) AS q
+FROM activity AS act
+INNER JOIN
+(
+    SELECT
+        max(c) AS peak,
+        company
+    FROM activity
+    GROUP BY company
+) AS pk ON act.company = pk.company
+GROUP BY company
+ORDER BY q[2] ASC
+
+Query id: 26a030a0-6801-4f23-b967-564b0367f577
+
+   ┌─company────┬─q────────────────┐
+1. │ ter        │ [0.14,0.53,0.68] │
+2. │ intercites │ [0.42,0.57,0.66] │
+3. │ tgv        │ [0.36,0.73,0.86] │
+4. │ swiss      │ [0.47,0.76,0.89] │
+5. │ sncb       │ [0.38,0.87,0.96] │
+6. │ uk         │ [0.47,0.93,0.96] │
+   └────────────┴──────────────────┘
+
+6 rows in set. Elapsed: 4.741 sec. Processed 39.99 million rows, 2.50 GB (8.43 million rows/s., 527.27 MB/s.)
+Peak memory usage: 37.37 MiB.
 ```
