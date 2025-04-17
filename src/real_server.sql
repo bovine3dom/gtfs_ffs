@@ -38,3 +38,98 @@ group by probe, company
 order by probe
 format CSVWithNames -- can just copy paste it u lazy thing
 
+
+select company, headway, count(*) n from (select 
+company, stop_id, route_id, departure_time,
+dateDiff('minute', lagInFrame(departure_time, 1, departure_time) over (
+--dateDiff(last_value(departure_time), first_value(departure_time)) over (
+    partition by company, stop_id, route_id
+    order by departure_time asc
+    rows between 1 preceding and current row
+), departure_time) headway
+from gtfs_stop_times st
+inner join 
+(
+select distinct tr.company, trip_id, route_id from gtfs_trips tr -- not necessarily distinct because join with calendar can mess things up
+left join gtfs_calendar ca on tr.service_id = ca.service_id and tr.company = ca.company
+left join gtfs_calendar_dates cd on tr.service_id = cd.service_id and tr.company = cd.company
+where true
+and tr.company != 'uk' -- uk data messed up / ages in the past
+and tr.company = 'ter'
+and ((cd.date = '2025-05-13' and cd.exception_type = 1) or (ca.start_date <= '2025-05-13' and ca.end_date >= '2025-05-13' and tuesday and not (cd.date = '2025-05-13' and cd.exception_type = 2)))
+)
+tr 
+on st.trip_id = tr.trip_id and st.company = tr.company
+) where headway between 1 and 120
+group by all
+order by company, headway
+select * from gtfs_routes where company = 'uk' limit 10;
+-- headways: partition with dateDiff(first, second)
+
+select distinct tr.company, trip_id, route_id from gtfs_trips tr -- not necessarily distinct because join with calendar can mess things up
+left join gtfs_calendar ca on tr.service_id = ca.service_id and tr.company = ca.company
+left join gtfs_calendar_dates cd on tr.service_id = cd.service_id and tr.company = cd.company
+where true
+and tr.company != 'uk' -- uk data messed up / ages in the past
+and tr.company = 'ter'
+and ((cd.date = '2025-05-13' and cd.exception_type = 1) or (ca.start_date <= '2025-05-13' and ca.end_date >= '2025-05-13' and tuesday and not (cd.date = '2025-05-13' and cd.exception_type = 2)))
+limit 10
+
+
+
+--- TGV has extremely hard to believe headways for some stuff
+select company, stop_name, stop_id, route_long_name, departure_time, prev_departure, headway, prev_trip, trip_id, direction_id from (select 
+tr.company company, stop_id, tr.route_id, st.trip_id trip_id, route_long_name, departure_time, direction_id,
+lagInFrame(departure_time, 1, departure_time) over (
+--dateDiff(last_value(departure_time), first_value(departure_time)) over (
+    partition by st.company, st.stop_id, ro.route_id, direction_id, trip_headsign
+    order by departure_time asc
+    rows between 1 preceding and current row
+) prev_departure,
+dateDiff('minute', prev_departure, departure_time) headway,
+lagInFrame(st.trip_id, 1, st.trip_id) over (
+--dateDiff(last_value(departure_time), first_value(departure_time)) over (
+    partition by st.company, st.stop_id, ro.route_id, direction_id, trip_headsign
+    order by departure_time asc
+    rows between 1 preceding and current row
+) prev_trip
+from gtfs_stop_times st
+inner join 
+(
+select distinct tr.company, trip_id, route_id, direction_id, trip_headsign from gtfs_trips tr -- not necessarily distinct because join with calendar can mess things up
+left join gtfs_calendar ca on tr.service_id = ca.service_id and tr.company = ca.company
+left join gtfs_calendar_dates cd on tr.service_id = cd.service_id and tr.company = cd.company
+where true
+and tr.company != 'uk' -- uk data messed up / ages in the past
+and tr.company = 'sncb'
+and ((cd.date = '2025-05-13' and cd.exception_type = 1) or (ca.start_date <= '2025-05-13' and ca.end_date >= '2025-05-13' and tuesday and not (cd.date = '2025-05-13' and cd.exception_type = 2)))
+)
+tr 
+on st.trip_id = tr.trip_id and st.company = tr.company
+left join gtfs_routes ro on tr.route_id = ro.route_id and tr.company = ro.company
+) pls 
+left join gtfs_stops stp on pls.stop_id = stp.stop_id and stp.company = pls.company
+where headway between 1 and 30
+order by company, headway
+limit 10
+
+
+
+-- some offenders
+
+-- 1. │ tgv     │ Paris Montparnasse Hall 1 - 2 │ StopPoint:OCETGV INOUI-87391003 │ Paris - Quimper TGV                            │ 2025-01-01 08:45:00 │ 2025-01-01 08:43:00 │       2 │ OCESN8707F3995320:2025-04-14T23:19:14Z │ OCESN8790F3852769:2025-02-07T11:15:13Z │ 1            │
+-- ^ only the 08:43 TGV is real
+
+-- 1. │ sncb    │ Braine-l'Alleud │ 8814258 │ Anvers-Central -- Charleroi-Central │ 2025-01-01 18:01:00 │ 2025-01-01 18:00:00 │       1 │ 88____:007::8821006:8872009:38:1835:20251212 │ 88____:007::8872009:8821006:38:1906:20251212 │              │
+-- ^ only the 18:00 SNCB is real. fixed, it was trip_headsign
+
+-- 1. │ sncb    │ La Louvière-Sud  │ 8882206 │ Namur -- Tournai        │ 2025-01-01 16:32:00 │ 2025-01-01 16:31:00 │       1 │ 88____:007::8885001:8863008:38:1721:20250516   │ 88____:007::8885001:8863008:38:1722:20250613:1 │              │
+-- ^ only the 16:31 is real
+
+select * from gtfs_trips tr
+left join gtfs_calendar_dates cd on tr.service_id = cd.service_id and tr.company = cd.company
+left join gtfs_calendar ca on tr.service_id = ca.service_id and tr.company = ca.company
+where true
+--and trip_id in ('OCESN8707F3995320:2025-04-14T23:19:14Z', 'OCESN8790F3852769:2025-02-07T11:15:13Z')
+and trip_id in ('88____:007::8885001:8863008:38:1721:20250516', '88____:007::8885001:8863008:38:1722:20250613:1')
+and ((cd.date = '2025-05-13' and cd.exception_type = 1) or (ca.start_date <= '2025-05-13' and ca.end_date >= '2025-05-13' and tuesday and not (cd.date = '2025-05-13' and cd.exception_type = 2)))
