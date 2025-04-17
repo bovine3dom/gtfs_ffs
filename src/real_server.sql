@@ -133,3 +133,5 @@ where true
 --and trip_id in ('OCESN8707F3995320:2025-04-14T23:19:14Z', 'OCESN8790F3852769:2025-02-07T11:15:13Z')
 and trip_id in ('88____:007::8885001:8863008:38:1721:20250516', '88____:007::8885001:8863008:38:1722:20250613:1')
 and ((cd.date = '2025-05-13' and cd.exception_type = 1) or (ca.start_date <= '2025-05-13' and ca.end_date >= '2025-05-13' and tuesday and not (cd.date = '2025-05-13' and cd.exception_type = 2)))
+
+select * from gtfs_stops limit 1
