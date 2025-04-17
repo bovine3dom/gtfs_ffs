@@ -1,6 +1,7 @@
 #!/bin/julia
 using Plots, CSV, DataFrames, Dates
 
+include("lib.jl")
 df = CSV.read("utilisation_over_day.csv", DataFrame)
 transform!(groupby(df, :company), :c => (x-> x./maximum(x)) => :utilisation)
 df.probe = Time.(df.probe, "yyyy-mm-dd HH:MM:SS.SSS")
