@@ -72,6 +72,7 @@ wget $GTFS_URL -O gtfs.zip && 7za -ocompany=$GTFS_COMPANY x gtfs.zip && rm gtfs.
 # and i have run out of stamina
 
 # https://eu.data.public-transport.earth/ has more but i got bored
+# for some reason clickhouse needs `chmod 755 -R .` on the hive directory. dunno why
 ```
 
 <!-- i can't work out how this tool is supposed to work so probably don't do this
