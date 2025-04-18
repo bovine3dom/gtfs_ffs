@@ -30,6 +30,10 @@ set GTFS_URL 'https://github.com/thomasforth/ATOCCIF2GTFS/raw/refs/heads/master/
 set GTFS_COMPANY uk
 wget $GTFS_URL -O gtfs.zip && 7za -ocompany=$GTFS_COMPANY x gtfs.zip && rm gtfs.zip
 
+set GTFS_URL 'https://gtfs.ovapi.nl/nl/gtfs-nl.zip'
+set GTFS_COMPANY ns_nl
+wget $GTFS_URL -O gtfs.zip && 7za -ocompany=$GTFS_COMPANY x gtfs.zip && rm gtfs.zip
+
 # ideally i would have more railways included here
 # but it looks like e.g. each trenitalia region has their own feed
 # and i have run out of stamina
