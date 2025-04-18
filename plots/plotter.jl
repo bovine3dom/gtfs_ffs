@@ -186,3 +186,101 @@ select_df(con(), "select count(distinct(route_type)) c, company from gtfs_routes
 select_df(con(), "select count(distinct(trip_headsign)), company from gtfs_trips group by company") # se, ee, ns_nl, dk, tgv, sncb
 select_df(con(), "select count(distinct(direction_id)), company from gtfs_trips group by company") # no, ter, intercites, ns_nl, dk, tgv
 select_df(con(), "select distinct company from gtfs_trips") 
+
+
+
+# trip speeds
+df = select_df(con(), "
+select company, round(speed, -1) speed, count(*) c from (
+select st.company company, st.stop_id, st.prev_stop, st.trip_id, geoDistance(s.stop_lon, s.stop_lat, s2.stop_lon, s2.stop_lat)/1000 dist, dateDiff('minute', prev_departure, departure_time)/60 t, dist/t speed from (select *,
+    lagInFrame(departure_time, 1, departure_time) over (
+    --dateDiff(last_value(departure_time), first_value(departure_time)) over (
+        partition by st.company, st.trip_id, stop_headsign
+        order by departure_time asc
+        rows between 1 preceding and current row
+    ) prev_departure,
+    lagInFrame(stop_id, 1, stop_id) over (
+    --dateDiff(last_value(departure_time), first_value(departure_time)) over (
+        partition by st.company, st.trip_id, stop_headsign
+        order by departure_time asc
+        rows between 1 preceding and current row
+    ) prev_stop
+    from gtfs_stop_times st
+    left join gtfs_trips tr on tr.trip_id = st.trip_id and tr.company = st.company
+    left join gtfs_routes gr on tr.route_id = gr.route_id and tr.company = gr.company
+    left join gtfs_calendar ca on tr.service_id = ca.service_id and tr.company = ca.company
+    left join gtfs_calendar_dates cd on tr.service_id = cd.service_id and tr.company = cd.company
+    where true
+    and tr.company not in ('uk', 'ee', 'de_local') -- uk data messed up / ages in the past, ee and de_local too messy to be believable
+    --and tr.company in ('ter', 'sncb', 'tgv') -- swiss data too messy?
+    and (tr.company not in ('swiss', 'no', 'se', 'dk', 'ns_nl') or gr.route_type between 0 and 199)
+    and ((cd.date = '2025-05-13' and cd.exception_type = 1) or (ca.start_date <= '2025-05-13' and ca.end_date >= '2025-05-13' and tuesday and not (cd.date = '2025-05-13' and cd.exception_type = 2)))
+) st
+left join gtfs_stops s on st.prev_stop = s.stop_id and st.company = s.company
+left join gtfs_stops s2 on st.stop_id = s2.stop_id and st.company = s2.company
+) group by all
+having speed between 0 and 400
+order by speed
+")
+df2 = df[in.(df.company, Ref(["tgv", "de_long"])), :]
+df2 = df
+transform!(groupby(df2, :company), :c => (x-> x./sum(x)) => :c_norm)
+plot(df2.speed, df2.c_norm, group=df2.company)
+
+# if we want to know how long each train spends at each speed we need to multiply by distance? i think
+
+
+
+# dwell times
+df = select_df(con(), "
+select st.company company, dwell_time, count(*) c from (select *,
+    dateDiff('minute', arrival_time, departure_time) dwell_time
+    from gtfs_stop_times st
+    left join gtfs_trips tr on tr.trip_id = st.trip_id and tr.company = st.company
+    left join gtfs_routes gr on tr.route_id = gr.route_id and tr.company = gr.company
+    left join gtfs_calendar ca on tr.service_id = ca.service_id and tr.company = ca.company
+    left join gtfs_calendar_dates cd on tr.service_id = cd.service_id and tr.company = cd.company
+    where true
+    and tr.company not in ('uk', 'ee', 'de_local') -- uk data messed up / ages in the past, ee and de_local too messy to be believable
+    --and tr.company in ('ter', 'sncb', 'tgv') -- swiss data too messy?
+    and (tr.company not in ('swiss', 'no', 'se', 'dk', 'ns_nl') or gr.route_type between 0 and 199)
+    and ((cd.date = '2025-05-13' and cd.exception_type = 1) or (ca.start_date <= '2025-05-13' and ca.end_date >= '2025-05-13' and tuesday and not (cd.date = '2025-05-13' and cd.exception_type = 2)))
+) 
+where dwell_time > 0 -- surely a bug
+group by all
+order by dwell_time
+")
+df2 = df
+df2 = df[(in.(df.company, Ref(["tgv", "de_long", "intercites"]))) .&& (df.dwell_time .< 20), :] # exclude obvious bugs
+transform!(groupby(df2, :company), :c => (x-> x./sum(x)) => :c_norm)
+# plot(df2.dwell_time, df2.c_norm, group=df2.company, xlims=(0,20), xlabel="Dwell time, minutes", ylabel="Probability density")
+agg = combine(groupby(df2, :company), [:dwell_time, :c_norm] => ((d, n) -> quantile(d, weights(d.*n), 0:0.01:1)) => :dwell_time, :c => (n -> collect(0:0.01:1)) => :q) # there has to be a better way of doing this
+plot(agg.dwell_time, agg.q, group=agg.company, xlims=(0,15), xlabel="Dwell time, minutes", ylabel="Dwell time weighted quantile", yticks=0:0.1:1, xticks=0:2:15)
+
+# dwell times as percentage of trip time
+df = select_df(con(), "
+select company, round(total_dwell/journey_length, 2) dwell_percent, count(*) c from
+(select st.company company, sum(dwell_time) total_dwell, tr.trip_id, dateDiff('minute', min(departure_time), max(arrival_time)) journey_length from (select *,
+    dateDiff('minute', arrival_time, departure_time) dwell_time
+    from gtfs_stop_times st
+    left join gtfs_trips tr on tr.trip_id = st.trip_id and tr.company = st.company
+    left join gtfs_routes gr on tr.route_id = gr.route_id and tr.company = gr.company
+    left join gtfs_calendar ca on tr.service_id = ca.service_id and tr.company = ca.company
+    left join gtfs_calendar_dates cd on tr.service_id = cd.service_id and tr.company = cd.company
+    where true
+    and tr.company not in ('uk', 'ee', 'de_local') -- uk data messed up / ages in the past, ee and de_local too messy to be believable
+    --and tr.company in ('ter', 'sncb', 'tgv') -- swiss data too messy?
+    and (tr.company not in ('swiss', 'no', 'se', 'dk', 'ns_nl') or gr.route_type between 0 and 199)
+    and ((cd.date = '2025-05-13' and cd.exception_type = 1) or (ca.start_date <= '2025-05-13' and ca.end_date >= '2025-05-13' and tuesday and not (cd.date = '2025-05-13' and cd.exception_type = 2)))
+    and dwell_time < 20
+) 
+group by all)
+group by all
+order by dwell_percent
+")
+df2 = df
+df2 = df[in.(df.company, Ref(["tgv", "de_long", "intercites", "ter"])), :]
+transform!(groupby(df2, :company), :c => (x-> x./sum(x)) => :c_norm)
+plot(df2.dwell_percent, df2.c_norm, group=df2.company, xlims=(0,0.2)) # noisy, not really credible
+agg = combine(groupby(df2, :company), [:dwell_percent, :c_norm] => ((d, n) -> quantile(d, weights(n), 0:0.01:1)) => :dwell_percent, :c => (n -> collect(0:0.01:1)) => :q) # there has to be a better way of doing this
+plot(agg.dwell_percent, agg.q, group=agg.company, xlims=(0,1), xlabel="Dwell percentage", ylabel="Quantile", yticks=0:0.1:1) # still looks implausible, IC/ICEs seem to spend to much of their journeys at stops. maybe they just have many more stops?

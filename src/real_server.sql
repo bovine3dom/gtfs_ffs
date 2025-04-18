@@ -135,3 +135,40 @@ and trip_id in ('88____:007::8885001:8863008:38:1721:20250516', '88____:007::888
 and ((cd.date = '2025-05-13' and cd.exception_type = 1) or (ca.start_date <= '2025-05-13' and ca.end_date >= '2025-05-13' and tuesday and not (cd.date = '2025-05-13' and cd.exception_type = 2)))
 
 select * from gtfs_stops limit 1
+
+select company, round(speed, -1) speed, count(*) c from (
+select st.company company, st.stop_id, st.prev_stop, st.trip_id, geoDistance(s.stop_lon, s.stop_lat, s2.stop_lon, s2.stop_lat)/1000 dist, dateDiff('minute', prev_departure, departure_time)/60 t, dist/t speed from (select *,
+    lagInFrame(departure_time, 1, departure_time) over (
+    --dateDiff(last_value(departure_time), first_value(departure_time)) over (
+        partition by company, trip_id, stop_headsign
+        order by departure_time asc
+        rows between 1 preceding and current row
+    ) prev_departure,
+    lagInFrame(stop_id, 1, stop_id) over (
+    --dateDiff(last_value(departure_time), first_value(departure_time)) over (
+        partition by company, trip_id, stop_headsign
+        order by departure_time asc
+        rows between 1 preceding and current row
+    ) prev_stop
+    from gtfs_stop_times st
+    limit 1000
+) st
+left join gtfs_stops s on st.prev_stop = s.stop_id and st.company = s.company
+left join gtfs_stops s2 on st.stop_id = s2.stop_id and st.company = s2.company
+) group by all
+having speed between 0 and 400
+
+lagInFrame(departure_time, 1, departure_time) over (
+--dateDiff(last_value(departure_time), first_value(departure_time)) over (
+    partition by st.company, st.stop_id, ro.route_id, direction_id, trip_headsign
+    order by departure_time asc
+    rows between 1 preceding and current row
+) prev_departure,
+dateDiff('minute', prev_departure, departure_time) headway,
+lagInFrame(st.trip_id, 1, st.trip_id) over (
+--dateDiff(last_value(departure_time), first_value(departure_time)) over (
+    partition by st.company, st.stop_id, ro.route_id, direction_id, trip_headsign
+    order by departure_time asc
+    rows between 1 preceding and current row
+) prev_trip
+from gtfs_stop_times st
