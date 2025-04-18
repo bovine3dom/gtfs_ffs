@@ -34,9 +34,44 @@ set GTFS_URL 'https://gtfs.ovapi.nl/nl/gtfs-nl.zip'
 set GTFS_COMPANY ns_nl
 wget $GTFS_URL -O gtfs.zip && 7za -ocompany=$GTFS_COMPANY x gtfs.zip && rm gtfs.zip
 
+set GTFS_URL 'https://download.gtfs.de/germany/fv_free/latest.zip'
+set GTFS_COMPANY de_long
+wget $GTFS_URL -O gtfs.zip && 7za -ocompany=$GTFS_COMPANY x gtfs.zip && rm gtfs.zip
+
+set GTFS_URL 'https://download.gtfs.de/germany/rv_free/latest.zip'
+set GTFS_COMPANY de_local
+wget $GTFS_URL -O gtfs.zip && 7za -ocompany=$GTFS_COMPANY x gtfs.zip && rm gtfs.zip
+
+set GTFS_URL 'https://data.public-transport.earth/gtfs/dk'
+set GTFS_COMPANY dk
+wget $GTFS_URL -O gtfs.zip && 7za -ocompany=$GTFS_COMPANY x gtfs.zip && rm gtfs.zip
+
+set GTFS_URL 'https://data.public-transport.earth/gtfs/ee'
+set GTFS_COMPANY ee
+wget $GTFS_URL -O gtfs.zip && 7za -ocompany=$GTFS_COMPANY x gtfs.zip && rm gtfs.zip
+
+set GTFS_URL 'https://data.public-transport.earth/gtfs/fi' # cert expired :(
+set GTFS_COMPANY fi
+wget $GTFS_URL -O gtfs.zip && 7za -ocompany=$GTFS_COMPANY x gtfs.zip && rm gtfs.zip
+
+set GTFS_URL 'https://data.public-transport.earth/gtfs/no'
+set GTFS_COMPANY no
+wget $GTFS_URL -O gtfs.zip && 7za -ocompany=$GTFS_COMPANY x gtfs.zip && rm gtfs.zip
+
+set GTFS_URL 'https://data.public-transport.earth/gtfs/no'
+set GTFS_COMPANY no
+wget $GTFS_URL -O gtfs.zip && 7za -ocompany=$GTFS_COMPANY x gtfs.zip && rm gtfs.zip
+
+set GTFS_URL 'https://data.public-transport.earth/gtfs/se'
+set GTFS_COMPANY se
+wget $GTFS_URL -O gtfs.zip && 7za -ocompany=$GTFS_COMPANY x gtfs.zip && rm gtfs.zip
+
+
 # ideally i would have more railways included here
 # but it looks like e.g. each trenitalia region has their own feed
 # and i have run out of stamina
+
+# https://eu.data.public-transport.earth/ has more but i got bored
 ```
 
 <!-- i can't work out how this tool is supposed to work so probably don't do this
