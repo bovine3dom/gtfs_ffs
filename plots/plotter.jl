@@ -67,7 +67,7 @@ df = select_df(con(), """
 select company, headway, count(*) n from (select 
 company, stop_id, route_id, departure_time,
 dateDiff('minute', lagInFrame(departure_time, 1, departure_time) over (
-    partition by company, stop_id, route_id, tr.direction_id, if(tr.company in ('sncb', 'swiss'), tr.trip_headsign, null) -- only sncb uses headsign?
+    partition by company, stop_id, route_id, tr.direction_id, if(tr.company in ('sncb', 'swiss', 'se', 'ee', 'ns_nl', 'dk', 'obb'), tr.trip_headsign, null) -- only sncb uses headsign?
     order by departure_time asc
     rows between 1 preceding and current row
 ), departure_time) headway
@@ -79,21 +79,28 @@ left join gtfs_calendar ca on tr.service_id = ca.service_id and tr.company = ca.
 left join gtfs_calendar_dates cd on tr.service_id = cd.service_id and tr.company = cd.company
 left join gtfs_routes gr on tr.route_id = gr.route_id and tr.company = gr.company
 where true
---and tr.company != 'uk' -- uk data messed up / ages in the past
+and tr.company != 'uk' -- uk data messed up / ages in the past
 --and tr.company in ('ter', 'sncb', 'tgv') -- swiss data too messy?
-and (tr.company != 'swiss' or gr.route_type between 100 and 199)
-and ((cd.date = '2025-05-13' and cd.exception_type = 1) or (ca.start_date <= '2025-05-13' and ca.end_date >= '2025-05-13' and tuesday and not (cd.date = '2025-05-13' and cd.exception_type = 2)) or tr.company = 'uk')
+and (tr.company not in ('swiss', 'no', 'se', 'dk', 'ns_nl') or gr.route_type between 0 and 199)
+and ((cd.date = '2025-05-13' and cd.exception_type = 1) or (ca.start_date <= '2025-05-13' and ca.end_date >= '2025-05-13' and tuesday and not (cd.date = '2025-05-13' and cd.exception_type = 2)))
 )
 tr 
 on st.trip_id = tr.trip_id and st.company = tr.company
-) where headway between 1 and 60*5
+) why 
+where headway between 1 and 60*5
 group by all
 order by company, headway
 """)
 transform!(groupby(df, :company), :n => (x-> x./maximum(x)) => :n_norm)
 takts = [10, 15, 30, 60, 120, 240]
 ticks = takts
-plot(df.headway, df.n_norm, group=df.company, xscale=:log10, xlims=(10, 60*5), xticks=(ticks, string.(ticks))) # looks UK data is messed up, maybe they're not using real route IDs :(
+
+# estonia looks mega dodge
+# de_local too
+df2 = df[.!in.(df.company, Ref(["ee", "de_local"])), :]
+plot(df2.headway, df2.n_norm, group=df2.company, xscale=:log10, xlims=(10, 60*5), xticks=(ticks, string.(ticks))) # looks UK data is messed up, maybe they're not using real route IDs :(
+
+
 # there's still some noise in the data
 # e.g.
 #=
@@ -130,7 +137,7 @@ df = select_df(con(), """
 select geoToH3(stop_lon, stop_lat, 4) h3, headway, count(*) n from (select 
 company, stop_id, route_id, departure_time,
 dateDiff('minute', lagInFrame(departure_time, 1, departure_time) over (
-    partition by company, stop_id, route_id, tr.direction_id, if(tr.company in ('sncb', 'swiss'), tr.trip_headsign, null) -- only sncb uses headsign?
+    partition by company, stop_id, route_id, tr.direction_id, if(tr.company in ('sncb', 'swiss', 'se', 'ee', 'ns_nl', 'dk', 'obb'), tr.trip_headsign, null) -- only sncb uses headsign?
     order by departure_time asc
     rows between 1 preceding and current row
 ), departure_time) headway
@@ -142,9 +149,9 @@ left join gtfs_calendar ca on tr.service_id = ca.service_id and tr.company = ca.
 left join gtfs_calendar_dates cd on tr.service_id = cd.service_id and tr.company = cd.company
 left join gtfs_routes gr on tr.route_id = gr.route_id and tr.company = gr.company
 where true
-and tr.company != 'uk' -- uk data messed up / ages in the past
+and tr.company not in ('uk', 'ee', 'de_local') -- uk data messed up / ages in the past, ee and de_local too messy to be believable
 --and tr.company in ('ter', 'sncb', 'tgv') -- swiss data too messy?
-and (tr.company != 'swiss' or gr.route_type between 100 and 199)
+and (tr.company not in ('swiss', 'no', 'se', 'dk', 'ns_nl') or gr.route_type between 0 and 199)
 and ((cd.date = '2025-05-13' and cd.exception_type = 1) or (ca.start_date <= '2025-05-13' and ca.end_date >= '2025-05-13' and tuesday and not (cd.date = '2025-05-13' and cd.exception_type = 2)))
 )
 tr 
@@ -155,6 +162,10 @@ where headway between 1 and 60*5
 group by h3, headway
 """)
 # could be interesting to look at e.g. an entire week rather than just a single day to see how much stability there is
+
+function istakt(x; rtol=0.01, takts=[10, 15, 30, 60, 120, 240])
+    any(isapprox.(x, takts; rtol=rtol))
+end
 
 agg = combine(groupby(df[df.headway .> 5, :], :h3), 
     [:headway, :n] => ((t, n) -> mean(istakt.(t, rtol=0.01, takts=[10, 15, 30, 60, 120]), weights(n))) => :istakt,
@@ -169,3 +180,9 @@ CSV.write("$(homedir())/projects/H3-MON/www/data/h3_data.csv", agg[!, [:index, :
 
 # should maybe group by at the route level to get taktfulness by route/stop since an e.g. 15 minute then 30 minute headway would look fine on this
 # maybe something along the lines of max(taktfulness(takt)) for takt in 15, 30, 60 etc
+
+select_df(con(), "select distinct route_type, company from gtfs_routes") 
+select_df(con(), "select count(distinct(route_type)) c, company from gtfs_routes group by company order by c desc") # no, swiss, se, dk, ns_nl
+select_df(con(), "select count(distinct(trip_headsign)), company from gtfs_trips group by company") # se, ee, ns_nl, dk, tgv, sncb
+select_df(con(), "select count(distinct(direction_id)), company from gtfs_trips group by company") # no, ter, intercites, ns_nl, dk, tgv
+select_df(con(), "select distinct company from gtfs_trips") 
