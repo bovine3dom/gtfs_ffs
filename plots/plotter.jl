@@ -284,3 +284,68 @@ transform!(groupby(df2, :company), :c => (x-> x./sum(x)) => :c_norm)
 plot(df2.dwell_percent, df2.c_norm, group=df2.company, xlims=(0,0.2)) # noisy, not really credible
 agg = combine(groupby(df2, :company), [:dwell_percent, :c_norm] => ((d, n) -> quantile(d, weights(n), 0:0.01:1)) => :dwell_percent, :c => (n -> collect(0:0.01:1)) => :q) # there has to be a better way of doing this
 plot(agg.dwell_percent, agg.q, group=agg.company, xlims=(0,1), xlabel="Dwell percentage", ylabel="Quantile", yticks=0:0.1:1) # still looks implausible, IC/ICEs seem to spend to much of their journeys at stops. maybe they just have many more stops?
+
+
+
+
+# trip distances in distance and time. i wonder how many trips there will be. hehe. only 240k that's fine
+df = select_df(con(), "
+select distinct on (company, total_dist, total_t) company, st.trip_id, min(departure_time) dt, max(arrival_time) at, dateDiff('minute', dt, at) total_t, argMin(s2.stop_name, departure_time) start_stop, argMax(s2.stop_name, arrival_time) end_stop, sum(dist) total_dist from (
+select st.company company, st.stop_id, s2.stop_name, st.prev_stop, st.trip_id, geoDistance(s.stop_lon, s.stop_lat, s2.stop_lon, s2.stop_lat)/1000 dist, dateDiff('minute', prev_departure, departure_time)/60 t, dist/t speed, departure_time, arrival_time from (select *,
+    lagInFrame(departure_time, 1, departure_time) over (
+    --dateDiff(last_value(departure_time), first_value(departure_time)) over (
+        partition by st.company, st.trip_id, stop_headsign
+        order by departure_time asc
+        rows between 1 preceding and current row
+    ) prev_departure,
+    lagInFrame(stop_id, 1, stop_id) over (
+    --dateDiff(last_value(departure_time), first_value(departure_time)) over (
+        partition by st.company, st.trip_id, stop_headsign
+        order by departure_time asc
+        rows between 1 preceding and current row
+    ) prev_stop
+    from gtfs_stop_times st
+    left join gtfs_trips tr on tr.trip_id = st.trip_id and tr.company = st.company
+    left join gtfs_routes gr on tr.route_id = gr.route_id and tr.company = gr.company
+    left join gtfs_calendar ca on tr.service_id = ca.service_id and tr.company = ca.company
+    left join gtfs_calendar_dates cd on tr.service_id = cd.service_id and tr.company = cd.company
+    where true
+    --and tr.company not in ('uk', 'ee', 'de_local') -- uk data messed up / ages in the past, ee and de_local too messy to be believable
+    --and tr.company in ('ter', 'sncb', 'tgv') -- swiss data too messy?
+    and (tr.company not in ('swiss', 'no', 'se', 'dk', 'ns_nl') or gr.route_type between 0 and 199)
+    --and ((cd.date = '2025-05-13' and cd.exception_type = 1) or (ca.start_date <= '2025-05-13' and ca.end_date >= '2025-05-13' and tuesday and not (cd.date = '2025-05-13' and cd.exception_type = 2))) -- do we actually want this? probably don't care?
+) st
+left join gtfs_stops s on st.prev_stop = s.stop_id and st.company = s.company
+left join gtfs_stops s2 on st.stop_id = s2.stop_id and st.company = s2.company
+) group by all
+order by total_dist desc -- desc desc desc oops
+limit 1000
+")
+
+
+df.speed = df.total_dist./(df.total_t./60)
+sort!(df, :speed, rev=true)
+sort!(df, :total_dist, rev=true)
+df2 = df[in.(df.company, Ref(["tgv", "de_long"])), :]
+atfront(df[(df.speed .< 400) .&& (df.company .== "tgv") .&& (df.end_stop .== "Marseille Saint-Charles"), :], [:speed]) # some ns ones are ultra dodge
+# are ouigos not included or is it really not far to lille? i guess the tgvs all go on to brussels and are therefore quicker?
+# nice ville shows up in a lot of these but the data isn't credible. so that's nice (e.g. nice -> nancy i only measure 1000km but it comes out as 1300km)
+atfront(df[(df.speed .< 400) .&& (df.company .== "tgv"), :], [:speed]) # some ns ones are ultra dodge
+df2 = df
+# transform!(groupby(df2, :company), :c => (x-> x./sum(x)) => :c_norm)
+# plot(df2.speed, df2.c_norm, group=df2.company)
+
+atfront(df[(df.total_dist .< 1500) .&& (df.speed .< 400), :][1:50, :], [:speed, :total_dist])
+
+df2 = df[(df.total_t .< 60*24) .&& (10 .< df.total_dist .< 2000) .&& (10 .< df.speed .< 400) .&& .!(in.(df.company, Ref(["de_local", "ns_nl", "ee", "dk", "no"]))), :] # the data quality of this stuff is horrendous
+transform!(groupby(df2, :company), nrow)
+sort!(df2, :nrow, rev=true)
+scatter(; legend=:outerright, markersize=1, markerstrokewidth=0.01, xlabel="Total station-to-station straight line distance, km", ylabel="Speed, km/h") # oh god we need to aggregate this
+for c in unique(df2.company)
+    scatter!(df2[df2.company .== c, :total_dist], df2[df2.company .== c, :speed], label=c, legend=:outerright, markersize=1, markerstrokewidth=0.5, marker=:auto, markeropacity=0.5)
+end
+scatter!()
+
+df2[(df2.company .== "uk") .&& (df2.total_dist .> 200) .&& (df2.speed .< 50) .&& (df2.total_t .< 60*24), :]
+
+atfront(sort(df2, :total_dist, rev=true), [:total_dist])
