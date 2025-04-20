@@ -318,8 +318,7 @@ select st.company company, st.stop_id, s2.stop_name, st.prev_stop, st.trip_id, g
 left join gtfs_stops s on st.prev_stop = s.stop_id and st.company = s.company
 left join gtfs_stops s2 on st.stop_id = s2.stop_id and st.company = s2.company
 ) group by all
-order by total_dist desc -- desc desc desc oops
-limit 1000
+order by total_dist desc
 ")
 
 
@@ -349,3 +348,51 @@ scatter!()
 df2[(df2.company .== "uk") .&& (df2.total_dist .> 200) .&& (df2.speed .< 50) .&& (df2.total_t .< 60*24), :]
 
 atfront(sort(df2, :total_dist, rev=true), [:total_dist])
+
+
+# fastest TERs, fastest TGVs. quantiles thereof? probably should weight quantiles by duration? not-belgian dude wanted to know marseille -> paris
+
+sort!(df2, :speed, rev=true)
+atfront(df2[(df2.company .== "tgv") .&& (df2.end_stop .== "Marseille Saint-Charles"), :], [:speed])
+
+# take best case speed. make distance/time up
+agg = combine(groupby(df2, [:company, :end_stop, :start_stop]), :speed => maximum => :speed, :total_dist => median => :total_dist, :total_t => minimum => :total_t)
+sort!(agg, :speed, rev=true)
+atfront(agg[(agg.company .== "tgv") .&& (agg.end_stop .== "Marseille Saint-Charles"), :], [:speed])
+agg2 = combine(groupby(agg, :company), g -> addquantiles!(g, :speed), :start_stop, :end_stop, :speed, :total_dist, :total_t) # not sure why transform! doesn't work
+rename!(agg2, :x1 => :speed_quantile)
+atfront(agg2[(agg2.company .== "tgv") .&& (agg2.end_stop .== "Marseille Saint-Charles"), :], [:speed])
+
+
+scatter(; legend=:outerright, markersize=1, markerstrokewidth=0.01, xlabel="Total station-to-station straight line distance, km", ylabel="Speed, km/h") # aggregated :)
+for c in unique(agg2.company)
+    scatter!(agg2[agg2.company .== c, :total_dist], agg2[agg2.company .== c, :speed], label=c, legend=:outerright, markersize=1, markerstrokewidth=0.5, marker=:auto, markeropacity=0.5)
+end
+scatter!()
+
+
+# so, quickest TGVs
+sort!(agg2, :speed, rev=true)
+atfront(agg2[(agg2.company .== "tgv"), :], [:speed])
+atfront(agg2[(agg2.company .== "intercites"), :][1:20, :], [:speed])
+atfront(agg2[(agg2.company .== "de_long"), :][1:20, :], [:speed])
+
+sort!(agg2, :total_dist, rev=true)
+atfront(agg2[(agg2.company .== "ter"), :][1:20, :], [:total_dist])
+atfront(agg2[(agg2.company .== "intercites"), :][1:20, :], [:total_dist])
+
+# slowest
+atfront(agg2[(agg2.company .== "tgv"), :][end:-1:end-19, :], [:speed])
+# df2[(df2.company .== "tgv") .&& (df2.start_stop .== "Saint-Gervais-les-Bains-Le Fayet"), :] # doesn't seem to actually exist :(
+
+plot(agg2.speed, agg2.speed_quantile, group=agg2.company, legend=:outerright)
+
+
+agg3 = agg[(agg.company .!= "swiss") .|| ((agg.speed .< 180) .&& (agg.total_dist .< 200)), :] # exclude TGVs from Swiss data
+sort!(agg3, :speed)
+transform!(groupby(agg3, :company), [:speed, :total_t] => ((s, t) -> cumsum(s.*t)./sum(s.*t)) => :speed_wq)
+
+plot(agg3.speed, agg3.speed_wq, group=agg3.company, legend=:outerright,
+series_annotations=map(c -> text(rand() < 0.003 ? c : "", :bottom, 3), agg3.company), # this is ugly but it helps a bit i guess
+xlabel="Station-to-station straight line speed, km/h", ylabel="Journey duration weighted quantile",
+) # weighted by how long the route is
