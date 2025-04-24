@@ -66,6 +66,10 @@ set GTFS_URL 'https://data.public-transport.earth/gtfs/se'
 set GTFS_COMPANY se
 wget $GTFS_URL -O gtfs.zip && 7za -ocompany=$GTFS_COMPANY x gtfs.zip && rm gtfs.zip
 
+set GTFS_URL 'https://static.oebb.at/open-data/soll-fahrplan-gtfs/GTFS_OP_2025_obb.zip'
+set GTFS_COMPANY obb
+wget $GTFS_URL -O gtfs.zip && 7za -ocompany=$GTFS_COMPANY x gtfs.zip && rm gtfs.zip
+
 
 # ideally i would have more railways included here
 # but it looks like e.g. each trenitalia region has their own feed
