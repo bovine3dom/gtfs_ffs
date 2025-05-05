@@ -695,7 +695,7 @@ lower = quantile(df.bedtime_int, 0.01)
 upper = quantile(df.bedtime_int, 0.99)
 df.value = (df.bedtime_int .- lower) ./ (upper - lower)
 sort!(df, :value)
-probes = 0:0.1:1.0
+probes = 0:0.2:1.0 # looks like this always needs to be 0:0.2:1.0
 probe_times = Time.(df[map(p -> findfirst(>=(p), df.value), probes), :bedtime])
 mkpath("$(homedir())/projects/H3-MON/www/data/$(today())")
 write("""$(homedir())/projects/H3-MON/www/data/$(today())/bedtime.json""", 
