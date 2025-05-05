@@ -611,3 +611,102 @@ write("""$(homedir())/projects/H3-MON/www/data/$(today())/taktness.json""", JSON
     "c" => "Transitous et al.",
 )))
 CSV.write("""$(homedir())/projects/H3-MON/www/data/$(today())/taktness.csv""", df[!, [:index, :value]])
+
+
+####
+#
+# train bed time
+#
+####
+# utilisation over 24 hours
+
+###
+#
+# by 'trip'
+#
+###
+df = select_df(con(), """
+-- number of trains* active in 15 minute intervals throughout the day
+-- ignoring ones that started the day before :)
+-- * in switzerland we use a broad definition of trains which includes, buses, ferries and apparently even taxis?
+-- todo: daft switcherooo here: best effort parse datetime parses to 2025-01-01, toTime parses to 1970-01-2
+with probes as (select addMinutes('1970-01-02', number*5) probe from numbers(24*12)) -- +1)) if you want to include the next day
+select sum(probe between yes.dt and yes.at) c, probe, source from probes pr
+left outer join (
+select toTime(min(departure_time)) dt, toTime(max(if(arrival_time >= '2025-01-02', parseDateTimeBestEffort('2025-01-01 23:59:59'), arrival_time))) at, trip_id, source from transitous_stop_times_one_day st
+where true
+group by trip_id, source
+union all
+-- this segment here to support trains that run overnight
+select toTime(parseDateTimeBestEffort('2025-01-01 00:00:00')) dt, toTime(max(arrival_time)) at, trip_id, source from transitous_stop_times_one_day st
+group by trip_id, source
+having toDate(min(departure_time)) < toDate(max(arrival_time))
+) yes on true -- clickhouse doesn't support < or > on joins so we do an outer join :(
+group by probe, source
+order by probe
+""")
+
+transform!(groupby(df, :company), :c => (x-> x./maximum(x)) => :utilisation)
+# df.probe = Time.(df.probe, "yyyy-mm-dd HH:MM:SS.SSS") # not needed if not using the CSV
+df.probe = Time.(df.probe) # not needed if not using the CSV
+plot(df.probe, df.utilisation, group=df.source, xticks=Time(0):Minute(120):Time(23,59), xrot=45, xlims=(Time(0), Time(23,59)), ylabel="# of services running as fraction of peak")
+# JSON.json(Dict("scale" => Dict(zip([0, 0.2, 0.4, 0.6, 0.8, 1], round.(f.([0.0001, 0.2, 0.4, 0.6, 0.8, 0.9999]), sigdigits=2)))))
+# scale: data must be 0-1. lhs gives you values of the data as presented in the CSV, rhs gives you labels for those values (i.e. the 'real' values)
+
+###
+#
+# by 'station'
+#
+###
+df = select_df(con(), """
+-- todo: daft switcherooo here: best effort parse datetime parses to 2025-01-01, toTime parses to 1970-01-2
+with 
+60 as delta,
+'2025-01-01' as start,
+probes as (select addMinutes(start, number*delta) probe from numbers(24*2*(60/delta))) -- * 2 = 2 days
+select any(probe) bedtime, h3 from (
+--select argMin(probe, abs(p - 0.1)) bedtime, h3 from (
+select sum(yes.dt between probe and addMinutes(probe, delta)) c, c/(max(c) over wndw) p, probe, geoToH3(stop_lon, stop_lat, 5) h3 from probes pr
+left outer join (
+select departure_time dt, stop_lon, stop_lat from transitous_stop_times_one_day st
+where true
+--and source ilike 'ch_%'
+) yes on true -- clickhouse doesn't support < or > on joins so we do an outer join :(
+group by all
+window wndw as (
+    partition by h3
+    rows between unbounded preceding and unbounded following
+)
+order by probe
+)
+where probe >= '2025-01-01 17:00:00' -- todo: use 'start' + 5pm
+-- where probe >= '1970-01-02 12:00:00' -- lol, i had to increase this because french lunchtimes kept setting it off
+and c > 0
+and p <= 0.5
+group by all
+""")
+# looks like bedtime past midnight doesn't work :(
+df.index = string.(df.h3, base=16)
+df.bedtime_int = map(x-> x.instant.periods.value, df.bedtime)
+df.t_bedtime = Time.(df.bedtime)
+#df = df[df.bedtime_int .> 0, :]
+# scaled between zero and one
+lower = quantile(df.bedtime_int, 0.01)
+upper = quantile(df.bedtime_int, 0.99)
+df.value = (df.bedtime_int .- lower) ./ (upper - lower)
+sort!(df, :value)
+probes = 0:0.1:1.0
+probe_times = Time.(df[map(p -> findfirst(>=(p), df.value), probes), :bedtime])
+mkpath("$(homedir())/projects/H3-MON/www/data/$(today())")
+write("""$(homedir())/projects/H3-MON/www/data/$(today())/bedtime.json""", 
+    JSON.json(Dict(
+    "t" => "The first time after 5pm at which fewer than 50% of peak services are running",
+    "raw" => true,
+    "c" => "Transitous et al.",
+    "scale" => Dict(zip(probes, probe_times)),
+)))
+CSV.write("""$(homedir())/projects/H3-MON/www/data/$(today())/bedtime.csv""", df[!, [:index, :value, :t_bedtime]])
+
+# reuse the 'start' thing in the probe narrowing
+# fix nap time at 3pm for france, which then goes up to peak (somewhat fixed by starting at 5pm)
+# fix places that never drop below 50% (somewhat fixed by going over midnight)
