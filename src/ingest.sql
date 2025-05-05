@@ -177,7 +177,7 @@ FROM file('transitous/source=*/trips.txt', 'CSVWithNames', '
     bikes_allowed String
 '
 ) tt
-inner join transitous_routes tr on tt.route_id = tr.route_id and tt.source = tr.source
+left semi join transitous_routes tr on tt.route_id = tr.route_id and tt.source = tr.source
 WHERE true
 SETTINGS use_hive_partitioning = 1;
 
@@ -217,7 +217,7 @@ FROM file('transitous/source=*/stop_times.txt', 'CSVWithNames', '
     timepoint String,
     local_zone_id String
 ') st
-inner join transitous_trips tt on st.trip_id = tt.trip_id and st.source = tt.source
+left semi join transitous_trips tt on st.trip_id = tt.trip_id and st.source = tt.source
 WHERE true
 SETTINGS use_hive_partitioning = 1;
 
@@ -257,7 +257,7 @@ FROM file('transitous/source=*/stops.txt', 'CSVWithNames', '
     level_id String,
     platform_code String
 ') ts
-inner join transitous_stop_times st on ts.stop_id = st.stop_id and ts.source = st.source
+left semi join transitous_stop_times st on ts.stop_id = st.stop_id and ts.source = st.source
 WHERE true
 SETTINGS use_hive_partitioning = 1;
 
@@ -289,7 +289,7 @@ FROM file('transitous/source=*/calendar.txt', 'CSVWithNames', '
     start_date String,
     end_date String
 ') tc
-inner join transitous_trips tt on tc.service_id = tt.service_id and tc.source = tt.source
+left semi join transitous_trips tt on tc.service_id = tt.service_id and tc.source = tt.source
 WHERE true
 SETTINGS use_hive_partitioning = 1;
 
@@ -307,7 +307,7 @@ FROM file('transitous/source=*/calendar_dates.txt', 'CSVWithNames', '
     date String,
     exception_type String
 ') tcd
-inner join transitous_trips tt on tcd.service_id = tt.service_id and tcd.source = tt.source
+left semi join transitous_trips tt on tcd.service_id = tt.service_id and tcd.source = tt.source
 WHERE true
 SETTINGS use_hive_partitioning = 1;
 
@@ -335,19 +335,18 @@ FROM file('transitous/source=*/agency.txt', 'CSVWithNames', '
     agency_lang String,
     agency_phone String
 ') ta
-inner join transitous_routes tr on tr.agency_id = ta.agency_id and ta.source = tr.source
+left semi join transitous_routes tr on tr.agency_id = ta.agency_id and ta.source = tr.source
 WHERE true
 SETTINGS use_hive_partitioning = 1;
 
 
 -- one big table for convenience
--- ... takes more than three days to run and doesn't seem to get anywhere
-CREATE TABLE transitous_stop_times_one_day
+CREATE TABLE transitous_stop_times_one_day -- 250 seconds 😎
 ENGINE MergeTree
 order by (source, stop_id, trip_id, arrival_time, departure_time)
 settings allow_nullable_key = 1
 as
-select distinct 
+select
 agency_id,
 arrival_time,
 bikes_allowed,
@@ -413,3 +412,28 @@ left join transitous_calendar_dates cd on cd.service_id = tr.service_id and cd.s
 left join transitous_stops ts on st.stop_id = ts.stop_id and st.source = ts.source
 where true
 and ((cd.date = '2025-05-13' and cd.exception_type = 1) or (ca.start_date <= '2025-05-13' and ca.end_date >= '2025-05-13' and tuesday and not (cd.date = '2025-05-13' and cd.exception_type = 2)))
+
+
+-- attempt two: first find active services
+with active_services as (
+    select ca.service_id service_id, ca.source source from transitous_calendar as ca
+    left anti join transitous_calendar_dates as cd_remove on
+    ca.service_id = cd_remove.service_id and ca.source = cd_remove.source
+    and cd_remove.date = '2025-05-13' and cd_remove.exception_type = 2
+    where true
+    and ca.start_date <= '2025-05-13' and ca.end_date >= '2025-05-13'
+    and ca.tuesday
+    union distinct
+    SELECT cd.service_id service_id, cd.source source
+    FROM transitous_calendar_dates AS cd
+    WHERE cd.date = '2025-05-13'
+    AND cd.exception_type = 1
+)
+select * from transitous_trips tst
+inner join active_services on active_services.service_id = tst.service_id and active_services.source = tst.source
+inner join transitous_stop_times st on tst.trip_id = st.trip_id and tst.source = st.source
+inner join transitous_stops ts on st.stop_id = ts.stop_id and st.source = st.source -- they don't seem to be unique? 10 rows -> 6700
+limit 10
+
+
+select stop_id, source, count(*) from transitous_stops group by stop_id, source limit 10
