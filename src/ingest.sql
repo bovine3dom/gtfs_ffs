@@ -341,80 +341,12 @@ SETTINGS use_hive_partitioning = 1;
 
 
 -- one big table for convenience
+DROP TABLE IF EXISTS transitous_stop_times_one_day;
 CREATE TABLE transitous_stop_times_one_day -- 250 seconds 😎
 ENGINE MergeTree
 order by (source, stop_id, trip_id, arrival_time, departure_time)
 settings allow_nullable_key = 1
-as
-select
-agency_id,
-arrival_time,
-bikes_allowed,
-block_id,
-ca.service_id service_id,
-ca.source source,
-date,
-departure_time,
-direction_id,
-drop_off_type,
-end_date,
-exception_type,
-friday,
-level_id,
-local_zone_id,
-location_type,
-monday,
-parent_station,
-pickup_type,
-platform_code,
-ro.continuous_drop_off continuous_drop_off,
-ro.continuous_pickup continuous_pickup,
-ro.route_id route_id,
-route_color,
-route_desc,
-route_long_name,
-route_short_name,
-route_sort_order,
-route_text_color,
-route_type,
-route_url,
-saturday,
-shape_dist_traveled,
-shape_id,
-st.stop_id stop_id,
-st.trip_id trip_id,
-start_date,
-stop_code,
-stop_desc,
-stop_headsign,
-stop_lat,
-stop_lon,
-stop_name,
-stop_sequence,
-stop_timezone,
-stop_url,
-sunday,
-thursday,
-timepoint,
-tr.route_id,
-trip_headsign,
-trip_short_name,
-tuesday,
-wednesday,
-wheelchair_accessible,
-wheelchair_boarding,
-zone_id
-from transitous_stop_times st -- why do we need distinct :(
-left join transitous_trips tr on tr.trip_id = st.trip_id and tr.source = st.source
-left join transitous_routes ro on tr.route_id = ro.route_id and tr.source = ro.source
-left join transitous_calendar ca on tr.service_id = ca.service_id and tr.source = ca.source
-left join transitous_calendar_dates cd on cd.service_id = tr.service_id and cd.source = tr.source
-left join transitous_stops ts on st.stop_id = ts.stop_id and st.source = ts.source
-where true
-and ((cd.date = '2025-05-13' and cd.exception_type = 1) or (ca.start_date <= '2025-05-13' and ca.end_date >= '2025-05-13' and tuesday and not (cd.date = '2025-05-13' and cd.exception_type = 2)))
-
-
--- attempt two: first find active services
+AS
 with active_services as (
     select ca.service_id service_id, ca.source source from transitous_calendar as ca
     left anti join transitous_calendar_dates as cd_remove on
@@ -429,11 +361,52 @@ with active_services as (
     WHERE cd.date = '2025-05-13'
     AND cd.exception_type = 1
 )
-select * from transitous_trips tst
+select
+arrival_time,
+bikes_allowed,
+block_id,
+tst.service_id service_id,
+tst.source source,
+departure_time,
+direction_id,
+drop_off_type,
+level_id,
+local_zone_id,
+location_type,
+parent_station,
+pickup_type,
+platform_code,
+st.stop_id stop_id,
+tst.trip_id trip_id,
+ro.continuous_drop_off continuous_drop_off,
+ro.continuous_pickup continuous_pickup,
+ro.route_id route_id,
+route_color,
+route_desc,
+route_long_name,
+route_short_name,
+route_sort_order,
+route_text_color,
+route_type,
+route_url,
+stop_code,
+stop_desc,
+stop_headsign,
+stop_lat,
+stop_lon,
+stop_name,
+stop_sequence,
+stop_timezone,
+stop_url,
+timepoint,
+trip_headsign,
+trip_short_name,
+wheelchair_accessible,
+wheelchair_boarding,
+zone_id
+from transitous_trips tst
 inner join active_services on active_services.service_id = tst.service_id and active_services.source = tst.source
 inner join transitous_stop_times st on tst.trip_id = st.trip_id and tst.source = st.source
 inner join transitous_stops ts on st.stop_id = ts.stop_id and st.source = st.source -- they don't seem to be unique? 10 rows -> 6700
-limit 10
-
-
-select stop_id, source, count(*) from transitous_stops group by stop_id, source limit 10
+inner join transitous_trips tr on tst.trip_id = tr.trip_id and tst.source = tr.source
+inner join transitous_routes ro on tr.route_id = ro.route_id and tr.source = ro.source

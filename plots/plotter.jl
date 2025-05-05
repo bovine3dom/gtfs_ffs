@@ -1,5 +1,6 @@
 #!/bin/julia
-using Plots, CSV, DataFrames, Dates
+using Plots
+using JSON, CSV, DataFrames, Dates
 
 include("lib.jl")
 
@@ -396,3 +397,217 @@ plot(agg3.speed, agg3.speed_wq, group=agg3.company, legend=:outerright,
 series_annotations=map(c -> text(rand() < 0.003 ? c : "", :bottom, 3), agg3.company), # this is ugly but it helps a bit i guess
 xlabel="Station-to-station straight line speed, km/h", ylabel="Journey duration weighted quantile",
 ) # weighted by how long the route is
+
+
+####
+#
+# transitous instead
+#
+####
+
+df = select_df(con(), """
+    select geoToH3(stop_lon, stop_lat, 1) h3, count(*) value from transitous_stops
+    group by h3
+""")
+df.index = string.(df.h3, base=16)
+mkpath("$(homedir())/projects/H3-MON/www/data/$(today())")
+CSV.write("""$(homedir())/projects/H3-MON/www/data/$(today())/railway_stations.csv""", df[!, [:index, :value]])
+
+select_df(con(), """
+    select route_type, count(*) c from transitous_routes
+    group by all
+    order by c
+""")
+
+df = select_df(con(), """
+    select geoToH3(stop_lon, stop_lat, 2) h3, anyHeavy(route_type) value from transitous_stops ts
+    inner join (select route_type, trip_id, source from transitous_routes tr
+    inner join (select arrayJoin(topK(1000)(trip_id)) trip_id, route_id, source from transitous_trips
+    group by route_id, source
+    ) tt on tt.route_id = tr.route_id and tt.source = tr.source) tr on ts.stop_id = tr.trip_id and ts.source = tr.source
+    group by all
+""")
+df.index = string.(df.h3, base=16)
+mkpath("$(homedir())/projects/H3-MON/www/data/$(today())")
+CSV.write("""$(homedir())/projects/H3-MON/www/data/$(today())/railway_stations.csv""", df[!, [:index, :value]])
+
+t = select_df(con(), """
+    select tst.* from transitous_stops ts
+    left join transitous_stop_times tst on ts.stop_id = tst.stop_id
+    where ts.stop_name ilike '%cuneo f.s.%'
+""")
+
+select_df(con(), """
+    select tr.* from transitous_trips tt
+    inner join transitous_routes tr on tr.route_id = tt.route_id
+    where trip_id in $(julia2clickhouse(t.trip_id))
+""")
+select_df(con(), """
+    select arrayJoin(topK(2)(trip_id)) trip_id, route_id from transitous_trips
+    group by route_id
+    limit 10
+""")
+    
+# maybe i should have made source the first index after all
+t = select_df(con(), """
+    select tst.* from transitous_stops ts
+    left join transitous_stop_times tst on ts.stop_id = tst.stop_id and ts.source = tst.source
+    where geoToH3(stop_lon, stop_lat, 6) = reinterpretAsUInt64(reverse(unhex('861f9a50fffffff')))
+""")
+
+df = select_df(con(), """
+    select geoToH3(stop_lon, stop_lat, 6) h3, anyHeavy(route_type) value from transitous_stop_times tst
+    inner join transitous_trips tt on tst.trip_id = tt.trip_id and tst.source = tt.source
+    inner join transitous_routes tr on tt.route_id = tr.route_id and tt.source = tr.source
+    inner join transitous_stops ts on ts.stop_id = tt.trip_id and ts.source = tt.source
+    group by all
+""") # why are they all in romania wtf?
+df.index = string.(df.h3, base=16)
+mkpath("$(homedir())/projects/H3-MON/www/data/$(today())")
+CSV.write("""$(homedir())/projects/H3-MON/www/data/$(today())/railway_stations.csv""", df[!, [:index, :value]])
+
+
+df = select_df(con(), """
+    select distinct * from transitous_stop_times st -- why do we need distinct :(
+    left join transitous_trips tr on tr.trip_id = st.trip_id and tr.source = st.source
+    left join transitous_routes ro on tr.route_id = ro.route_id and tr.source = ro.source
+    left join transitous_calendar ca on tr.service_id = ca.service_id and tr.source = ca.source
+    left join transitous_calendar_dates cd on cd.service_id = tr.service_id and cd.source = tr.source
+    where true
+    and ((cd.date = '2025-05-13' and cd.exception_type = 1) or (ca.start_date <= '2025-05-13' and ca.end_date >= '2025-05-13' and tuesday and not (cd.date = '2025-05-13' and cd.exception_type = 2)))
+    limit 10
+""")
+
+
+
+df = select_df(con(), "
+select distinct on (company, total_dist, total_t) company, st.trip_id, min(departure_time) dt, max(arrival_time) at, dateDiff('minute', dt, at) total_t, argMin(s2.stop_name, departure_time) start_stop, argMax(s2.stop_name, arrival_time) end_stop, sum(dist) total_dist from (
+select st.company company, st.stop_id, s2.stop_name, st.prev_stop, st.trip_id, geoDistance(s.stop_lon, s.stop_lat, s2.stop_lon, s2.stop_lat)/1000 dist, dateDiff('minute', prev_departure, departure_time)/60 t, dist/t speed, departure_time, arrival_time from (select *,
+    lagInFrame(departure_time, 1, departure_time) over (
+    --dateDiff(last_value(departure_time), first_value(departure_time)) over (
+        partition by st.company, st.trip_id, stop_headsign
+        order by departure_time asc
+        rows between 1 preceding and current row
+    ) prev_departure,
+    lagInFrame(stop_id, 1, stop_id) over (
+    --dateDiff(last_value(departure_time), first_value(departure_time)) over (
+        partition by st.company, st.trip_id, stop_headsign
+        order by departure_time asc
+        rows between 1 preceding and current row
+    ) prev_stop
+    from gtfs_stop_times st
+    left join gtfs_trips tr on tr.trip_id = st.trip_id and tr.company = st.company
+    left join gtfs_routes gr on tr.route_id = gr.route_id and tr.company = gr.company
+    left join gtfs_calendar ca on tr.service_id = ca.service_id and tr.company = ca.company
+    left join gtfs_calendar_dates cd on tr.service_id = cd.service_id and tr.company = cd.company
+    where true
+    --and tr.company not in ('uk', 'ee', 'de_local') -- uk data messed up / ages in the past, ee and de_local too messy to be believable
+    --and tr.company in ('ter', 'sncb', 'tgv') -- swiss data too messy?
+    and (tr.company not in ('swiss', 'no', 'se', 'dk', 'ns_nl') or gr.route_type between 0 and 199)
+    --and ((cd.date = '2025-05-13' and cd.exception_type = 1) or (ca.start_date <= '2025-05-13' and ca.end_date >= '2025-05-13' and tuesday and not (cd.date = '2025-05-13' and cd.exception_type = 2))) -- do we actually want this? probably don't care?
+) st
+left join gtfs_stops s on st.prev_stop = s.stop_id and st.company = s.company
+left join gtfs_stops s2 on st.stop_id = s2.stop_id and st.company = s2.company
+) group by all
+order by total_dist desc
+")
+
+
+df = select_df(con(), """
+    select geoToH3(stop_lon, stop_lat, 4) h3, count(*) value from transitous_stop_times_one_day
+    group by all
+""")
+df.index = string.(df.h3, base=16)
+mkpath("$(homedir())/projects/H3-MON/www/data/$(today())")
+CSV.write("""$(homedir())/projects/H3-MON/www/data/$(today())/station_calls_per_day.csv""", df[!, [:index, :value]])
+
+df = select_df(con(), """
+    select * from transitous_stop_times_one_day
+    where stop_name = 'Nice-Ville'
+    order by arrival_time
+    limit 10
+""")
+
+
+# these trips are all listed as running at the same time but they can't
+julia> atfront(df, [:trip_id])[5:8, :trip_id]
+4-element Vector{String}:
+ "OCESA466775R3997023:2025-04-26T22:42:03Z"
+ "OCESA466777R3997021:2025-04-26T22:42:03Z"
+ "OCESA86002F3839666:2025-03-19T23:52:12Z"
+ "OCESA881351F3994630:2025-04-26T22:42:03Z"
+
+select_df(con(), """
+     select * from transitous_trips
+ where trip_id = 'OCESA466777R3997021:2025-04-26T22:42:03Z'
+     limit 1
+""")
+
+df = select_df(con(), """
+    select * from transitous_stop_times_one_day
+    where stop_name = 'Nice-Ville'
+    order by arrival_time
+    limit 10
+""")
+# :( 
+# julia> df[5:8, [:stop_id, :direction_id]] # it is bus and train but they're listed as the same direction so god knows what's going on
+
+select_df(con(), """
+    select * from transitous_calendar_dates
+    where true
+    and service_id in ('000015' , '003318')
+    and source = 'fr_horaires-des-lignes-ter-sncf.gtfs'
+    and date = '2025-05-13'
+""") # they're both listed as running
+select_df(con(), """
+    select * from transitous_routes tr
+    left semi join (select route_id, source from transitous_trips where trip_id in $(julia2clickhouse(df[5:8, [:stop_id, :direction_id, :service_id, :trip_id]].trip_id))
+    and source = 'fr_horaires-des-lignes-ter-sncf.gtfs') tt on tt.route_id = tr.route_id and tt.source = tr.source
+""") # .. fine, they're really real
+
+
+# debugging, sanity check whether a station has plausible headways
+df = select_df(con(), """
+select * from (
+select 
+source, stop_id, route_id, departure_time, trip_headsign, stop_lon, stop_lat, stop_name,
+dateDiff('minute', lagInFrame(departure_time, 1, departure_time) over (
+    partition by source, stop_id, route_id, direction_id, if(direction_id = 0, trip_headsign, null) -- fall back to headsign only if direction_id is not 1
+    order by departure_time asc
+    rows between 1 preceding and current row
+), departure_time) headway
+from transitous_stop_times_one_day st
+where true
+and source ilike 'be_%'
+and stop_name ilike '%antwerpen-centraal%'
+and stop_name != trip_headsign
+order by departure_time
+)
+where headway > 0
+""")
+
+using UnicodePlots
+df = select_df(con(), """
+select avg(mod(60, headway) == 0) value, geoToH3(stop_lon, stop_lat, 5) h3 from (
+select 
+source, stop_id, route_id, departure_time, trip_headsign, stop_lon, stop_lat,
+dateDiff('minute', lagInFrame(departure_time, 1, departure_time) over (
+    partition by source, stop_id, route_id, direction_id, if(direction_id = 0, trip_headsign, null) -- fall back to headsign only if direction_id is not 1
+    order by departure_time asc
+    rows between 1 preceding and current row
+), departure_time) headway
+from transitous_stop_times_one_day st
+where true
+and ((trip_headsign = '') or (trip_headsign != stop_name))
+)
+where headway between 10 and 60*5 -- exclude sub-10 minute headway because we're not following a timetable at that point
+group by all
+""")
+df.index = string.(df.h3, base=16)
+mkpath("$(homedir())/projects/H3-MON/www/data/$(today())")
+write("""$(homedir())/projects/H3-MON/www/data/$(today())/taktness.json""", JSON.json(Dict(
+    "t" => "Fraction of departures following a clockface schedule",
+    "raw" => true,
+    "c" => "Transitous et al.",
+)))
+CSV.write("""$(homedir())/projects/H3-MON/www/data/$(today())/taktness.csv""", df[!, [:index, :value]])
