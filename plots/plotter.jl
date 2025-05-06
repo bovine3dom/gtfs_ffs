@@ -578,8 +578,9 @@ dateDiff('minute', lagInFrame(departure_time, 1, departure_time) over (
 ), departure_time) headway
 from transitous_stop_times_one_day st
 where true
-and source ilike 'be_%'
-and stop_name ilike '%antwerpen-centraal%'
+and source ilike 'fr_%'
+--and stop_name ilike '%Nice-Ville%'
+and stop_name = 'Nice-Ville'
 and stop_name != trip_headsign
 order by departure_time
 )
@@ -611,6 +612,36 @@ write("""$(homedir())/projects/H3-MON/www/data/2025-05-05/taktness.json""", JSON
     "c" => "Transitous et al.",
 )))
 CSV.write("""$(homedir())/projects/H3-MON/www/data/2025-05-05/taktness.csv""", df[!, [:index, :value]])
+
+####
+#
+# Lenient taktishness
+#
+####
+df = select_df(con(), """
+select avg(least(mod(60, headway), headway - mod(60, headway)) <= 5) value, geoToH3(stop_lon, stop_lat, 5) h3 from (
+select 
+source, stop_id, route_id, departure_time, trip_headsign, stop_lon, stop_lat,
+dateDiff('minute', lagInFrame(departure_time, 1, departure_time) over (
+    partition by source, stop_id, route_id, direction_id, if(direction_id = 0 OR direction_id is null, trip_headsign, null) -- fall back to headsign only if direction_id is not 1
+    order by departure_time asc
+    rows between 1 preceding and current row
+), departure_time) headway
+from transitous_stop_times_one_day st
+where true
+and ((trip_headsign = '') or (trip_headsign != stop_name))
+)
+where headway between 10 and 60*5 -- exclude sub-10 minute headway because we're not following a timetable at that point
+group by all
+""")
+df.index = string.(df.h3, base=16)
+mkpath("$(homedir())/projects/H3-MON/www/data/$(today())")
+write("""$(homedir())/projects/H3-MON/www/data/$(today())/taktishness.json""", JSON.json(Dict(
+    "t" => "Fraction of departures almost following a clockface schedule",
+    "raw" => true,
+    "c" => "Transitous et al.",
+)))
+CSV.write("""$(homedir())/projects/H3-MON/www/data/$(today())/taktishness.csv""", df[!, [:index, :value]])
 
 
 ####
