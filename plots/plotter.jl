@@ -572,7 +572,7 @@ select * from (
 select 
 source, stop_id, route_id, departure_time, trip_headsign, stop_lon, stop_lat, stop_name,
 dateDiff('minute', lagInFrame(departure_time, 1, departure_time) over (
-    partition by source, stop_id, route_id, direction_id, if(direction_id = 0, trip_headsign, null) -- fall back to headsign only if direction_id is not 1
+    partition by source, stop_id, route_id, direction_id, if(direction_id = 0 OR direction_id is null, trip_headsign, null) -- fall back to headsign only if direction_id is not 1
     order by departure_time asc
     rows between 1 preceding and current row
 ), departure_time) headway
@@ -592,7 +592,7 @@ select avg(mod(60, headway) == 0) value, geoToH3(stop_lon, stop_lat, 5) h3 from 
 select 
 source, stop_id, route_id, departure_time, trip_headsign, stop_lon, stop_lat,
 dateDiff('minute', lagInFrame(departure_time, 1, departure_time) over (
-    partition by source, stop_id, route_id, direction_id, if(direction_id = 0, trip_headsign, null) -- fall back to headsign only if direction_id is not 1
+    partition by source, stop_id, route_id, direction_id, if(direction_id = 0 OR direction_id is null, trip_headsign, null) -- fall back to headsign only if direction_id is not 1
     order by departure_time asc
     rows between 1 preceding and current row
 ), departure_time) headway
@@ -604,13 +604,13 @@ where headway between 10 and 60*5 -- exclude sub-10 minute headway because we're
 group by all
 """)
 df.index = string.(df.h3, base=16)
-mkpath("$(homedir())/projects/H3-MON/www/data/$(today())")
-write("""$(homedir())/projects/H3-MON/www/data/$(today())/taktness.json""", JSON.json(Dict(
+mkpath("$(homedir())/projects/H3-MON/www/data/2025-05-05")
+write("""$(homedir())/projects/H3-MON/www/data/2025-05-05/taktness.json""", JSON.json(Dict(
     "t" => "Fraction of departures following a clockface schedule",
     "raw" => true,
     "c" => "Transitous et al.",
 )))
-CSV.write("""$(homedir())/projects/H3-MON/www/data/$(today())/taktness.csv""", df[!, [:index, :value]])
+CSV.write("""$(homedir())/projects/H3-MON/www/data/2025-05-05/taktness.csv""", df[!, [:index, :value]])
 
 
 ####
