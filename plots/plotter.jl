@@ -570,34 +570,34 @@ select_df(con(), """
 df = select_df(con(), """
 select * from (
 select 
-source, stop_id, route_id, departure_time, trip_headsign, stop_lon, stop_lat, stop_name,
+source, direction_id, sane_route_id, departure_time, trip_id, trip_headsign, stop_lon, stop_lat, stop_name,
 dateDiff('minute', lagInFrame(departure_time, 1, departure_time) over (
-    partition by source, stop_id, route_id, direction_id, if(direction_id = 0 OR direction_id is null, trip_headsign, null) -- fall back to headsign only if direction_id is not 1
+    partition by source, stop_id, sane_route_id
     order by departure_time asc
     rows between 1 preceding and current row
 ), departure_time) headway
-from transitous_stop_times_one_day st
+from transitous_stop_times_one_day_sane st
 where true
-and source ilike 'fr_%'
---and stop_name ilike '%Nice-Ville%'
-and stop_name = 'Nice-Ville'
+and source ilike 'fr_r%'
+--and stop_name = 'Robinson'
+and stop_name ilike '%Bourg%Reine%'
 and stop_name != trip_headsign
 order by departure_time
 )
-where headway > 0
+where headway > 9
 """)
 
 using UnicodePlots
 df = select_df(con(), """
-select avg(mod(60, headway) == 0) value, geoToH3(stop_lon, stop_lat, 5) h3 from (
+select avg((mod(60, headway) == 0) or (headway = 120)) value, geoToH3(stop_lon, stop_lat, 8) h3 from (
 select 
-source, stop_id, route_id, departure_time, trip_headsign, stop_lon, stop_lat,
+source, stop_id, sane_route_id, departure_time, trip_headsign, stop_lon, stop_lat,
 dateDiff('minute', lagInFrame(departure_time, 1, departure_time) over (
-    partition by source, stop_id, route_id, direction_id, if(direction_id = 0 OR direction_id is null, trip_headsign, null) -- fall back to headsign only if direction_id is not 1
+    partition by source, stop_id, sane_route_id
     order by departure_time asc
     rows between 1 preceding and current row
 ), departure_time) headway
-from transitous_stop_times_one_day st
+from transitous_stop_times_one_day_sane st
 where true
 and ((trip_headsign = '') or (trip_headsign != stop_name))
 )
@@ -605,13 +605,20 @@ where headway between 10 and 60*5 -- exclude sub-10 minute headway because we're
 group by all
 """)
 df.index = string.(df.h3, base=16)
-mkpath("$(homedir())/projects/H3-MON/www/data/2025-05-05")
-write("""$(homedir())/projects/H3-MON/www/data/2025-05-05/taktness.json""", JSON.json(Dict(
+mkpath("$(homedir())/projects/H3-MON/www/data/$(today())")
+write("""$(homedir())/projects/H3-MON/www/data/$(today())/taktness_hires.json""", JSON.json(Dict(
     "t" => "Fraction of departures following a clockface schedule",
     "raw" => true,
     "c" => "Transitous et al.",
 )))
-CSV.write("""$(homedir())/projects/H3-MON/www/data/2025-05-05/taktness.csv""", df[!, [:index, :value]])
+CSV.write("""$(homedir())/projects/H3-MON/www/data/$(today())/taktness_hires.csv""", df[!, [:index, :value]])
+# mkpath("$(homedir())/projects/H3-MON/www/data/2025-05-05")
+# write("""$(homedir())/projects/H3-MON/www/data/2025-05-05/taktness.json""", JSON.json(Dict(
+#     "t" => "Fraction of departures following a clockface schedule",
+#     "raw" => true,
+#     "c" => "Transitous et al.",
+# )))
+# CSV.write("""$(homedir())/projects/H3-MON/www/data/2025-05-05/taktness.csv""", df[!, [:index, :value]])
 
 ####
 #
@@ -741,3 +748,40 @@ CSV.write("""$(homedir())/projects/H3-MON/www/data/$(today())/bedtime.csv""", df
 # reuse the 'start' thing in the probe narrowing
 # fix nap time at 3pm for france, which then goes up to peak (somewhat fixed by starting at 5pm)
 # fix places that never drop below 50% (somewhat fixed by going over midnight)
+
+
+####
+#
+# Lunch breaks
+
+
+# this is quicker than doing the 'true' join with probes we were doing above
+df = select_df(con(), """
+    with 
+    60 as delta,
+    '2025-01-01' as start,
+    probes as (select true dummy, addMinutes(start, number*delta) probe from numbers(24*1*(60/delta))) -- * 2 = 2 days
+    select h3, value/mvalue value from (
+        select geoToH3(stop_lon, stop_lat, 8) h3, count(*) value, pr.probe, max(value) over wndw mvalue from (
+        select *, true dummy from transitous_stop_times_one_day
+        --where source ilike 'be_%'
+        ) tst
+        left join probes pr on tst.dummy = pr.dummy and pr.probe between tst.arrival_time and addMinutes(tst.arrival_time, delta - 1)
+        group by all
+        window wndw as (
+            partition by h3
+            rows between unbounded preceding and unbounded following
+        )
+    )
+    where probe = '2025-01-01 12:00:00'
+    settings allow_experimental_join_condition = 1
+""")
+df.index = string.(df.h3, base=16)
+mkpath("$(homedir())/projects/H3-MON/www/data/$(today())")
+write("""$(homedir())/projects/H3-MON/www/data/$(today())/lunchtime.json""", 
+    JSON.json(Dict(
+    "t" => "Fraction of peak hourly departures between 12pm and 1pm",
+    # "raw" => true,
+    "c" => "Transitous et al.",
+)))
+CSV.write("""$(homedir())/projects/H3-MON/www/data/$(today())/lunchtime.csv""", df[!, [:index, :value]])
