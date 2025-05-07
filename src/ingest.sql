@@ -410,3 +410,24 @@ inner join transitous_stop_times st on tst.trip_id = st.trip_id and tst.source =
 inner join transitous_stops ts on st.stop_id = ts.stop_id and st.source = st.source -- they don't seem to be unique? 10 rows -> 6700
 inner join transitous_trips tr on tst.trip_id = tr.trip_id and tst.source = tr.source
 inner join transitous_routes ro on tr.route_id = ro.route_id and tr.source = ro.source
+
+DROP TABLE IF EXISTS transitous_stop_times_one_day_sane;
+CREATE TABLE transitous_stop_times_one_day_sane -- ignore route ids, only care about stops
+ENGINE MergeTree
+order by (source, stop_id, sane_route_id, stop_lat, stop_lon, trip_id, arrival_time, departure_time)
+settings allow_nullable_key = 1
+AS
+with route_uuids as (
+    select arrayJoin(trip_id) trip_id, generateUUIDv7() sane_route_id, source from (
+        select source, stop_id, groupArray(trip_id) trip_id from (
+            select source, groupArray(stop_id) stop_id, trip_id from (
+                select source, stop_id, departure_time, trip_id from transitous_stop_times_one_day st 
+                order by departure_time asc
+            )
+            group by all
+        )
+        group by all
+    )
+)
+select * from transitous_stop_times_one_day st
+inner join route_uuids ru on ru.trip_id = st.trip_id and ru.source = st.source
