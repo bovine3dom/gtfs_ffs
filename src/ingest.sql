@@ -431,3 +431,44 @@ with route_uuids as (
 )
 select * from transitous_stop_times_one_day st
 inner join route_uuids ru on ru.trip_id = st.trip_id and ru.source = st.source
+
+-- is it lite if it's bigger than all the others
+CREATE TABLE transitous_stops_lite
+ENGINE MergeTree
+ORDER BY (source, h3_15, stop_name)
+AS
+SELECT
+    toLowCardinality(assumeNotNull(ts.source)) AS source,
+    ts.stop_id stop_id,
+    --stop_code,
+    stop_name,
+    stop_desc,
+    toFloat64OrZero(stop_lat) AS stop_lat,
+    toFloat64OrZero(stop_lon) AS stop_lon,
+    geoToH3(stop_lon, stop_lat, 15) AS h3_15
+    --zone_id,
+    --stop_url,
+    --toUInt8OrNull(location_type) AS location_type,
+    --parent_station,
+    --stop_timezone,
+    --toUInt8OrNull(wheelchair_boarding) AS wheelchair_boarding,
+    --level_id,
+    --platform_code
+FROM file('transitous/source=*/stops.txt', 'CSVWithNames', '
+    stop_id String,
+    stop_code String,
+    stop_name String,
+    stop_desc String,
+    stop_lat String,
+    stop_lon String,
+    zone_id String,
+    stop_url String,
+    location_type String,
+    parent_station String,
+    stop_timezone String,
+    wheelchair_boarding String,
+    level_id String,
+    platform_code String
+') ts
+WHERE true
+SETTINGS use_hive_partitioning = 1;
