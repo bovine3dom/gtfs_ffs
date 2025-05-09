@@ -95,17 +95,17 @@ SETTINGS use_hive_partitioning = 1;
 
 
 -- actually making the timetable
-DROP TABLE IF EXISTS transitous_routes;
-DROP TABLE IF EXISTS transitous_trips;
-DROP TABLE IF EXISTS transitous_stop_times;
-DROP TABLE IF EXISTS transitous_calendar;
-DROP TABLE IF EXISTS transitous_calendar_dates;
-DROP TABLE IF EXISTS transitous_stops;
-DROP TABLE IF EXISTS transitous_agency;
+DROP TABLE IF EXISTS transitous_everything_routes;
+DROP TABLE IF EXISTS transitous_everything_trips;
+DROP TABLE IF EXISTS transitous_everything_stop_times;
+DROP TABLE IF EXISTS transitous_everything_calendar;
+DROP TABLE IF EXISTS transitous_everything_calendar_dates;
+DROP TABLE IF EXISTS transitous_everything_stops;
+DROP TABLE IF EXISTS transitous_everything_agency;
 -- oh it looks like there's also un-extended route type
 -- https://ipeagit.github.io/gtfstools/reference/filter_by_route_type.html
 -- 0 = tram, 1 = metro, 2 = rail, 3 = bus, 4 = ferry, 5 = cable car, 6 = gondola, 7 = funicular, 11 = trolleybus, 12 = monorail
-CREATE TABLE transitous_routes
+CREATE TABLE transitous_everything_routes
 ENGINE MergeTree
 ORDER BY (source, route_id, route_type)
 AS
@@ -142,13 +142,13 @@ WHERE true
 --and (route_type between 100 and 199) -- 'proper' trains
 --and (route_type between 400 and 499) -- 'urban' trains
 --and ((route_type between 900 and 999)) -- trams
-and ((route_type = 2) or (route_type between 100 and 199))
+--and ((route_type = 2) or (route_type between 100 and 199))
 --and (route_type between 1400 and 1499) -- funiculars
 --and source ilike 'fr%'
 --and route_desc ilike '%%'
 SETTINGS use_hive_partitioning = 1;
 
-CREATE TABLE transitous_trips
+CREATE TABLE transitous_everything_trips
 ENGINE MergeTree
 ORDER BY (source, route_id, service_id, trip_id)
 AS
@@ -177,12 +177,12 @@ FROM file('transitous/source=*/trips.txt', 'CSVWithNames', '
     bikes_allowed String
 '
 ) tt
-left semi join transitous_routes tr on tt.route_id = tr.route_id and tt.source = tr.source
+--left semi join transitous_everything_routes tr on tt.route_id = tr.route_id and tt.source = tr.source
 WHERE true
 SETTINGS use_hive_partitioning = 1;
 
 -- maybe it would have been better to go via the calendar first so that we only had trips that were running on x date
-CREATE TABLE transitous_stop_times
+CREATE TABLE transitous_everything_stop_times
 ENGINE MergeTree
 ORDER BY (source, trip_id, stop_id, arrival_time, departure_time)
 SETTINGS allow_nullable_key = 1
@@ -217,11 +217,11 @@ FROM file('transitous/source=*/stop_times.txt', 'CSVWithNames', '
     timepoint String,
     local_zone_id String
 ') st
-left semi join transitous_trips tt on st.trip_id = tt.trip_id and st.source = tt.source
+--left semi join transitous_everything_trips tt on st.trip_id = tt.trip_id and st.source = tt.source
 WHERE true
 SETTINGS use_hive_partitioning = 1;
 
-CREATE TABLE transitous_stops
+CREATE TABLE transitous_everything_stops
 ENGINE MergeTree
 ORDER BY (source, stop_id, stop_lat, stop_lon)
 AS
@@ -257,11 +257,11 @@ FROM file('transitous/source=*/stops.txt', 'CSVWithNames', '
     level_id String,
     platform_code String
 ') ts
-left semi join transitous_stop_times st on ts.stop_id = st.stop_id and ts.source = st.source
+--left semi join transitous_everything_stop_times st on ts.stop_id = st.stop_id and ts.source = st.source
 WHERE true
 SETTINGS use_hive_partitioning = 1;
 
-CREATE TABLE transitous_calendar
+CREATE TABLE transitous_everything_calendar
 ENGINE MergeTree
 ORDER BY (source, service_id, start_date, end_date)
 AS
@@ -289,11 +289,11 @@ FROM file('transitous/source=*/calendar.txt', 'CSVWithNames', '
     start_date String,
     end_date String
 ') tc
-left semi join transitous_trips tt on tc.service_id = tt.service_id and tc.source = tt.source
+--left semi join transitous_everything_trips tt on tc.service_id = tt.service_id and tc.source = tt.source
 WHERE true
 SETTINGS use_hive_partitioning = 1;
 
-CREATE TABLE transitous_calendar_dates
+CREATE TABLE transitous_everything_calendar_dates
 ENGINE MergeTree
 ORDER BY (source, service_id, date, exception_type)
 AS
@@ -307,11 +307,11 @@ FROM file('transitous/source=*/calendar_dates.txt', 'CSVWithNames', '
     date String,
     exception_type String
 ') tcd
-left semi join transitous_trips tt on tcd.service_id = tt.service_id and tcd.source = tt.source
+--left semi join transitous_everything_trips tt on tcd.service_id = tt.service_id and tcd.source = tt.source
 WHERE true
 SETTINGS use_hive_partitioning = 1;
 
-CREATE TABLE transitous_agency
+CREATE TABLE transitous_everything_agency
 ENGINE MergeTree
 ORDER BY (source, agency_id)
 AS
@@ -335,31 +335,157 @@ FROM file('transitous/source=*/agency.txt', 'CSVWithNames', '
     agency_lang String,
     agency_phone String
 ') ta
-left semi join transitous_routes tr on tr.agency_id = ta.agency_id and ta.source = tr.source
+--left semi join transitous_everything_routes tr on tr.agency_id = ta.agency_id and ta.source = tr.source
 WHERE true
 SETTINGS use_hive_partitioning = 1;
 
 
 -- one big table for convenience
-DROP TABLE IF EXISTS transitous_stop_times_one_day;
-CREATE TABLE transitous_stop_times_one_day -- 250 seconds 😎
+DROP TABLE IF EXISTS transitous_everything_stop_times_one_day;
+CREATE TABLE transitous_everything_stop_times_one_day -- 250 seconds 😎
 ENGINE MergeTree
-order by (source, stop_id, trip_id, arrival_time, departure_time)
+order by (source, stop_id, stop_lat, stop_lon, route_type, trip_id, arrival_time, departure_time)
 settings allow_nullable_key = 1
 AS
-with active_services as (
-    select ca.service_id service_id, ca.source source from transitous_calendar as ca
-    left anti join transitous_calendar_dates as cd_remove on
-    ca.service_id = cd_remove.service_id and ca.source = cd_remove.source
-    and cd_remove.date = '2025-05-13' and cd_remove.exception_type = 2
-    where true
-    and ca.start_date <= '2025-05-13' and ca.end_date >= '2025-05-13'
-    and ca.tuesday
-    union distinct
-    SELECT cd.service_id service_id, cd.source source
-    FROM transitous_calendar_dates AS cd
-    WHERE cd.date = '2025-05-13'
-    AND cd.exception_type = 1
+WITH
+date_bounds AS (
+   
+    SELECT
+        parseDateTimeBestEffort('2025-03-01') AS min_overall_date,
+        parseDateTimeBestEffort('2026-01-01') AS max_overall_date
+-- if you want to to it programmatically but tbh who cares
+--        min(event_date) AS min_overall_date,
+--        max(event_date) AS max_overall_date
+--    FROM (
+--        SELECT start_date AS event_date FROM transitous_calendar WHERE start_date IS NOT NULL
+--        UNION ALL
+--        SELECT end_date AS event_date FROM transitous_calendar WHERE end_date IS NOT NULL
+--        UNION ALL
+--        SELECT date AS event_date FROM transitous_calendar_dates WHERE date IS NOT NULL
+--    )
+--    WHERE event_date IS NOT NULL
+),
+all_dates_in_range AS (
+    SELECT
+        (SELECT min_overall_date FROM date_bounds) + toIntervalDay(number) AS check_date, true dummy
+    FROM numbers(
+            assumeNotNull(1 + toUInt32(dateDiff('day',
+                (SELECT min_overall_date FROM date_bounds),
+                (SELECT max_overall_date FROM date_bounds)
+            )
+        ))
+    )
+    WHERE check_date <= (SELECT max_overall_date FROM date_bounds)
+),
+calendar_potential_services AS (
+    SELECT
+        ad.check_date,
+        ca.service_id,
+        ca.source
+    FROM all_dates_in_range AS ad
+    JOIN (select *, true dummy from transitous_everything_calendar) AS ca
+        ON ad.check_date >= ca.start_date
+        AND ad.dummy = ca.dummy
+        AND ad.check_date <= ca.end_date
+        AND (
+            (toDayOfWeek(ad.check_date) = 1 AND ca.monday) OR
+            (toDayOfWeek(ad.check_date) = 2 AND ca.tuesday) OR
+            (toDayOfWeek(ad.check_date) = 3 AND ca.wednesday) OR
+            (toDayOfWeek(ad.check_date) = 4 AND ca.thursday) OR
+            (toDayOfWeek(ad.check_date) = 5 AND ca.friday) OR
+            (toDayOfWeek(ad.check_date) = 6 AND ca.saturday) OR
+            (toDayOfWeek(ad.check_date) = 7 AND ca.sunday)
+        )
+),
+calendar_date_exceptions AS (
+    SELECT
+        cd.date AS check_date,
+        cd.service_id,
+        cd.source,
+        cd.exception_type
+    FROM transitous_everything_calendar_dates AS cd
+),
+active_services_on_date AS (
+    SELECT
+        cps.check_date,
+        cps.service_id,
+        cps.source
+    FROM calendar_potential_services AS cps
+    LEFT ANTI JOIN calendar_date_exceptions AS cde_remove
+        ON cps.check_date = cde_remove.check_date
+        AND cps.service_id = cde_remove.service_id
+        AND cps.source = cde_remove.source
+        AND cde_remove.exception_type = 2
+
+    UNION DISTINCT
+    SELECT
+        cde_add.check_date,
+        cde_add.service_id,
+        cde_add.source
+    FROM calendar_date_exceptions AS cde_add
+    WHERE cde_add.exception_type = 1
+      AND cde_add.check_date IN (SELECT check_date FROM all_dates_in_range)
+),
+services_per_source_per_day AS (
+   
+    SELECT
+        source,
+        check_date,
+        count() AS num_active_services
+                                       
+    FROM active_services_on_date
+    GROUP BY source, check_date
+),
+ranked_days_per_source AS (
+    SELECT
+        source,
+        check_date,
+        num_active_services,
+        ROW_NUMBER() OVER (PARTITION BY source ORDER BY num_active_services DESC, check_date ASC) as rn
+    FROM services_per_source_per_day
+),
+best_days_per_source as (
+    SELECT
+        source,
+        check_date as best_date_for_this_source,
+        num_active_services
+    FROM ranked_days_per_source
+    WHERE rn = 1
+    ORDER BY source
+),
+active_services as (
+    SELECT
+        ca.service_id service_id,
+        ca.source source
+    FROM transitous_everything_calendar AS ca
+    JOIN best_days_per_source AS bds ON ca.source = bds.source
+    LEFT ANTI JOIN transitous_everything_calendar_dates AS cd_remove
+        ON ca.service_id = cd_remove.service_id
+        AND ca.source = cd_remove.source
+        AND cd_remove.date = bds.best_date_for_this_source
+        AND cd_remove.exception_type = 2
+    WHERE
+        ca.start_date <= bds.best_date_for_this_source
+        AND ca.end_date >= bds.best_date_for_this_source
+        AND (
+            (toDayOfWeek(bds.best_date_for_this_source) = 1 AND ca.monday) OR
+            (toDayOfWeek(bds.best_date_for_this_source) = 2 AND ca.tuesday) OR
+            (toDayOfWeek(bds.best_date_for_this_source) = 3 AND ca.wednesday) OR
+            (toDayOfWeek(bds.best_date_for_this_source) = 4 AND ca.thursday) OR
+            (toDayOfWeek(bds.best_date_for_this_source) = 5 AND ca.friday) OR
+            (toDayOfWeek(bds.best_date_for_this_source) = 6 AND ca.saturday) OR
+            (toDayOfWeek(bds.best_date_for_this_source) = 7 AND ca.sunday)
+        )
+    UNION DISTINCT
+   
+    SELECT
+        cd.service_id,
+        cd.source
+    FROM transitous_everything_calendar_dates AS cd
+    JOIN best_days_per_source AS bds ON cd.source = bds.source
+    WHERE
+        cd.date = bds.best_date_for_this_source
+        AND cd.exception_type = 1
 )
 select
 arrival_time,
@@ -404,15 +530,15 @@ trip_short_name,
 wheelchair_accessible,
 wheelchair_boarding,
 zone_id
-from transitous_trips tst
+from transitous_everything_trips tst
 inner join active_services on active_services.service_id = tst.service_id and active_services.source = tst.source
-inner join transitous_stop_times st on tst.trip_id = st.trip_id and tst.source = st.source
-inner join transitous_stops ts on st.stop_id = ts.stop_id and st.source = st.source -- they don't seem to be unique? 10 rows -> 6700
-inner join transitous_trips tr on tst.trip_id = tr.trip_id and tst.source = tr.source
-inner join transitous_routes ro on tr.route_id = ro.route_id and tr.source = ro.source
+inner join transitous_everything_stop_times st on tst.trip_id = st.trip_id and tst.source = st.source
+inner join transitous_everything_stops ts on st.stop_id = ts.stop_id and ts.source = st.source -- lol, st.source not ts.source
+--inner join transitous_everything_trips tr on tst.trip_id = tr.trip_id and tst.source = tr.source
+inner join transitous_everything_routes ro on tst.route_id = ro.route_id and tst.source = ro.source;
 
-DROP TABLE IF EXISTS transitous_stop_times_one_day_sane;
-CREATE TABLE transitous_stop_times_one_day_sane -- ignore route ids, only care about stops
+DROP TABLE IF EXISTS transitous_everything_stop_times_one_day_sane;
+CREATE TABLE transitous_everything_stop_times_one_day_sane -- ignore route ids, only care about stops
 ENGINE MergeTree
 order by (source, stop_id, sane_route_id, stop_lat, stop_lon, trip_id, arrival_time, departure_time)
 settings allow_nullable_key = 1
@@ -421,7 +547,7 @@ with route_uuids as (
     select arrayJoin(trip_id) trip_id, generateUUIDv7() sane_route_id, source from (
         select source, stop_id, groupArray(trip_id) trip_id from (
             select source, groupArray(stop_id) stop_id, trip_id from (
-                select source, stop_id, departure_time, trip_id from transitous_stop_times_one_day st 
+                select source, stop_id, departure_time, trip_id from transitous_everything_stop_times_one_day st 
                 order by departure_time asc
             )
             group by all
@@ -429,8 +555,94 @@ with route_uuids as (
         group by all
     )
 )
-select * from transitous_stop_times_one_day st
-inner join route_uuids ru on ru.trip_id = st.trip_id and ru.source = st.source
+select * from transitous_everything_stop_times_one_day st
+inner join route_uuids ru on ru.trip_id = st.trip_id and ru.source = st.source;
+
+
+-- debugging
+
+-- nice has too many buses
+-- i don't believe that these buses actually stop here
+-- did we mess up a join somewhere? yes, lol, bigly
+select departure_time, stop_id, stop_name, stop_lon, stop_lat, source, trip_id, route_id, trip_headsign from transitous_everything_stop_times_one_day
+where true
+and stop_name = 'Congrès / Promenade'
+and source like 'fr_%'
+--and geoToH3(stop_lon, stop_lat, 10) in h3kRing(reinterpretAsUInt64(reverse(unhex('8a3969a08c8ffff'))), 10)
+and departure_time > '2025-01-01 09:00:00'
+order by departure_time
+limit 20
+
+-- eugh somehow the join has just joined on stop_id and not (stop_id AND source_id)
+select st.source, ts.stop_id, departure_time, stop_name from transitous_everything_stop_times_one_day st
+left join transitous_everything_stops ts on st.stop_id = ts.stop_id and st.source = ts.source
+where trip_id = '1582485189'
+and source = 'fr_offre-de-transport-de-montpellier-mediterranee-metropole-tam-gtfs.gtfs'
+order by departure_time
+
+-- next job: check for REAL duplicates lol
+select stop_id, stop_name, source from transitous_everything_stops
+where true
+--and stop_name = 'Congrès / Promenade'
+and source like 'fr_%'
+and geoToH3(stop_lon, stop_lat, 10) in h3kRing(reinterpretAsUInt64(reverse(unhex('8a3969a08c8ffff'))), 3)
+limit 20
+
+select * from transitous_everything_stop_times
+where true
+and source = 'fr_export-quotidien-au-format-gtfs-du-reseau-de-transport-lignes-d-azur.gtfs'
+and stop_id = '282'
+limit 10
+
+select * from transitous_everything_trips
+where true
+and source = 'fr_export-quotidien-au-format-gtfs-du-reseau-de-transport-lignes-d-azur.gtfs'
+and trip_id = '6001229-08_R_99_0801_07:28-PVS2024-25-08-Semaine-31'
+limit 10
+
+select * from transitous_everything_calendar
+where service_id = 'JANV2025-15-Semaine-39-15'
+and source = 'fr_export-quotidien-au-format-gtfs-du-reseau-de-transport-lignes-d-azur.gtfs'
+
+--- argh some have stupidly short horizons
+--- need to find day when most services run
+SETTINGS allow_experimental_join_condition = 1;
+
+
+    select ca.service_id service_id, ca.source source from transitous_everything_calendar as ca
+    left anti join transitous_everything_calendar_dates as cd_remove on
+    ca.service_id = cd_remove.service_id and ca.source = cd_remove.source
+    and cd_remove.date = '2025-05-13' and cd_remove.exception_type = 2
+    where true
+    and ca.start_date <= '2025-05-13' and ca.end_date >= '2025-05-13'
+    and ca.tuesday
+    union distinct
+    SELECT cd.service_id service_id, cd.source source
+    FROM transitous_everything_calendar_dates AS cd
+    WHERE cd.date = '2025-05-13'
+    AND cd.exception_type = 1
+--     ┌──────departure_time─┬─stop_name───────────┬─stop_lon─┬──stop_lat─┬─source─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┬─trip_id─────────────────────────────────┬─route_id─┬─trip_headsign─────────────────┐
+--  1. │ 2025-01-01 09:02:00 │ Congrès / Promenade │ 7.262923 │ 43.694717 │ fr_arrets-horaires-et-parcours-theoriques-du-reseau-stan-gtfs.gtfs                                                             │ S1-3400567-25H04-_PS_BUS-Semaine-01     │ 2        │ LAXOU SAPINIERE               │
+--  2. │ 2025-01-01 09:02:00 │ Congrès / Promenade │ 7.262923 │ 43.694717 │ fr_transport-du-reseau-urbain-agglobus-et-de-transports-scolaires-gtfs.gtfs                                                    │ 926                                     │ 20       │ AGGLOBUS                      │
+--  3. │ 2025-01-01 09:02:00 │ Congrès / Promenade │ 7.262923 │ 43.694717 │ fr_horaires-theoriques-du-reseau-stas.gtfs                                                                                     │ 795                                     │ 01       │ Bellevue                      │
+--  4. │ 2025-01-01 09:04:00 │ Congrès / Promenade │ 7.262923 │ 43.694717 │ fr_offre-de-transport-de-montpellier-mediterranee-metropole-tam-gtfs.gtfs                                                      │ 1582485219                              │ 11       │ MONTPELLIER - Tournezy        │
+--  5. │ 2025-01-01 09:06:00 │ Congrès / Promenade │ 7.264292 │  43.69498 │ fr_offres-de-services-bus-tram-et-scolaire-au-format-gtfs-gtfs-rt-siri-lite.gtfs                                               │ 44911831-2025_HIVER-M37_A00-L-Ma-J-V-17 │ 37       │ BORDEAUX Parc des Expositions │
+--  6. │ 2025-01-01 09:06:16 │ Congrès / Promenade │ 7.262923 │ 43.694717 │ fr_offres-de-services-bus-tram-et-scolaire-au-format-gtfs-gtfs-rt-siri-lite.gtfs                                               │ 44219823-2025_HIVER-M74_A00-Semaine-08  │ 74       │ GRADIGNAN Stade Ornon         │
+--  7. │ 2025-01-01 09:07:00 │ Congrès / Promenade │ 7.262923 │ 43.694717 │ fr_arrets-horaires-et-parcours-theoriques-du-reseau-stan-gtfs.gtfs                                                             │ S1-3400568-25H04-_PS_BUS-Semaine-01     │ 2        │ LAXOU SAPINIERE               │
+--  8. │ 2025-01-01 09:09:00 │ Congrès / Promenade │ 7.262923 │ 43.694717 │ fr_fr-200052264-t0014-0000-1.gtfs                                                                                              │ 5804127-S_2024-internet-Semaine-11      │ 15       │ SAINTE-BARBE                  │
+--  9. │ 2025-01-01 09:09:56 │ Congrès / Promenade │ 7.262923 │ 43.694717 │ fr_offre-de-transport-solea-et-tram-train-en-format-gtfs-1.gtfs                                                                │ 5804127-S_2024-internet-Semaine-11      │ 15-868   │ STE BARBE                     │
+-- 10. │ 2025-01-01 09:10:00 │ Congrès / Promenade │ 7.262923 │ 43.694717 │ fr_reseau-urbain-surf.gtfs                                                                                                     │ 1-712376334                             │ 42       │ Lécousse Pilais               │
+-- 11. │ 2025-01-01 09:11:00 │ Congrès / Promenade │ 7.262923 │ 43.694717 │ fr_horaires-theoriques-et-temps-reels-du-reseau-de-transports-lagglo-en-bus-communaute-dagglomeration-gap-tallard-durance.gtfs │ TRIP_5_ttbl_2_1_16                      │ 2        │                               │
+-- 12. │ 2025-01-01 09:12:00 │ Congrès / Promenade │ 7.262923 │ 43.694717 │ fr_donnees-gtfs-du-reseau-de-transport-public-cara-bus.gtfs                                                                    │ 556                                     │ 261      │ ST PALAIS SUR MER -  Vallet   │
+-- 13. │ 2025-01-01 09:12:00 │ Congrès / Promenade │ 7.262923 │ 43.694717 │ fr_fr-200052264-t0040-0000-1.gtfs                                                                                              │ 4449164-24-25-SCO_NS17-L-Ma-J-V-01      │ S22      │ ESPLANADE (FRESQUE)           │
+-- 14. │ 2025-01-01 09:12:00 │ Congrès / Promenade │ 7.262923 │ 43.694717 │ fr_horaires-theoriques-du-reseau-stas.gtfs                                                                                     │ 796                                     │ 01       │ Bellevue                      │
+-- 15. │ 2025-01-01 09:14:00 │ Congrès / Promenade │ 7.262923 │ 43.694717 │ fr_arrets-horaires-et-parcours-theoriques-du-reseau-stan-gtfs.gtfs                                                             │ S1-3400569-25H04-_PS_BUS-Semaine-01     │ 2        │ LAXOU SAPINIERE               │
+-- 16. │ 2025-01-01 09:15:00 │ Congrès / Promenade │ 7.262923 │ 43.694717 │ fr_horaires-theoriques-du-reseau-tag.gtfs                                                                                      │ 29178756                                │ 42       │ Meylan, La Détourbe           │
+-- 17. │ 2025-01-01 09:15:59 │ Congrès / Promenade │ 7.262923 │ 43.694717 │ fr_ametis.gtfs                                                                                                                 │ 15-L-7-B-085200                         │ L        │ CHU A. PICARDIE               │
+-- 18. │ 2025-01-01 09:17:00 │ Congrès / Promenade │ 7.262923 │ 43.694717 │ fr_transport-du-reseau-urbain-agglobus-et-de-transports-scolaires-gtfs.gtfs                                                    │ 912                                     │ 3        │ AGGLOBUS                      │
+-- 19. │ 2025-01-01 09:18:00 │ Congrès / Promenade │ 7.262923 │ 43.694717 │ fr_transport-du-reseau-urbain-agglobus-et-de-transports-scolaires-gtfs.gtfs                                                    │ 746                                     │ 2        │                               │
+-- 20. │ 2025-01-01 09:19:00 │ Congrès / Promenade │ 7.262923 │ 43.694717 │ fr_offre-de-transport-de-montpellier-mediterranee-metropole-tam-gtfs.gtfs                                                      │ 1582485189                              │ 11       │ MONTPELLIER - Tournezy        │
+--     └─────────────────────┴─────────────────────┴──────────┴───────────┴────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┴─────────────────────────────────────────┴──────────┴───────────────────────────────┘
 
 -- is it lite if it's bigger than all the others
 CREATE TABLE transitous_stops_lite
