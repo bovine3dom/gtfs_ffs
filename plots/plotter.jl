@@ -900,3 +900,104 @@ where true
 and geoToH3(stop_lon, stop_lat, 10) in h3kRing(reinterpretAsUInt64(reverse(unhex('8a3969a08c8ffff'))), 2)
 order by departure_time
 """)
+||||||| parent of 9140a5b (Add more on utilisation rates)
+CSV.write("""$(homedir())/projects/H3-MON/www/data/$(today())/taktness.csv""", df[!, [:index, :value]])
+
+
+####
+#
+# utilisation over 24 hours but bigger
+#
+####
+df = select_df(con(), """
+-- number of trains* active in 15 minute intervals throughout the day
+-- ignoring ones that started the day before :)
+with probes as (select addMinutes('1970-01-02', number*5) probe from numbers(24*12)) -- +1)) if you want to include the next day
+select sum(probe between yes.dt and yes.at) c, probe, source from probes pr
+left outer join (
+select toTime(min(departure_time)) dt, toTime(max(if(arrival_time >= '2025-01-02', parseDateTimeBestEffort('2025-01-01 23:59:59'), arrival_time))) at, trip_id, source from transitous_everything_stop_times_one_day st
+where true
+and (false
+    or source like 'gb_%'
+    or source like 'us_%'
+    or source like 'ca_%'
+    or source like 'fr_%'
+    or source like 'es_%'
+    or source like 'ch_%'
+)
+group by trip_id, source
+union all
+-- this segment here to support trains that run overnight
+select toTime(parseDateTimeBestEffort('2025-01-01 00:00:00')) dt, toTime(max(arrival_time)) at, trip_id, source from transitous_everything_stop_times_one_day st
+where true
+and (false
+    or source like 'gb_%'
+    or source like 'us_%'
+    or source like 'ca_%'
+    or source like 'fr_%'
+    or source like 'es_%'
+    or source like 'ch_%'
+)
+group by trip_id, source
+having toDate(min(departure_time)) < toDate(max(arrival_time))
+) yes on true -- clickhouse doesn't support < or > on joins so we do an outer join :(
+group by probe, source
+order by probe
+""")
+df.probe = Time.(df.probe) # not needed if not using the CSV
+
+df.country = map(x->string(x)[1:2], df.source)
+agg = combine(groupby(df, [:country, :probe]), :c => sum => :c)
+transform!(groupby(agg, :country), :c => (x-> x./maximum(x)) => :utilisation)
+# df.probe = Time.(df.probe, "yyyy-mm-dd HH:MM:SS.SSS") # not needed if not using the CSV
+plot(agg.probe, agg.utilisation, group=agg.country, xticks=Time(0):Minute(120):Time(23,59), xrot=45, xlims=(Time(0), Time(23,59)), ylabel="# of services running as fraction of peak")
+
+####
+#
+# utilisation over 24 hours but bigger and only trains
+#
+####
+df = select_df(con(), """
+-- number of trains* active in 15 minute intervals throughout the day
+-- ignoring ones that started the day before :)
+with probes as (select addMinutes('1970-01-02', number*5) probe from numbers(24*12)) -- +1)) if you want to include the next day
+select sum(probe between yes.dt and yes.at) c, probe, source from probes pr
+left outer join (
+select toTime(min(departure_time)) dt, toTime(max(if(arrival_time >= '2025-01-02', parseDateTimeBestEffort('2025-01-01 23:59:59'), arrival_time))) at, trip_id, source from transitous_everything_stop_times_one_day st
+where true
+and ((route_type = 2) or route_type between 100 and 199)
+and (false
+    or source like 'gb_%'
+    or source like 'us_%'
+    or source like 'ca_%'
+    or source like 'fr_%'
+    or source like 'es_%'
+    or source like 'ch_%'
+)
+group by trip_id, source
+union all
+-- this segment here to support trains that run overnight
+select toTime(parseDateTimeBestEffort('2025-01-01 00:00:00')) dt, toTime(max(arrival_time)) at, trip_id, source from transitous_everything_stop_times_one_day st
+where true
+and ((route_type = 2) or route_type between 100 and 199)
+and (false
+    or source like 'gb_%'
+    or source like 'us_%'
+    or source like 'ca_%'
+    or source like 'fr_%'
+    or source like 'es_%'
+    or source like 'ch_%'
+)
+group by trip_id, source
+having toDate(min(departure_time)) < toDate(max(arrival_time))
+) yes on true -- clickhouse doesn't support < or > on joins so we do an outer join :(
+group by probe, source
+order by probe
+""")
+df.probe = Time.(df.probe) # not needed if not using the CSV
+
+df.country = map(x->string(x)[1:2], df.source)
+agg = combine(groupby(df, [:country, :probe]), :c => sum => :c)
+transform!(groupby(agg, :country), :c => (x-> x./maximum(x)) => :utilisation)
+# df.probe = Time.(df.probe, "yyyy-mm-dd HH:MM:SS.SSS") # not needed if not using the CSV
+plot(agg.probe, agg.utilisation, group=agg.country, xticks=Time(0):Minute(120):Time(23,59), xrot=45, xlims=(Time(0), Time(23,59)), ylabel="# of services running as fraction of peak")
