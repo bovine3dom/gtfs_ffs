@@ -578,9 +578,8 @@ dateDiff('minute', lagInFrame(departure_time, 1, departure_time) over (
 ), departure_time) headway
 from transitous_stop_times_one_day_sane st
 where true
-and source ilike 'fr_r%'
---and stop_name = 'Robinson'
-and stop_name ilike '%Bourg%Reine%'
+and source ilike 'be%'
+and stop_name ilike '%antwerpen-centraal%'
 and stop_name != trip_headsign
 order by departure_time
 )
@@ -918,12 +917,12 @@ left outer join (
 select toTime(min(departure_time)) dt, toTime(max(if(arrival_time >= '2025-01-02', parseDateTimeBestEffort('2025-01-01 23:59:59'), arrival_time))) at, trip_id, source from transitous_everything_stop_times_one_day st
 where true
 and (false
-    or source like 'gb_%'
-    or source like 'us_%'
-    or source like 'ca_%'
-    or source like 'fr_%'
-    or source like 'es_%'
-    or source like 'ch_%'
+    or source like 'gb%'
+    or source like 'us%'
+    or source like 'ca%'
+    or source like 'fr%'
+    or source like 'es%'
+    or source like 'ch%'
 )
 group by trip_id, source
 union all
@@ -931,12 +930,12 @@ union all
 select toTime(parseDateTimeBestEffort('2025-01-01 00:00:00')) dt, toTime(max(arrival_time)) at, trip_id, source from transitous_everything_stop_times_one_day st
 where true
 and (false
-    or source like 'gb_%'
-    or source like 'us_%'
-    or source like 'ca_%'
-    or source like 'fr_%'
-    or source like 'es_%'
-    or source like 'ch_%'
+    or source like 'gb%'
+    or source like 'us%'
+    or source like 'ca%'
+    or source like 'fr%'
+    or source like 'es%'
+    or source like 'ch%'
 )
 group by trip_id, source
 having toDate(min(departure_time)) < toDate(max(arrival_time))
@@ -967,12 +966,13 @@ select toTime(min(departure_time)) dt, toTime(max(if(arrival_time >= '2025-01-02
 where true
 and ((route_type = 2) or route_type between 100 and 199)
 and (false
-    or source like 'gb_%'
-    or source like 'us_%'
-    or source like 'ca_%'
-    or source like 'fr_%'
-    or source like 'es_%'
-    or source like 'ch_%'
+    or source like 'gb%'
+    --or source like 'us%'
+    or (source like 'us%' and not (source like 'us-ny_MetroNorth%' or source like 'us-ny_LIRR%'))
+    or source like 'ca%'
+    or source like 'fr%'
+    or source like 'es%'
+    or source like 'ch%'
 )
 group by trip_id, source
 union all
@@ -981,12 +981,13 @@ select toTime(parseDateTimeBestEffort('2025-01-01 00:00:00')) dt, toTime(max(arr
 where true
 and ((route_type = 2) or route_type between 100 and 199)
 and (false
-    or source like 'gb_%'
-    or source like 'us_%'
-    or source like 'ca_%'
-    or source like 'fr_%'
-    or source like 'es_%'
-    or source like 'ch_%'
+    or source like 'gb%'
+    --or source like 'us%'
+    or (source like 'us%' and not (source like 'us-ny_MetroNorth%' or source like 'us-ny_LIRR%'))
+    or source like 'ca%'
+    or source like 'fr%'
+    or source like 'es%'
+    or source like 'ch%'
 )
 group by trip_id, source
 having toDate(min(departure_time)) < toDate(max(arrival_time))
@@ -995,9 +996,69 @@ group by probe, source
 order by probe
 """)
 df.probe = Time.(df.probe) # not needed if not using the CSV
-
 df.country = map(x->string(x)[1:2], df.source)
 agg = combine(groupby(df, [:country, :probe]), :c => sum => :c)
 transform!(groupby(agg, :country), :c => (x-> x./maximum(x)) => :utilisation)
 # df.probe = Time.(df.probe, "yyyy-mm-dd HH:MM:SS.SSS") # not needed if not using the CSV
 plot(agg.probe, agg.utilisation, group=agg.country, xticks=Time(0):Minute(120):Time(23,59), xrot=45, xlims=(Time(0), Time(23,59)), ylabel="# of services running as fraction of peak")
+
+
+####
+#
+# utilisation over 24 hours by distinct stopping pattern
+#
+####
+df = select_df(con(), """
+-- number of trains* active in 15 minute intervals throughout the day
+-- ignoring ones that started the day before :)
+with probes as (select addMinutes('1970-01-02', number*5) probe from numbers(24*12)) -- +1)) if you want to include the next day
+--select avg(if(c>0, 1, 0)) active_routes, probe, if(left(source, 2) = 'fr', 'fr', source) country from (
+select avg(if(c>0, 1, 0)) active_routes, probe, left(source, 2) country from (
+    select sum(probe between yes.dt and yes.at) c, probe, sane_route_id, source from probes pr
+    left outer join (
+    select toTime(min(departure_time)) dt, toTime(max(if(arrival_time >= '2025-01-02', parseDateTimeBestEffort('2025-01-01 23:59:59'), arrival_time))) at, sane_route_id, trip_id, source from transitous_everything_stop_times_one_day_sane st
+    where true
+    and ((route_type = 2) or route_type between 100 and 199)
+    and (false
+        --or source like 'gb%'
+        or source like 'us%'
+        --or (source like 'us%' and not (source like 'us-ny_MetroNorth%' or source like 'us-ny_LIRR%'))
+        or source like 'ca%'
+        or source like 'fr%'
+        --or source like 'es%'
+        --or source like 'ch%'
+    )
+    group by sane_route_id, trip_id, source
+    union all
+    -- this segment here to support trains that run overnight
+    select toTime(parseDateTimeBestEffort('2025-01-01 00:00:00')) dt, toTime(max(arrival_time)) at, sane_route_id, trip_id, source from transitous_everything_stop_times_one_day_sane st
+    where true
+    and ((route_type = 2) or route_type between 100 and 199)
+    and (false
+        --or source like 'gb%'
+        or source like 'us%'
+        --or (source like 'us%' and not (source like 'us-ny_MetroNorth%' or source like 'us-ny_LIRR%'))
+        or source like 'ca%'
+        or source like 'fr%'
+        --or source like 'es%'
+        --or source like 'ch%'
+    )
+    group by sane_route_id, trip_id, source
+    having toDate(min(departure_time)) < toDate(max(arrival_time))
+    ) yes on true -- clickhouse doesn't support < or > on joins so we do an outer join :(
+    group by probe, sane_route_id, source
+    order by probe
+)
+group by probe, country
+order by probe
+""")
+transform!(groupby(df, :country), :active_routes => (x-> x./maximum(x)) => :utilisation)
+# fr = df[df.country .== "fr", :]
+# frenchness = sort!(combine(groupby(df, :country), :utilisation => (r -> 1 .- sqrt(mean((r.-fr.utilisation).^2))) => :frenchness), :frenchness, rev=true)
+# CSV.write("frenchness.tsv", frenchness[!, [:frenchness, :country]], delim='\t')
+
+df.probe = Time.(df.probe) # not needed if not using the CSV
+plot(df.probe, df.utilisation, group=df.country, xticks=Time(0):Minute(120):Time(23,59), xrot=45, xlims=(Time(0), Time(23,59)), ylabel="Fraction of routes active, normalised by peak", title="heavy rail", legend=:none)
+
+# using plotly so we can investigate
+#plotlyjs()
