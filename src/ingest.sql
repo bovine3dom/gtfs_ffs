@@ -684,3 +684,78 @@ FROM file('transitous/source=*/stops.txt', 'CSVWithNames', '
 ') ts
 WHERE true
 SETTINGS use_hive_partitioning = 1;
+
+
+-- router innit
+-- current limitation: can only work with one source at a time
+-- need source/stop unification :(
+
+-- to get walk time at end: at resolution 10, at 2.5km/h straight line speed walk 0.6 tiles per minute
+-- eugh it looks like swiss segregates stop ids for e.g. bus vs train
+-- so try meggen instead
+
+select * from transitous_everything_stops where source like 'ch_%' and stop_name ilike 'meggen%zentrum'
+select count() from transitous_everything_stop_times_one_day where source like 'ch_%' and stop_id = '8505018:0:1'
+
+
+-- isochrone sketch
+WITH RECURSIVE
+    --'8575785' AS start_node, -- morbio
+    '8505018:0:1' as start_node, -- meggen zentrum
+    4 as max_travel_time,
+    20 as max_walk_time,
+    parseDateTimeBestEffort('2025-01-01 09:00:00') AS journey_start_time,
+    journey_start_time + INTERVAL max_travel_time HOUR AS journey_end_limit_time,
+    'ch_opentransportdataswiss25.gtfs' as target_source,
+    reachable_destinations AS (
+        -- Anchor Member: First hops from the starting source_id
+        -- These are direct connections from the input_source_id
+        SELECT
+            e.next_stop current_node_id,
+            e.next_arrival current_arrival_time,
+            [start_node, e.next_stop] path_nodes,
+            1 hop_count
+        FROM transitous_everything_edgelist e
+        WHERE e.stop_id = start_node
+          AND e.departure_time >= journey_start_time
+          AND e.next_arrival <= journey_end_limit_time
+          AND source like 'ch_%'
+
+        UNION ALL
+
+        SELECT
+            e.next_stop,
+            e.next_arrival,
+            arrayPushBack(rd.path_nodes, e.next_stop) AS path_nodes,
+            rd.hop_count + 1
+        FROM reachable_destinations rd
+        JOIN transitous_everything_edgelist e ON rd.current_node_id = e.stop_id
+        -- To access journey_end_limit_time
+        WHERE e.departure_time >= rd.current_arrival_time
+          AND e.next_arrival <= journey_end_limit_time
+          AND NOT has(rd.path_nodes, e.next_stop)
+          AND rd.hop_count < 1000
+          AND source like 'ch_%'
+    )
+select arrayJoin(h3) h3, min(travel_time + (h3Distance(h3, stop_h3) / 0.6)) value from (
+SELECT current_node_id, dateDiff('minute', journey_start_time, min(current_arrival_time)) travel_time, max_travel_time*60 - travel_time remaining_travel_time,
+toUInt16(floor(least(remaining_travel_time, max_walk_time) * 0.6)) res_10_radius, any(st.stop_lat) lat, any(st.stop_lon) lon, assumeNotNull(geoToH3(lon, lat, 10)) stop_h3,
+--[geoToH3(lon, lat, 9)] h3
+h3kRing(stop_h3, assumeNotNull(res_10_radius)) h3
+--SELECT current_node_id, min(current_arrival_time)--, any(st.stop_lat), any(st.stop_lon)
+FROM reachable_destinations r
+-- Optionally, you can filter out the start_node itself if it becomes reachable via a loop
+LEFT ANY JOIN transitous_everything_stops st on st.stop_id = r.current_node_id
+WHERE current_node_id != start_node
+AND source = target_source
+GROUP BY current_node_id
+ORDER BY current_node_id
+)
+group by h3
+-- ok it's the source= that's the slow bit
+-- todo:
+-- stop unification, even within sources often stops count as different stops esp e.g. bus stop at a railway station, merge stops within 5 minute radius
+-- if trip id changes add minimum connection time
+-- backwards option to work in reverse
+-- think about how to aggregate over a day to sum accessible population
+-- add a maximum walk time of e.g. 20 minutes
