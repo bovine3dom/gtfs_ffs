@@ -51,58 +51,66 @@ function find_earliest_arrivals(df::GroupedDataFrame, start_uuid::Int64, initial
 end
 
 # left as exercise for the reader
-big_df = Arrow.Table("../data/edgelist.arrow") |> DataFrame
-
+# big_df = Arrow.Table("../data/edgelist.arrow") |> DataFrame
+# big_df = Arrow.Table("../data/edgelist_onlytrains_gb.arrow") |> DataFrame
 
 ### example usage
 
 # add a check for max journey time
-gdf = groupby(big_df, :stop_uuid)
+#gdf = groupby(big_df, :stop_uuid)
 
-# start_uuid = 217175# df[1, :stop_uuid] # morbio
-start_uuid = 358964# nice
-start_uuid = 277445 # shanklin
-#start_uuid = 385545 # meggen
+## start_uuid = 217175# df[1, :stop_uuid] # morbio
+## start_uuid = 358964# nice
+## start_uuid = 277445 # shanklin
+#start_uuid = 27679 # waterloo
+##start_uuid = 385545 # meggen
+##initial_arrival_time = DateTime(2025,01,01,04,00)
+#initial_arrival_time = DateTime(2025,01,01,08,00)
+#for t in initial_arrival_time:Minute(5):initial_arrival_time + Hour(22)
+#    t = initial_arrival_time
+#    @time stops = find_earliest_arrivals(gdf, start_uuid, t, t + Hour(12));
+#    stops_df = flatten(DataFrame(stop_uuid=keys(stops),arrival_time=values(stops)), [:stop_uuid, :arrival_time])
+#    leftjoin!(stops_df, combine(gdf, :h3 => first => :h3), on=:stop_uuid)
+#    dropmissing!(stops_df)
+#    stops_df.journey_time = map(x->x.value, round.(stops_df.arrival_time .- t, Minute))
+#    agg = combine(groupby(stops_df, :h3), :journey_time => minimum => :journey_time)
+#    agg.index = string.(agg.h3, base=16)
+#    agg.value = agg.journey_time
+#    tday = Dates.today()
+#    mkpath("$(homedir())/projects/H3-MON/www/data/debug")
+#    write("""$(homedir())/projects/H3-MON/www/data/debug/$tday.json""",
+#        JSON.json(Dict(
+#        "t" => "Travel time to destination, minutes",
+#        "flip" => true,
+#        # "raw" => true,
+#        "c" => "Transitous et al.",
+#        # "scale" => Dict(zip(0.0:0.2:1.0, 0:12:60)),
+#    )))
+#    CSV.write("$(homedir())/projects/H3-MON/www/data/debug/$tday.csv", agg[!, [:index, :value]])
+#    print(t); print('\r')
+#    sleep(0.2)
+#end
+
+
+
+## Shanklin to Bank journey durations
 #initial_arrival_time = DateTime(2025,01,01,04,00)
-initial_arrival_time = DateTime(2025,01,01,08,00)
-for t in initial_arrival_time:Minute(5):initial_arrival_time + Hour(22)
-    t = initial_arrival_time
-    @time stops = find_earliest_arrivals(gdf, start_uuid, t, t + Hour(2));
-    stops_df = flatten(DataFrame(stop_uuid=keys(stops),arrival_time=values(stops)), [:stop_uuid, :arrival_time])
-    leftjoin!(stops_df, combine(gdf, :h3 => first => :h3), on=:stop_uuid)
-    dropmissing!(stops_df)
-    stops_df.journey_time = map(x->x.value, round.(stops_df.arrival_time .- t, Minute))
-    agg = combine(groupby(stops_df, :h3), :journey_time => minimum => :journey_time)
-    agg.index = string.(agg.h3, base=16)
-    agg.value = agg.journey_time
-    tday = Dates.today()
-    mkpath("$(homedir())/projects/H3-MON/www/data/debug")
-    write("""$(homedir())/projects/H3-MON/www/data/debug/$tday.json""",
-        JSON.json(Dict(
-        "t" => "Travel time to destination, minutes",
-        "flip" => true,
-        # "raw" => true,
-        "c" => "Transitous et al.",
-        # "scale" => Dict(zip(0.0:0.2:1.0, 0:12:60)),
-    )))
-    CSV.write("$(homedir())/projects/H3-MON/www/data/debug/$tday.csv", agg[!, [:index, :value]])
-    print(t); print('\r')
-    sleep(0.2)
-end
+#dist = Dict()
+#for t in initial_arrival_time:Minute(5):initial_arrival_time + Hour(22)
+#    @time stops = find_earliest_arrivals(gdf, start_uuid, t, t + Hour(4)); # ~4x quicker. nice
+#    dist[t] = get(stops,41019,missing) - t
+#end
+#df = DataFrame(t=collect(keys(dist)), duration=collect(values(dist)))
+#sort!(df, :t)
+#using Plots
+
+## the nan stuff with Plots is always a nightmare
+#df.duration_mins = map(x -> x isa TimePeriod ? round(x, Minute).value : NaN, df.duration)
+#plot(df.t, df.duration_mins, xrot=45, margin=15Plots.mm, legend=:none, ylabel="Minutes from Shanklin to Bank")
 
 
-
-# Shanklin to Bank journey durations
-initial_arrival_time = DateTime(2025,01,01,04,00)
-dist = Dict()
-for t in initial_arrival_time:Minute(5):initial_arrival_time + Hour(22)
-    @time stops = find_earliest_arrivals(gdf, start_uuid, t, t + Hour(4)); # ~4x quicker. nice
-    dist[t] = get(stops,41019,missing) - t
-end
-df = DataFrame(t=collect(keys(dist)), duration=collect(values(dist)))
-sort!(df, :t)
-using Plots
-
-# the nan stuff with Plots is always a nightmare
-df.duration_mins = map(x -> x isa TimePeriod ? round(x, Minute).value : NaN, df.duration)
-plot(df.t, df.duration_mins, xrot=45, margin=15Plots.mm, legend=:none, ylabel="Minutes from Shanklin to Bank")
+# todo:
+# - consider caching "where can i get to at time t from station x" in a function
+# - switch departure_time to findfirsts?
+# - walking connections
+# - api for draggable map

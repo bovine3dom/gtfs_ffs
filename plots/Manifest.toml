@@ -2,7 +2,7 @@
 
 julia_version = "1.11.5"
 manifest_format = "2.0"
-project_hash = "728c2d9aed99be13381ff2e7cea05317ecb796c5"
+project_hash = "c67c06794fd0860d80d2d73f788f9e62b8d41209"
 
 [[deps.AbstractFFTs]]
 deps = ["LinearAlgebra"]
@@ -103,6 +103,11 @@ git-tree-sha1 = "1b96ea4a01afe0ea4090c5c8039690672dd13f2e"
 uuid = "6e34b625-4abd-537c-b88f-471c36dfa7a0"
 version = "1.0.9+0"
 
+[[deps.CEnum]]
+git-tree-sha1 = "389ad5c84de1ae7cf0e28e381131c98ea87d54fc"
+uuid = "fa961155-64e5-5f13-b03f-caf6b980ea82"
+version = "0.5.0"
+
 [[deps.CSV]]
 deps = ["CodecZlib", "Dates", "FilePathsBase", "InlineStrings", "Mmap", "Parsers", "PooledArrays", "PrecompileTools", "SentinelArrays", "Tables", "Unicode", "WeakRefStrings", "WorkerUtilities"]
 git-tree-sha1 = "deddd8725e5e1cc49ee205a1964256043720a6c3"
@@ -120,18 +125,13 @@ deps = ["DataAPI", "Future", "Missings", "Printf", "Requires", "Statistics", "Un
 git-tree-sha1 = "1568b28f91293458345dabba6a5ea3f183250a61"
 uuid = "324d7699-5711-5eae-9e2f-1d82baa6b597"
 version = "0.10.8"
+weakdeps = ["JSON", "RecipesBase", "SentinelArrays", "StructTypes"]
 
     [deps.CategoricalArrays.extensions]
     CategoricalArraysJSONExt = "JSON"
     CategoricalArraysRecipesBaseExt = "RecipesBase"
     CategoricalArraysSentinelArraysExt = "SentinelArrays"
     CategoricalArraysStructTypesExt = "StructTypes"
-
-    [deps.CategoricalArrays.weakdeps]
-    JSON = "682c06a0-de6a-54ab-a142-c8b1cf79cde6"
-    RecipesBase = "3cdcf5f2-1ef4-517c-9805-6587b60abb01"
-    SentinelArrays = "91c51154-3ec4-41a3-a24f-3f23e20d615c"
-    StructTypes = "856f2bd8-1eba-4b0a-8007-ebc267875bd4"
 
 [[deps.ChainRulesCore]]
 deps = ["Compat", "LinearAlgebra"]
@@ -485,6 +485,18 @@ git-tree-sha1 = "53bb909d1151e57e2484c3d1b53e19552b887fb2"
 uuid = "42e2da0e-8278-4e71-bc24-59509adca0fe"
 version = "1.0.2"
 
+[[deps.H3]]
+deps = ["CEnum", "H3_jll", "Libdl"]
+git-tree-sha1 = "faef10ad861f35c50fc9879122194392a3fb96e1"
+uuid = "f62fece2-b996-571a-b4c9-e662aba1c617"
+version = "0.3.2"
+
+[[deps.H3_jll]]
+deps = ["Artifacts", "JLLWrappers", "Libdl"]
+git-tree-sha1 = "4e99ccf48520ec137c469b6fa5f6390b09a6aa51"
+uuid = "60c8821e-da38-5dbd-93c7-983f1e6d69be"
+version = "4.2.1+0"
+
 [[deps.HTTP]]
 deps = ["Base64", "CodecZlib", "ConcurrentUtilities", "Dates", "ExceptionUnwrapping", "Logging", "LoggingExtras", "MbedTLS", "NetworkOptions", "OpenSSL", "PrecompileTools", "Random", "SimpleBufferStream", "Sockets", "URIs", "UUIDs"]
 git-tree-sha1 = "f93655dc73d7a0b4a368e3c0bce296ae035ad76e"
@@ -578,6 +590,16 @@ deps = ["Dates", "Mmap", "Parsers", "Unicode"]
 git-tree-sha1 = "31e996f0a15c7b280ba9f76636b3ff9e2ae58c9a"
 uuid = "682c06a0-de6a-54ab-a142-c8b1cf79cde6"
 version = "0.21.4"
+
+[[deps.JSON3]]
+deps = ["Dates", "Mmap", "Parsers", "PrecompileTools", "StructTypes", "UUIDs"]
+git-tree-sha1 = "196b41e5a854b387d99e5ede2de3fcb4d0422aae"
+uuid = "0f8b85d8-7281-11e9-16c2-39a750bddbf1"
+version = "1.14.2"
+weakdeps = ["ArrowTypes"]
+
+    [deps.JSON3.extensions]
+    JSON3ArrowExt = ["ArrowTypes"]
 
 [[deps.JpegTurbo_jll]]
 deps = ["Artifacts", "JLLWrappers", "Libdl"]
@@ -755,6 +777,11 @@ git-tree-sha1 = "191686b1ac1ea9c89fc52e996ad15d1d241d1e33"
 uuid = "5ced341a-0733-55b8-9ab6-a4889d929147"
 version = "1.10.1+0"
 
+[[deps.MIMEs]]
+git-tree-sha1 = "c64d943587f7187e751162b3b84445bbbd79f691"
+uuid = "6c6e2e6c-3030-632d-7369-2d6c69616d65"
+version = "1.1.0"
+
 [[deps.MKL_jll]]
 deps = ["Artifacts", "IntelOpenMP_jll", "JLLWrappers", "LazyArtifacts", "Libdl", "oneTBB_jll"]
 git-tree-sha1 = "5de60bc6cb3899cd318d80d627560fae2e2d99ae"
@@ -905,6 +932,30 @@ version = "1.3.3+0"
 git-tree-sha1 = "cc4054e898b852042d7b503313f7ad03de99c3dd"
 uuid = "bac558e1-5e72-5ebc-8fee-abe8a469f55d"
 version = "1.8.0"
+
+[[deps.Oxygen]]
+deps = ["DataStructures", "Dates", "HTTP", "JSON3", "MIMEs", "Reexport", "RelocatableFolders", "Sockets", "Statistics", "StructTypes"]
+git-tree-sha1 = "bec2031bcea6aed32e70d85eb127e64cff1d8a94"
+uuid = "df9a0d86-3283-4920-82dc-4555fc0d1d8b"
+version = "1.7.1"
+
+    [deps.Oxygen.extensions]
+    BonitoExt = "Bonito"
+    CairoMakieExt = "CairoMakie"
+    MustacheExt = "Mustache"
+    OteraEngineExt = "OteraEngine"
+    ProtoBufExt = "ProtoBuf"
+    TimeZonesExt = "TimeZones"
+    WGLMakieExt = ["WGLMakie", "Bonito"]
+
+    [deps.Oxygen.weakdeps]
+    Bonito = "824d6782-a2ef-11e9-3a09-e5662e0c26f8"
+    CairoMakie = "13f3f980-e62b-5c42-98c6-ff1f3baf88f0"
+    Mustache = "ffc61752-8dc7-55ee-8c37-f3e9cdd09e70"
+    OteraEngine = "b2d7f28f-acd6-4007-8b26-bc27716e5513"
+    ProtoBuf = "3349acd9-ac6a-5e09-bcdb-63829b23a429"
+    TimeZones = "f269a46b-ccf7-5d73-abea-4c690281aa53"
+    WGLMakie = "276b4fcb-3e11-5398-bf8b-a0c2d153d008"
 
 [[deps.PCRE2_jll]]
 deps = ["Artifacts", "Libdl"]
@@ -1302,6 +1353,12 @@ version = "0.4.1"
 git-tree-sha1 = "ec4bf39f7d25db401bcab2f11d2929798c0578e5"
 uuid = "354b36f9-a18e-4713-926e-db85100087ba"
 version = "1.3.4"
+
+[[deps.StructTypes]]
+deps = ["Dates", "UUIDs"]
+git-tree-sha1 = "159331b30e94d7b11379037feeb9b690950cace8"
+uuid = "856f2bd8-1eba-4b0a-8007-ebc267875bd4"
+version = "1.11.0"
 
 [[deps.StyledStrings]]
 uuid = "f489334b-da3d-4c2e-b8f0-e476e12c162b"
