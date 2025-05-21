@@ -7,7 +7,7 @@ API_VERSION = "0.0.1"
 PORT = get(ENV, "JULIA_API_PORT", 50075)
 IN_PRODUCTION = !isinteractive()
 
-using Oxygen, Arrow, DataFrames
+using Oxygen, Arrow, DataFrames, StatsBase
 import HTTP
 import H3.API: LatLng, latLngToCell, h3ToString
 
@@ -42,6 +42,9 @@ function latlon2isochrone(x, y, t)
     agg = combine(groupby(df, :h3), :arrival_time => minimum => :arrival_time)
     agg.actual_value = map(x -> round(x - start_time, Minute).value, agg.arrival_time)
     agg.value = 1 .- agg.actual_value ./ (60*t)
+    if (length(agg.value) > 1)
+        agg.value = quantilerank.(Ref(agg.value), agg.value)
+    end
     rename!(agg, :h3 => :index)
     sort!(agg, :value)
     return df2arrowresp(agg)
