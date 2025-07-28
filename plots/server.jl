@@ -4,7 +4,7 @@ include("router.jl")
 
 # server
 API_VERSION = "0.0.1"
-PORT = get(ENV, "JULIA_API_PORT", 50075)
+PORT = get(ENV, "JULIA_API_PORT", 1988)
 IN_PRODUCTION = !isinteractive()
 
 using Oxygen, Arrow, DataFrames, StatsBase

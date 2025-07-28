@@ -588,7 +588,7 @@ where headway > 9
 
 using UnicodePlots
 df = select_df(con(), """
-select avg((mod(60, headway) == 0) or (headway = 120)) value, geoToH3(stop_lon, stop_lat, 8) h3 from (
+select avg((mod(60, headway) == 0) or (headway = 120)) value, geoToH3(stop_lon, stop_lat, 5) h3 from (
 select 
 source, stop_id, sane_route_id, departure_time, trip_headsign, stop_lon, stop_lat,
 dateDiff('minute', lagInFrame(departure_time, 1, departure_time) over (
@@ -596,7 +596,7 @@ dateDiff('minute', lagInFrame(departure_time, 1, departure_time) over (
     order by departure_time asc
     rows between 1 preceding and current row
 ), departure_time) headway
-from transitous_stop_times_one_day_sane st
+from transitous_everything_stop_times_one_day_sane st
 where true
 and ((trip_headsign = '') or (trip_headsign != stop_name))
 )
@@ -604,13 +604,14 @@ where headway between 10 and 60*5 -- exclude sub-10 minute headway because we're
 group by all
 """)
 df.index = string.(df.h3, base=16)
-mkpath("$(homedir())/projects/H3-MON/www/data/$(today())")
-write("""$(homedir())/projects/H3-MON/www/data/$(today())/taktness_hires.json""", JSON.json(Dict(
-    "t" => "Fraction of departures following a clockface schedule",
+today = Dates.today()
+mkpath("$(homedir())/projects/H3-MON/www/data/taktness/")
+write("""$(homedir())/projects/H3-MON/www/data/taktness/$today.json""", JSON.json(Dict(
+    "t" => "Fraction of public transport departures following a clockface schedule",
     "raw" => true,
     "c" => "Transitous et al.",
 )))
-CSV.write("""$(homedir())/projects/H3-MON/www/data/$(today())/taktness_hires.csv""", df[!, [:index, :value]])
+CSV.write("""$(homedir())/projects/H3-MON/www/data/taktness/$today.csv""", df[!, [:index, :value]])
 # mkpath("$(homedir())/projects/H3-MON/www/data/2025-05-05")
 # write("""$(homedir())/projects/H3-MON/www/data/2025-05-05/taktness.json""", JSON.json(Dict(
 #     "t" => "Fraction of departures following a clockface schedule",
@@ -850,29 +851,46 @@ today = Dates.today()
 mkpath("$(homedir())/projects/H3-MON/www/data/debug")
 CSV.write("$(homedir())/projects/H3-MON/www/data/debug/$today.csv", df[!, [:index, :value]])
 
+####
+#
+# low res map. not sure how i feel about it tbh, makes empty countries look bad
+#
+####
 df = select_df(con(), """
     with
-    10 as res,
+    10 as res_trans,
+    9 as res_pop,
+    2 as res_final,
     30 as max_dist,
     -- assume that people walk in "straight lines" at half the speed they walk around buildings, roads etc.
-    80/2 as walk_speed_per_min
-    select pls h3, min(total_wait) time_to_transport from (
-    -- value is number of transport per day, t.1 is distance
-    -- average wait time is (18*60)/(number of transport per day * 2) + walking time if we say we're awake for 18 hours and we on average only wait half time
-        select h3, (18*60)/(departs_per_day*2) wait_time_at_stop, ((2*(t.1)+1)*h3EdgeLengthM(res))/walk_speed_per_min walk_to_stop, walk_to_stop + wait_time_at_stop total_wait, arrayJoin(t.2) pls from (
-            select geoToH3(stop_lon, stop_lat, res) h3, arrayJoin(arrayMap(x->(x, h3HexRing(h3, x)), arrayMap(x->toUInt16(x), range(0,max_dist+1)))) t, max(value) departs_per_day from (
-                select stop_id, stop_lat, stop_lon, count(*) value from transitous_everything_stop_times_one_day
-                where source like 'gb_%'
-                group by all
+    80/2 as walk_speed_per_min,
+    transport_closeness as (
+        select pls h3, min(total_wait) time_to_transport from (
+        -- value is number of transport per day, t.1 is distance
+        -- average wait time is (18*60)/(number of transport per day * 2) + walking time if we say we're awake for 18 hours and we on average only wait half time
+            select h3, (18*60)/(departs_per_day*2) wait_time_at_stop, ((2*(t.1)+1)*h3EdgeLengthM(res_trans))/walk_speed_per_min walk_to_stop, walk_to_stop + wait_time_at_stop total_wait, arrayJoin(t.2) pls from (
+                select geoToH3(stop_lon, stop_lat, res_trans) h3, arrayJoin(arrayMap(x->(x, h3HexRing(h3, x)), arrayMap(x->toUInt16(x), range(0,max_dist+1)))) t, max(value) departs_per_day from (
+                    select stop_id, stop_lat, stop_lon, count(*) value from transitous_everything_stop_times_one_day
+                    --where source like 'ch_%'
+                    group by all
+                )
+            group by all
             )
-        group by all
-        )
-    ) st
-    -- optional if not in UK / you don't have this table
-    left semi join (select geoToH3(lon, lat, res) h3 from uprn_os) uo on h3 = uo.h3 -- exclude places where zero people live
-    group by pls
-    having time_to_transport <= 60
+        ) st
+        -- optional if not in UK / you don't have this table
+        --left semi join (select geoToH3(lon, lat, res_trans) h3 from uprn_os) uo on h3 = uo.h3 -- exclude places where zero people live
+        group by pls
+        having time_to_transport <= 60
+    )
+    select h3ToParent(h3, res_final) h3, medianExactWeighted(time_to_transport, toUInt32(floor(population))) time_to_transport from (
+        select pop.h3 h3, population, time_to_transport from population_h3 pop
+        left join (select h3ToParent(h3, res_pop) h3, median(time_to_transport) time_to_transport from transport_closeness group by all) tc on h3 = tc.h3
+        where res = res_pop
+    )
+    group by all
+    --having time_to_transport > 0
 """)
+df[df.time_to_transport .== 0, :time_to_transport] .= 60
 dropmissing!(df)
 df.index = string.(df.h3, base=16)
 today = Dates.today()
@@ -890,14 +908,183 @@ write("""$(homedir())/projects/H3-MON/www/data/debug/$today.json""",
 CSV.write("$(homedir())/projects/H3-MON/www/data/debug/$today.csv", df[!, [:index, :value, :time_to_transport]])
 
 
-# cool that seems fixed. what a palava
-select_df(con(), """
-select * from transitous_everything_stop_times_one_day
-where true
---and source = 'fr_export-quotidien-au-format-gtfs-du-reseau-de-transport-lignes-d-azur.gtfs'
---and stop_id = '282'
-and geoToH3(stop_lon, stop_lat, 10) in h3kRing(reinterpretAsUInt64(reverse(unhex('8a3969a08c8ffff'))), 2)
-order by departure_time
+
+# really feels like we're getting somewhere with this
+# total population "velocity" per day. sum of velocity is maybe odd
+# so sod it let's do the whole planet
+df = select_df(con(), """
+    select geoToH3(stop_lon, stop_lat, 10) h3, avg(value) value from transitous_everything_edgelist te
+    left join (
+    select source, trip_id, sum(next_pop)/sum(travel_time) value from transitous_everything_edgelist
+    group by all
+    ) tee on te.source = tee.source and te.trip_id = tee.trip_id
+    group by all
+""")
+df.index = string.(df.h3, base=16)
+today = Dates.today()
+mkpath("$(homedir())/projects/H3-MON/www/data/debug/")
+# write("""$(homedir())/projects/H3-MON/www/data/debug/$today.json""", JSON.json(Dict(
+#     "t" => "Fraction of public transport departures following a clockface schedule",
+#     "raw" => true,
+#     "c" => "Transitous et al.",
+# )))
+CSV.write("""$(homedir())/projects/H3-MON/www/data/debug/$today.csv""", df[!, [:index, :value]])
+
+# stop velocity dedicated cte
+# (60 - walk_time - wait_time) * pop_per_minute
+# so look for max greatest(0, (60 - wait_time) * pop_per_minute)
+df = select_df(con(), """
+    select source, stop_id, avg(value) pop_per_minute, count(*) departs_per_day, (18*60)/(departs_per_day*2) wait_time from transitous_everything_edgelist te
+    left join (
+    select source, trip_id, sum(next_pop)/sum(travel_time) value from transitous_everything_edgelist
+    group by all
+    ) tee on te.source = tee.source and te.trip_id = tee.trip_id
+    group by all
+    having wait_time <= 55 -- since we always add on a 5 minute walk at the end
+    limit 10
+""")
+
+
+####
+#
+# Population accessible within 60 minutes by walk + direct transport
+#
+####
+df = select_df(con(), """
+    with
+    10 as res_trans,
+    9 as res_pop,
+    2 as res_final,
+    30 as max_dist,
+    -- assume that people walk in "straight lines" at half the speed they walk around buildings, roads etc.
+    80/2 as walk_speed_per_min
+    select pls h3, max(pop_in_60) pop_in_60 from (
+    -- value is number of transport per day, t.1 is distance
+    -- average wait time is (18*60)/(number of transport per day * 2) + walking time if we say we're awake for 18 hours and we on average only wait half time
+        select h3, ((2*(t.1)+1)*h3EdgeLengthM(res_trans))/walk_speed_per_min walk_to_stop, walk_to_stop + wait_time_t total_wait, (60 - total_wait - 5) * pop_per_minute_t pop_in_60, arrayJoin(t.2) pls from (
+            select geoToH3(stop_lon, stop_lat, res_trans) h3, arrayJoin(arrayMap(x->(x, h3HexRing(h3, x)), arrayMap(x->toUInt16(x), range(0,max_dist+1)))) t, argMax(pop_per_minute, greatest(0, (60 - wait_time - 5) * pop_per_minute)) pop_per_minute_t, argMax(wait_time, greatest(0, (60 - wait_time - 5) * pop_per_minute)) wait_time_t from (
+                select source, stop_id, stop_lat, stop_lon, avg(value) pop_per_minute, count(*) departs_per_day, (18*60)/(departs_per_day*2) wait_time from transitous_everything_edgelist te
+                left join (
+                select source, trip_id, sum(next_pop)/(sum(travel_time) + count()*5) value from transitous_everything_edgelist -- add on 5 min walk
+                group by all
+                ) tee on te.source = tee.source and te.trip_id = tee.trip_id
+                where source like 'gb_%'
+                group by all
+                having wait_time <= 55 -- since we always add on a 5 minute walk at the end
+            )
+        group by all
+        )
+    ) st
+    -- optional if not in UK / you don't have this table
+    --left semi join (select geoToH3(lon, lat, res_trans) h3 from uprn_os) uo on h3 = uo.h3 -- exclude places where zero people live
+    group by pls
+    having pop_in_60 > 0
+""")
+df.index = string.(df.h3, base=16)
+df.value = df.pop_in_60 #./ 30_000_000
+today = Dates.today()
+mkpath("$(homedir())/projects/H3-MON/www/data/transport_stops/")
+write("""$(homedir())/projects/H3-MON/www/data/transport_stops/$today.json""", JSON.json(Dict(
+    "t" => "Approx population reachable under 60 mins by walk + direct transport",
+    #"raw" => true,
+    "c" => "EU JRC, Transitous et al., Ordnance Survey",
+)))
+CSV.write("""$(homedir())/projects/H3-MON/www/data/transport_stops/$today.csv""", df[!, [:index, :value]])
+
+# improvements:
+# - for each stop, calculate population velocity only using stops that in the future of the stop per trip
+# - have a max travel time?
+# - use our own LSOA population grid for UK
+
+####
+#
+# Places with very good transport links that haven't been built on
+#
+####
+df = select_df(con(), """
+    with
+    10 as res_trans,
+    9 as res_pop,
+    2 as res_final,
+    30 as max_dist,
+    -- assume that people walk in "straight lines" at half the speed they walk around buildings, roads etc.
+    80/2 as walk_speed_per_min
+    select pls h3, max(pop_in_60) pop_in_60 from (
+    -- value is number of transport per day, t.1 is distance
+    -- average wait time is (18*60)/(number of transport per day * 2) + walking time if we say we're awake for 18 hours and we on average only wait half time
+        select h3, ((2*(t.1)+1)*h3EdgeLengthM(res_trans))/walk_speed_per_min walk_to_stop, walk_to_stop + wait_time_t total_wait, (60 - total_wait - 5) * pop_per_minute_t pop_in_60, arrayJoin(t.2) pls from (
+            select geoToH3(stop_lon, stop_lat, res_trans) h3, arrayJoin(arrayMap(x->(x, h3HexRing(h3, x)), arrayMap(x->toUInt16(x), range(0,max_dist+1)))) t, argMax(pop_per_minute, greatest(0, (60 - wait_time - 5) * pop_per_minute)) pop_per_minute_t, argMax(wait_time, greatest(0, (60 - wait_time - 5) * pop_per_minute)) wait_time_t from (
+                select source, stop_id, stop_lat, stop_lon, avg(value) pop_per_minute, count(*) departs_per_day, (18*60)/(departs_per_day*2) wait_time from transitous_everything_edgelist te
+                left join (
+                select source, trip_id, sum(next_pop)/(sum(travel_time) + count()*5) value from transitous_everything_edgelist -- add on 5 min walk
+                group by all
+                ) tee on te.source = tee.source and te.trip_id = tee.trip_id
+                where source like 'gb_%'
+                group by all
+                having wait_time <= 55 -- since we always add on a 5 minute walk at the end
+            )
+        group by all
+        )
+    ) st
+    -- optional if not in UK / you don't have this table
+    left anti join (select geoToH3(lon, lat, res_trans) h3 from uprn_os) uo on h3 = uo.h3 -- exclude places where zero people live
+    group by pls
+    having pop_in_60 > 0
+""")
+df = df[df.pop_in_60 .> 2_000_000, :]
+df.index = string.(df.h3, base=16)
+df.value = df.pop_in_60 #./ 30_000_000
+today = Dates.today()
+theme_name = "uninhabited"
+mkpath("$(homedir())/projects/H3-MON/www/data/$theme_name/")
+write("""$(homedir())/projects/H3-MON/www/data/$theme_name/$today.json""", JSON.json(Dict(
+    "t" => "Approx population reachable under 60 mins by walk + direct transport",
+    #"raw" => true,
+    "c" => "EU JRC, Transitous et al., Ordnance Survey",
+)))
+CSV.write("""$(homedir())/projects/H3-MON/www/data/$theme_name/$today.csv""", df[!, [:index, :value]])
+
+
+####
+#
+# idea for a bot: every day, pick random h3 from here, tweet link to satellite image along with accessible population
+#
+# https://www.google.com/maps/@?api=1&map_action=map&center=${lat}%2C${lon}&zoom=18&basemap=satellite
+#
+# but they don't embed nicely :(
+# 
+# sentinel is very low res, but i guess we could use that as a first attempt?
+#
+####
+df = select_df(con(), """
+    with
+    10 as res_trans,
+    9 as res_pop,
+    2 as res_final,
+    30 as max_dist,
+    -- assume that people walk in "straight lines" at half the speed they walk around buildings, roads etc.
+    80/2 as walk_speed_per_min
+    select pls h3, max(pop_in_60) pop_in_60 from (
+    -- value is number of transport per day, t.1 is distance
+    -- average wait time is (18*60)/(number of transport per day * 2) + walking time if we say we're awake for 18 hours and we on average only wait half time
+        select h3, ((2*(t.1)+1)*h3EdgeLengthM(res_trans))/walk_speed_per_min walk_to_stop, walk_to_stop + wait_time_t total_wait, (60 - total_wait - 5) * pop_per_minute_t pop_in_60, arrayJoin(t.2) pls from (
+            select geoToH3(stop_lon, stop_lat, res_trans) h3, arrayJoin(arrayMap(x->(x, h3HexRing(h3, x)), arrayMap(x->toUInt16(x), range(0,max_dist+1)))) t, argMax(pop_per_minute, greatest(0, (60 - wait_time - 5) * pop_per_minute)) pop_per_minute_t, argMax(wait_time, greatest(0, (60 - wait_time - 5) * pop_per_minute)) wait_time_t from (
+                select source, stop_id, stop_lat, stop_lon, avg(value) pop_per_minute, count(*) departs_per_day, (18*60)/(departs_per_day*2) wait_time from transitous_everything_edgelist te
+                left join (
+                select source, trip_id, sum(next_pop)/(sum(travel_time) + count()*5) value from transitous_everything_edgelist -- add on 5 min walk
+                group by all
+                ) tee on te.source = tee.source and te.trip_id = tee.trip_id
+                where source like 'gb_%'
+                group by all
+                having wait_time <= 55 -- since we always add on a 5 minute walk at the end
+            )
+        group by all
+        )
+    ) st
+    -- optional if not in UK / you don't have this table
+    left anti join (select geoToH3(lon, lat, res_trans) h3 from uprn_os) uo on h3 = uo.h3 -- exclude places where zero people live
+    group by pls
+    having pop_in_60 > 0
 """)
 ||||||| parent of 9140a5b (Add more on utilisation rates)
 CSV.write("""$(homedir())/projects/H3-MON/www/data/$(today())/taktness.csv""", df[!, [:index, :value]])
