@@ -1249,3 +1249,18 @@ plot(df.probe, df.utilisation, group=df.country, xticks=Time(0):Minute(120):Time
 
 # using plotly so we can investigate
 #plotlyjs()
+
+# Untested but I am reasonably sure it's where the edgelist came from
+using Arrow
+big_df = select_df(con(), """
+    select 
+    stop_uuid,
+    geoToH3(stop_lon, stop_lat, 7) h3,
+    next_stop,
+    departure_time,
+    next_arrival
+    from transitous_everything_edgelist_sane
+    order by departure_time asc
+""")
+dropmissing!(big_df)
+Arrow.write("/mnt/chungus/scratch/edgelist.arrow", big_df)
