@@ -3,7 +3,7 @@ BASE_URL="https://api.transitous.org/gtfs/"
 NUM_PARALLEL=3 # 
 
 curl -s "${BASE_URL}" | \
-  awk -F'"' '/href="[^"]*\.zip"/{print $2}' | \
+  awk -F'"' '/href="[^"]*\.gtfs\.zip"/{print $2}' | \
   sed "s|^|${BASE_URL}|" | \
   parallel --bar -j ${NUM_PARALLEL} curl -O -L {}
 
