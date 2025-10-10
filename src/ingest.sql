@@ -873,6 +873,23 @@ select assumeNotNull(h3ToGeo(h3).1) lon, assumeNotNull(h3ToGeo(h3).2) lat, assum
 );
 exchange tables transitous_pop_within_60 and transitous_pop_within_60_2;
 
+-- baked table for interaction
+create table if not exists transitous_pop_within_60_baked 
+engine = MergeTree
+order by (res, lon, lat, h3)
+as 
+select lon, lat, pop_in_60, h3, h3GetResolution(h3) res from transitous_pop_within_60;
+
+-- initial res is 10
+insert into transitous_pop_within_60_baked
+select 
+avg(lon) lon, avg(lat) lat,
+median(pop_in_60) pop_in_60, 
+h3ToParent(h3, res) h3,
+res from transitous_pop_within_60 t,
+(select arrayJoin([4, 5, 6, 7, 8, 9]) res) resolutions
+group by all;
+
 -- drop table if exists transitous_pop_within_60_2;
 -- drop table if exists transitous_everything_edgelist2;
 
