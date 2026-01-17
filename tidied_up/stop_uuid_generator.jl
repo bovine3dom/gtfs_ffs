@@ -3,6 +3,44 @@
 using CSV, DataFrames
 include("lib.jl") # make sure you have the right env variables and you're tunnelled if necessary
 
+struct DisjointSet
+    parents::Dict{UInt64, UInt64}
+    ranks::Dict{UInt64, Int}
+end
+
+DisjointSet() = DisjointSet(Dict{UInt64, UInt64}(), Dict{UInt64, Int}())
+
+function find_root!(ds::DisjointSet, i::UInt64)
+    if !haskey(ds.parents, i)
+        ds.parents[i] = i
+        ds.ranks[i] = 0
+        return i
+    end
+    
+    if ds.parents[i] != i
+        ds.parents[i] = find_root!(ds, ds.parents[i])
+    end
+    return ds.parents[i]
+end
+
+function union_sets!(ds::DisjointSet, i::UInt64, j::UInt64)
+    root_i = find_root!(ds, i)
+    root_j = find_root!(ds, j)
+    
+    if root_i != root_j
+        if ds.ranks[root_i] < ds.ranks[root_j]
+            ds.parents[root_i] = root_j
+        elseif ds.ranks[root_i] > ds.ranks[root_j]
+            ds.parents[root_j] = root_i
+        else
+            ds.parents[root_j] = root_i
+            ds.ranks[root_i] += 1
+        end
+        return true
+    end
+    return false
+end
+
 function generate_uuids(con, stops_table_name, output_table_name)
     select_df(con, "select count() c from $stops_table_name")
     df = select_df(con, """
@@ -16,44 +54,6 @@ function generate_uuids(con, stops_table_name, output_table_name)
     # using ProgressMeter
 
     # union-find algorithm
-    struct DisjointSet
-        parents::Dict{UInt64, UInt64}
-        ranks::Dict{UInt64, Int}
-    end
-
-    DisjointSet() = DisjointSet(Dict{UInt64, UInt64}(), Dict{UInt64, Int}())
-
-    function find_root!(ds::DisjointSet, i::UInt64)
-        if !haskey(ds.parents, i)
-            ds.parents[i] = i
-            ds.ranks[i] = 0
-            return i
-        end
-        
-        if ds.parents[i] != i
-            ds.parents[i] = find_root!(ds, ds.parents[i])
-        end
-        return ds.parents[i]
-    end
-
-    function union_sets!(ds::DisjointSet, i::UInt64, j::UInt64)
-        root_i = find_root!(ds, i)
-        root_j = find_root!(ds, j)
-        
-        if root_i != root_j
-            if ds.ranks[root_i] < ds.ranks[root_j]
-                ds.parents[root_i] = root_j
-            elseif ds.ranks[root_i] > ds.ranks[root_j]
-                ds.parents[root_j] = root_i
-            else
-                ds.parents[root_j] = root_i
-                ds.ranks[root_i] += 1
-            end
-            return true
-        end
-        return false
-    end
-
     ds = DisjointSet()
     # p = Progress(size(df, 1); desc="Unionizing Overlaps: ", dt=1.0)
 
