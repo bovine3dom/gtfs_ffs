@@ -1,12 +1,28 @@
-DROP TABLE IF EXISTS transitous_everything_routes;
-DROP TABLE IF EXISTS transitous_everything_trips;
-DROP TABLE IF EXISTS transitous_everything_stop_times;
-DROP TABLE IF EXISTS transitous_everything_calendar;
-DROP TABLE IF EXISTS transitous_everything_calendar_dates;
-DROP TABLE IF EXISTS transitous_everything_stops;
-DROP TABLE IF EXISTS transitous_everything_agency;
+-- setup for long queries
+-- run with
+-- clickhouse-client --receive_timeout=300000 --send_timeout=300000 --max_execution_time=0 --max_result_rows=0 --max_result_bytes=0 
+SET receive_timeout = 40000;
+SET send_timeout = 40000;
+SET max_threads = 5;
+SET max_execution_time = 0;
+SET max_result_rows = 0;
+SET max_result_bytes = 0;
+SET receive_timeout = 40000;
+SET send_timeout = 40000;
+SET connect_timeout_with_failover_ms = 40000000;
+SET http_connection_timeout = 40000;
+SET http_send_timeout = 40000;
+SET http_receive_timeout = 40000;
 
-CREATE TABLE transitous_everything_routes
+DROP TABLE IF EXISTS transitous_everything_20260117_routes;
+DROP TABLE IF EXISTS transitous_everything_20260117_trips;
+DROP TABLE IF EXISTS transitous_everything_20260117_stop_times;
+DROP TABLE IF EXISTS transitous_everything_20260117_calendar;
+DROP TABLE IF EXISTS transitous_everything_20260117_calendar_dates;
+DROP TABLE IF EXISTS transitous_everything_20260117_stops;
+DROP TABLE IF EXISTS transitous_everything_20260117_agency;
+
+CREATE TABLE transitous_everything_20260117_routes
 ENGINE MergeTree
 ORDER BY (source, route_id, route_type)
 AS
@@ -24,7 +40,7 @@ SELECT
     toUInt32OrNull(route_sort_order) AS route_sort_order,
     toUInt8OrNull(continuous_pickup) AS continuous_pickup,
     toUInt8OrNull(continuous_drop_off) AS continuous_drop_off
-FROM file('transitous/source=*/routes.txt', 'CSVWithNames', '
+FROM file('chungus/transitous/2026-01-17/source=*/routes.txt', 'CSVWithNames', '
     source String,
     route_id String,
     agency_id String,
@@ -41,7 +57,7 @@ FROM file('transitous/source=*/routes.txt', 'CSVWithNames', '
 ')
 SETTINGS use_hive_partitioning = 1;
 
-CREATE TABLE transitous_everything_trips
+CREATE TABLE transitous_everything_20260117_trips
 ENGINE MergeTree
 ORDER BY (source, route_id, service_id, trip_id)
 AS
@@ -57,7 +73,7 @@ SELECT
     shape_id,
     toUInt8OrNull(wheelchair_accessible) AS wheelchair_accessible,
     toUInt8OrNull(bikes_allowed) AS bikes_allowed
-FROM file('transitous/source=*/trips.txt', 'CSVWithNames', '
+FROM file('chungus/transitous/2026-01-17/source=*/trips.txt', 'CSVWithNames', '
     source String,
     route_id String,
     service_id String,
@@ -73,46 +89,7 @@ FROM file('transitous/source=*/trips.txt', 'CSVWithNames', '
 ) tt
 SETTINGS use_hive_partitioning = 1;
 
--- maybe it would have been better to go via the calendar first so that we only had trips that were running on x date
-CREATE TABLE transitous_everything_stop_times
-ENGINE MergeTree
-ORDER BY (source, trip_id, stop_id, arrival_time, departure_time)
-SETTINGS allow_nullable_key = 1
-AS
-SELECT
-    toLowCardinality(assumeNotNull(st.source)) AS source,
-    st.trip_id trip_id,
-    parseDateTimeBestEffortOrNull(arrival_time) arrival_time, -- uses 1 jan of current year as base. which is annoying
-    parseDateTimeBestEffortOrNull(departure_time) departure_time,
-    stop_id,
-    toUInt32OrNull(stop_sequence) AS stop_sequence,
-    stop_headsign,
-    toUInt8OrNull(pickup_type) AS pickup_type,
-    toUInt8OrNull(drop_off_type) AS drop_off_type,
-    toUInt8OrNull(continuous_pickup) AS continuous_pickup,
-    toUInt8OrNull(continuous_drop_off) AS continuous_drop_off,
-    toFloat32OrNull(shape_dist_traveled) AS shape_dist_traveled,
-    toUInt8OrNull(timepoint) AS timepoint,
-    local_zone_id
-FROM file('transitous/source=*/stop_times.txt', 'CSVWithNames', '
-    source String,
-    trip_id String,
-    arrival_time String,
-    departure_time String,
-    stop_id String,
-    stop_sequence String,
-    stop_headsign String,
-    pickup_type String,
-    drop_off_type String,
-    continuous_pickup String,
-    continuous_drop_off String,
-    shape_dist_traveled String,
-    timepoint String,
-    local_zone_id String
-') st
-SETTINGS use_hive_partitioning = 1;
-
-CREATE TABLE transitous_everything_stops
+CREATE TABLE transitous_everything_20260117_stops
 ENGINE MergeTree
 ORDER BY (source, stop_id, stop_lat, stop_lon)
 AS
@@ -132,7 +109,7 @@ SELECT
     toUInt8OrNull(wheelchair_boarding) AS wheelchair_boarding,
     level_id,
     platform_code
-FROM file('transitous/source=*/stops.txt', 'CSVWithNames', '
+FROM file('chungus/transitous/2026-01-17/source=*/stops.txt', 'CSVWithNames', '
     source String,
     stop_id String,
     stop_code String,
@@ -151,7 +128,7 @@ FROM file('transitous/source=*/stops.txt', 'CSVWithNames', '
 ') ts
 SETTINGS use_hive_partitioning = 1;
 
-CREATE TABLE transitous_everything_calendar
+CREATE TABLE transitous_everything_20260117_calendar
 ENGINE MergeTree
 ORDER BY (source, service_id, start_date, end_date)
 AS
@@ -167,7 +144,7 @@ SELECT
     toUInt8OrZero(sunday) AS sunday,
     toDateOrZero(start_date) AS start_date, -- Assumes YYYYMMDD format
     toDateOrZero(end_date) AS end_date     -- Assumes YYYYMMDD format
-FROM file('transitous/source=*/calendar.txt', 'CSVWithNames', '
+FROM file('chungus/transitous/2026-01-17/source=*/calendar.txt', 'CSVWithNames', '
     source String,
     service_id String,
     monday String,
@@ -182,7 +159,7 @@ FROM file('transitous/source=*/calendar.txt', 'CSVWithNames', '
 ') tc
 SETTINGS use_hive_partitioning = 1;
 
-CREATE TABLE transitous_everything_calendar_dates
+CREATE TABLE transitous_everything_20260117_calendar_dates
 ENGINE MergeTree
 ORDER BY (source, service_id, date, exception_type)
 AS
@@ -191,7 +168,7 @@ SELECT
     tcd.service_id service_id,
     toDateOrZero(date) AS date, -- Assumes YYYYMMDD format
     toUInt8OrZero(exception_type) AS exception_type
-FROM file('transitous/source=*/calendar_dates.txt', 'CSVWithNames', '
+FROM file('chungus/transitous/2026-01-17/source=*/calendar_dates.txt', 'CSVWithNames', '
     source String,
     service_id String,
     date String,
@@ -199,7 +176,7 @@ FROM file('transitous/source=*/calendar_dates.txt', 'CSVWithNames', '
 ') tcd
 SETTINGS use_hive_partitioning = 1;
 
-CREATE TABLE transitous_everything_agency
+CREATE TABLE transitous_everything_20260117_agency
 ENGINE MergeTree
 ORDER BY (source, agency_id)
 AS
@@ -213,7 +190,7 @@ SELECT
     agency_fare_url,
     agency_lang,
     agency_phone
-FROM file('transitous/source=*/agency.txt', 'CSVWithNames', '
+FROM file('chungus/transitous/2026-01-17/source=*/agency.txt', 'CSVWithNames', '
     source String,
     agency_id String,
     agency_name String,
@@ -226,31 +203,16 @@ FROM file('transitous/source=*/agency.txt', 'CSVWithNames', '
 ') ta
 SETTINGS use_hive_partitioning = 1;
 
-
--- one big table for convenience
-DROP TABLE IF EXISTS transitous_everything_stop_times_one_day;
-CREATE TABLE transitous_everything_stop_times_one_day -- 250 seconds 😎
-ENGINE MergeTree
-order by (source, stop_id, stop_lat, stop_lon, route_type, trip_id, arrival_time, departure_time)
-settings allow_nullable_key = 1
+DROP TABLE IF EXISTS transitous_everything_20260117_valid_trips_lookup;
+CREATE TABLE transitous_everything_20260117_valid_trips_lookup
+ENGINE = MergeTree()
+ORDER BY (source, trip_id)
 AS
 WITH
 date_bounds AS (
-   
     SELECT
-        parseDateTimeBestEffort('2025-03-01') AS min_overall_date,
-        parseDateTimeBestEffort('2026-01-01') AS max_overall_date
--- if you want to to it programmatically but tbh who cares
---        min(event_date) AS min_overall_date,
---        max(event_date) AS max_overall_date
---    FROM (
---        SELECT start_date AS event_date FROM transitous_calendar WHERE start_date IS NOT NULL
---        UNION ALL
---        SELECT end_date AS event_date FROM transitous_calendar WHERE end_date IS NOT NULL
---        UNION ALL
---        SELECT date AS event_date FROM transitous_calendar_dates WHERE date IS NOT NULL
---    )
---    WHERE event_date IS NOT NULL
+        parseDateTimeBestEffort('2025-12-20') AS min_overall_date,
+        parseDateTimeBestEffort('2026-07-01') AS max_overall_date
 ),
 all_dates_in_range AS (
     SELECT
@@ -270,7 +232,7 @@ calendar_potential_services AS (
         ca.service_id,
         ca.source
     FROM all_dates_in_range AS ad
-    JOIN (select *, true dummy from transitous_everything_calendar) AS ca
+    JOIN (select *, true dummy from transitous_everything_20260117_calendar) AS ca
         ON ad.check_date >= ca.start_date
         AND ad.dummy = ca.dummy
         AND ad.check_date <= ca.end_date
@@ -290,7 +252,7 @@ calendar_date_exceptions AS (
         cd.service_id,
         cd.source,
         cd.exception_type
-    FROM transitous_everything_calendar_dates AS cd
+    FROM transitous_everything_20260117_calendar_dates AS cd
 ),
 active_services_on_date AS (
     SELECT
@@ -303,7 +265,6 @@ active_services_on_date AS (
         AND cps.service_id = cde_remove.service_id
         AND cps.source = cde_remove.source
         AND cde_remove.exception_type = 2
-
     UNION DISTINCT
     SELECT
         cde_add.check_date,
@@ -314,12 +275,10 @@ active_services_on_date AS (
       AND cde_add.check_date IN (SELECT check_date FROM all_dates_in_range)
 ),
 services_per_source_per_day AS (
-   
     SELECT
         source,
         check_date,
         count() AS num_active_services
-                                       
     FROM active_services_on_date
     GROUP BY source, check_date
 ),
@@ -334,19 +293,17 @@ ranked_days_per_source AS (
 best_days_per_source as (
     SELECT
         source,
-        check_date as best_date_for_this_source,
-        num_active_services
+        check_date as best_date_for_this_source
     FROM ranked_days_per_source
     WHERE rn = 1
-    ORDER BY source
 ),
-active_services as (
+active_services_final as (
     SELECT
         ca.service_id service_id,
         ca.source source
-    FROM transitous_everything_calendar AS ca
+    FROM transitous_everything_20260117_calendar AS ca
     JOIN best_days_per_source AS bds ON ca.source = bds.source
-    LEFT ANTI JOIN transitous_everything_calendar_dates AS cd_remove
+    LEFT ANTI JOIN transitous_everything_20260117_calendar_dates AS cd_remove
         ON ca.service_id = cd_remove.service_id
         AND ca.source = cd_remove.source
         AND cd_remove.date = bds.best_date_for_this_source
@@ -364,68 +321,158 @@ active_services as (
             (toDayOfWeek(bds.best_date_for_this_source) = 7 AND ca.sunday)
         )
     UNION DISTINCT
-   
     SELECT
         cd.service_id,
         cd.source
-    FROM transitous_everything_calendar_dates AS cd
+    FROM transitous_everything_20260117_calendar_dates AS cd
     JOIN best_days_per_source AS bds ON cd.source = bds.source
     WHERE
         cd.date = bds.best_date_for_this_source
         AND cd.exception_type = 1
 )
-select
-arrival_time,
-bikes_allowed,
-block_id,
-tst.service_id service_id,
-tst.source source,
-departure_time,
-direction_id,
-drop_off_type,
-level_id,
-local_zone_id,
-location_type,
-parent_station,
-pickup_type,
-platform_code,
-st.stop_id stop_id,
-tst.trip_id trip_id,
-ro.continuous_drop_off continuous_drop_off,
-ro.continuous_pickup continuous_pickup,
-ro.route_id route_id,
-route_color,
-route_desc,
-route_long_name,
-route_short_name,
-route_sort_order,
-route_text_color,
-route_type,
-route_url,
-stop_code,
-stop_desc,
-stop_headsign,
-stop_lat,
-stop_lon,
-stop_name,
-stop_sequence,
-stop_timezone,
-stop_url,
-timepoint,
-trip_headsign,
-trip_short_name,
-wheelchair_accessible,
-wheelchair_boarding,
-zone_id
-from transitous_everything_trips tst
-inner join active_services on active_services.service_id = tst.service_id and active_services.source = tst.source
-inner join transitous_everything_stop_times st on tst.trip_id = st.trip_id and tst.source = st.source
-inner join transitous_everything_stops ts on st.stop_id = ts.stop_id and ts.source = st.source -- lol, st.source not ts.source
---inner join transitous_everything_trips tr on tst.trip_id = tr.trip_id and tst.source = tr.source
-inner join transitous_everything_routes ro on tst.route_id = ro.route_id and tst.source = ro.source;
+-- JOIN WITH TRIPS TO GET THE TRIP_IDs
+SELECT 
+    t.source, 
+    t.trip_id
+FROM transitous_everything_20260117_trips t
+INNER JOIN active_services_final asf 
+    ON t.service_id = asf.service_id 
+    AND t.source = asf.source;
 
-DROP TABLE IF EXISTS transitous_everything_stop_times_one_day_sane;
-CREATE TABLE transitous_everything_stop_times_one_day_sane -- ignore route ids, only care about stops
+DROP TABLE IF EXISTS transitous_everything_20260117_stop_times;
+CREATE TABLE transitous_everything_20260117_stop_times
+(
+    source LowCardinality(String),
+    trip_id String,
+    arrival_time DateTime,
+    departure_time DateTime,
+    stop_id String,
+    stop_sequence Nullable(UInt32),
+    stop_headsign String,
+    pickup_type Nullable(UInt8),
+    drop_off_type Nullable(UInt8),
+    continuous_pickup Nullable(UInt8),
+    continuous_drop_off Nullable(UInt8),
+    shape_dist_traveled Nullable(Float32),
+    timepoint Nullable(UInt8),
+    local_zone_id String
+)
+ENGINE = MergeTree
+ORDER BY (source, trip_id, stop_id, arrival_time, departure_time)
+SETTINGS allow_nullable_key = 1;
+
+INSERT INTO transitous_everything_20260117_stop_times
+SELECT
+    toLowCardinality(assumeNotNull(st.source)) AS source,
+    st.trip_id,
+    parseDateTimeBestEffortOrNull(arrival_time) AS arrival_time,
+    parseDateTimeBestEffortOrNull(departure_time) AS departure_time,
+    stop_id,
+    toUInt32OrNull(stop_sequence),
+    stop_headsign,
+    toUInt8OrNull(pickup_type),
+    toUInt8OrNull(drop_off_type),
+    toUInt8OrNull(continuous_pickup),
+    toUInt8OrNull(continuous_drop_off),
+    toFloat32OrNull(shape_dist_traveled),
+    toUInt8OrNull(timepoint),
+    local_zone_id
+FROM file('chungus/transitous/2026-01-17/source=*/stop_times.txt', 'CSVWithNames', '
+    source String,
+    trip_id String,
+    arrival_time String,
+    departure_time String,
+    stop_id String,
+    stop_sequence String,
+    stop_headsign String,
+    pickup_type String,
+    drop_off_type String,
+    continuous_pickup String,
+    continuous_drop_off String,
+    shape_dist_traveled String,
+    timepoint String,
+    local_zone_id String
+') st
+-- INNER JOIN FILTERS THE ROWS BEFORE WRITING TO DISK
+INNER JOIN transitous_everything_20260117_valid_trips_lookup vt
+    ON st.source = vt.source 
+    AND st.trip_id = vt.trip_id
+SETTINGS use_hive_partitioning = 1;
+
+
+DROP TABLE IF EXISTS transitous_everything_20260117_stop_times_one_day;
+
+CREATE TABLE transitous_everything_20260117_stop_times_one_day
+ENGINE = MergeTree
+ORDER BY (source, stop_id, stop_lat, stop_lon, route_type, trip_id, arrival_time, departure_time)
+SETTINGS allow_nullable_key = 1
+AS
+SELECT
+    -- From stop_times (st)
+    st.arrival_time AS arrival_time,
+    st.departure_time AS departure_time,
+    st.stop_id AS stop_id,
+    st.trip_id AS trip_id,
+    st.source AS source,
+    st.stop_sequence AS stop_sequence,
+    st.stop_headsign AS stop_headsign,
+    st.pickup_type AS pickup_type,
+    st.drop_off_type AS drop_off_type,
+    st.continuous_pickup AS continuous_pickup,
+    st.continuous_drop_off AS continuous_drop_off,
+    st.shape_dist_traveled AS shape_dist_traveled,
+    st.timepoint AS timepoint,
+    st.local_zone_id AS local_zone_id,
+
+    -- From trips (tst)
+    tst.bikes_allowed AS bikes_allowed,
+    tst.block_id AS block_id,
+    tst.service_id AS service_id,
+    tst.direction_id AS direction_id,
+    tst.wheelchair_accessible AS wheelchair_accessible,
+    tst.trip_headsign AS trip_headsign,
+    tst.trip_short_name AS trip_short_name,
+    tst.shape_id AS shape_id,
+
+    -- From routes (ro)
+    ro.route_id AS route_id,
+    ro.route_short_name AS route_short_name,
+    ro.route_long_name AS route_long_name,
+    ro.route_desc AS route_desc,
+    ro.route_type AS route_type,
+    ro.route_url AS route_url,
+    ro.route_color AS route_color,
+    ro.route_text_color AS route_text_color,
+    ro.route_sort_order AS route_sort_order,
+    -- Renamed to avoid collision with stop_times columns
+    ro.continuous_pickup AS route_continuous_pickup,
+    ro.continuous_drop_off AS route_continuous_drop_off,
+
+    -- From stops (ts)
+    ts.stop_code AS stop_code,
+    ts.stop_name AS stop_name,
+    ts.stop_desc AS stop_desc,
+    ts.stop_lat AS stop_lat,
+    ts.stop_lon AS stop_lon,
+    ts.zone_id AS zone_id,
+    ts.stop_url AS stop_url,
+    ts.location_type AS location_type,
+    ts.parent_station AS parent_station,
+    ts.stop_timezone AS stop_timezone,
+    ts.wheelchair_boarding AS wheelchair_boarding,
+    ts.level_id AS level_id,
+    ts.platform_code AS platform_code
+
+FROM transitous_everything_20260117_stop_times st
+INNER JOIN transitous_everything_20260117_trips tst 
+    ON st.trip_id = tst.trip_id AND st.source = tst.source
+INNER JOIN transitous_everything_20260117_routes ro 
+    ON tst.route_id = ro.route_id AND tst.source = ro.source
+INNER JOIN transitous_everything_20260117_stops ts 
+    ON st.stop_id = ts.stop_id AND st.source = ts.source;
+
+DROP TABLE IF EXISTS transitous_everything_20260117_stop_times_one_day_sane;
+CREATE TABLE transitous_everything_20260117_stop_times_one_day_sane -- ignore route ids, only care about stops
 ENGINE MergeTree
 order by (source, stop_id, sane_route_id, stop_lat, stop_lon, trip_id, arrival_time, departure_time)
 settings allow_nullable_key = 1
@@ -434,7 +481,7 @@ with route_uuids as (
     select arrayJoin(trip_id) trip_id, generateUUIDv7() sane_route_id, source from (
         select source, stop_id, groupArray(trip_id) trip_id from (
             select source, groupArray(stop_id) stop_id, trip_id from (
-                select source, stop_id, departure_time, trip_id from transitous_everything_stop_times_one_day st 
+                select source, stop_id, departure_time, trip_id from transitous_everything_20260117_stop_times_one_day st 
                 order by departure_time asc
             )
             group by all
@@ -442,7 +489,7 @@ with route_uuids as (
         group by all
     )
 )
-select * from transitous_everything_stop_times_one_day st
+select * from transitous_everything_20260117_stop_times_one_day st
 inner join route_uuids ru on ru.trip_id = st.trip_id and ru.source = st.source;
 
 drop table if exists transitous_everything_edgelist2;

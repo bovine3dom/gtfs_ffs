@@ -1,9 +1,24 @@
+-- setup for long queries
+SET receive_timeout = 40000;
+SET send_timeout = 40000;
+SET max_threads = 5;
+SET max_execution_time = 0;
+SET max_result_rows = 0;
+SET max_result_bytes = 0;
+SET receive_timeout = 40000;
+SET send_timeout = 40000;
+SET connect_timeout_with_failover_ms = 40000000;
+SET http_connection_timeout = 40000;
+SET http_send_timeout = 40000;
+SET http_receive_timeout = 40000;
+
+-- isn't this just an extra column? why aren't we using alter
 create table transitous_everything_stop_times_one_day_even_saner
 engine = MergeTree
 order by (source, stop_uuid, sane_route_id, stop_lat, stop_lon, trip_id, arrival_time, departure_time)
 settings allow_nullable_key = 1
 as
-select *, geoToH3(stop_lon, stop_lat, 11) h3 from transitous_everything_stop_times_one_day_sane st
+select *, geoToH3(stop_lat, stop_lon, 11) h3 from transitous_everything_stop_times_one_day_sane st
 left join transitous_everything_stop_uuids tu on tu.h3 = h3
 
 
@@ -32,7 +47,7 @@ lagInFrame(ring, 1, ring) over (
     rows between 1 preceding and current row
 ) next_ring,
 source, trip_id, stop_uuid, arrival_time, departure_time, stop_lat, stop_lon, route_type,
-h3kRing(geoToH3(stop_lon, stop_lat, 9), 4) ring
+h3kRing(geoToH3(stop_lat, stop_lon, 9), 4) ring
 from transitous_everything_stop_times_one_day_even_saner
 -- no point including NA until we do GHS pop
 where source not like 'us%'
@@ -184,6 +199,10 @@ select
     any(next_arrival) as next_arrival, 
 	any(next_lat) as next_lat,
 	any(next_lon) as next_lon,
+    any(final_stop) as final_stop,
+    any(final_arrival) as final_arrival,
+    any(final_lat) as final_lat,
+    any(final_lon) as final_lon,
     travel_time, 
     any(route_type) as route_type, 
     any(stop_name) as stop_name,
@@ -196,6 +215,7 @@ select
 from (
     select 
         source, trip_id, stop_uuid, stop_lat, stop_lon, departure_time, next_stop, next_arrival, next_lat, next_lon, arrival_time,
+        final_stop, final_arrival, final_lat, final_lon,
         dateDiff('minute', departure_time, next_arrival) as travel_time,
         stop_name, route_short_name, route_long_name, trip_headsign, sane_route_id, route_color, route_text_color,
         route_type, 
@@ -213,6 +233,10 @@ from (
 				order by arrival_time desc
 				rows between 1 preceding and current row
 			) next_lon,
+            first_value(stop_uuid) over (partition by source, trip_id order by arrival_time desc rows between unbounded preceding and current row) as final_stop,
+            first_value(arrival_time) over (partition by source, trip_id order by arrival_time desc rows between unbounded preceding and current row) as final_arrival,
+            first_value(stop_lat) over (partition by source, trip_id order by arrival_time desc rows between unbounded preceding and current row) as final_lat,
+            first_value(stop_lon) over (partition by source, trip_id order by arrival_time desc rows between unbounded preceding and current row) as final_lon,
             source, trip_id, stop_uuid, arrival_time, departure_time, stop_lat, stop_lon, route_type,
             stop_name,
             route_short_name,
