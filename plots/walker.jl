@@ -2,14 +2,10 @@
 
 using Arrow, DataFrames, StatsBase, DataFrames, Dates, JSON, CSV
 import H3.API: LatLng, latLngToCell, h3ToString, cellToLatLng
-import Random: random
 
 include("lib.jl")
 
-big_df = Arrow.Table("../data/edgelist.arrow") |> DataFrame |> copy # copy to disable memory mapping
-gdf = groupby(big_df, :stop_uuid)
-
-big_df = select_df(con(), "select distinct h3ToParent(h3, 6) h3, h3ToParent(next_h3, 6) next_h3 from transitous_everything_20260117_edgelist_fahrtle")
+big_df = select_df(con(), "select distinct on (h3, next_h3) h3ToParent(h3, 6) h3, h3ToParent(next_h3, 6) next_h3, stop_lat, stop_lon from transitous_everything_20260117_edgelist_fahrtle")
 df = big_df
 
 ## borrowed from uuid generator
@@ -78,7 +74,7 @@ agg = DataFrame(
 )
 cluster_stats = combine(groupby(agg, :cluster_id), nrow)
 sort!(cluster_stats, :nrow, rev=true) # ok so the top 5 account for most of it
-only_big = agg[agg.cluster_id .∈ Ref(cluster_stats.cluster_id[1:5]), :]
+only_big = agg[(agg.cluster_id .∈ Ref(cluster_stats.cluster_id[1:5])) .&& (agg.h3 .∈ Ref(df.h3)), :] # takes a while but who cares
 
 function cellToPos(h3)
     ll = cellToLatLng(h3)
@@ -104,10 +100,14 @@ end
 
 
 n = 365*10 # we can repeat after a decade
-days = Array{@NamedTuple{start::String, finish::String}, 1}()
+days = Array{@NamedTuple{start_lat::Float64, start_lon::Float64, finish_lat::Float64, finish_lon::Float64}, 1}()
 for i in 1:n
     row = rand(eachrow(only_big))
-    push!(days, (start=h3ToString(row.h3), finish=h3ToString(find_destination(row).h3)))
+    full_row = first(df[df.h3 .== row.h3, :])
+    finish = find_destination(row)
+    full_finish = first(df[df.h3 .== finish.h3, :])
+    push!(days, (start_lat=full_row.stop_lat, start_lon=full_row.stop_lon, finish_lat=full_finish.stop_lat, finish_lon=full_finish.stop_lon))
 end
-days
 write("races.json", JSON.json(days))
+
+select_df(con(), "select
