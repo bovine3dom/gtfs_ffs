@@ -1,6 +1,6 @@
 #!/bin/julia
 
-using Arrow, DataFrames, StatsBase, DataFrames, Dates, JSON, CSV
+using Arrow, DataFrames, StatsBase, DataFrames, Dates, JSON, CSV, StatsBase
 import H3.API: LatLng, latLngToCell, h3ToString, cellToLatLng
 
 include("lib.jl")
@@ -92,22 +92,26 @@ row = rand(eachrow(only_big))
 find_destination(row) = begin
     not_found = true
     while not_found
-        candidate = rand(eachrow(only_big[only_big.cluster_id .∈ Ref(row.cluster_id), :]))
+        candidate_df = @view only_big[only_big.cluster_id .∈ Ref(row.cluster_id), :]
+        candidate = sample(eachrow(candidate_df), Weights(candidate_df.weight))
         dist(row.h3, candidate.h3) > 100 && return candidate
         not_found = false # lol
     end
 end
 
+weight_df = select_df(con(), "select geoToH3(stop_lat, stop_lon, 6) h3, least(greatest(sum(crow_km), 3), 1000) weight from transitous_everything_20260117_stop_statistics_unmerged group by h3")
+leftjoin!(only_big, weight_df, on=:h3)
+dropmissing!(only_big)
+
+
 
 n = 365*10 # we can repeat after a decade
 days = Array{@NamedTuple{start_lat::Float64, start_lon::Float64, finish_lat::Float64, finish_lon::Float64}, 1}()
 for i in 1:n
-    row = rand(eachrow(only_big))
+    row = sample(eachrow(only_big), Weights(only_big.weight))
     full_row = first(df[df.h3 .== row.h3, :])
     finish = find_destination(row)
     full_finish = first(df[df.h3 .== finish.h3, :])
     push!(days, (start_lat=full_row.stop_lat, start_lon=full_row.stop_lon, finish_lat=full_finish.stop_lat, finish_lon=full_finish.stop_lon))
 end
-write("races.json", JSON.json(days))
-
-select_df(con(), "select
+write("races_weighted.json", JSON.json(days))
