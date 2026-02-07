@@ -74,7 +74,7 @@ agg = DataFrame(
 )
 cluster_stats = combine(groupby(agg, :cluster_id), nrow)
 sort!(cluster_stats, :nrow, rev=true) # ok so the top 5 account for most of it
-only_big = agg[(agg.cluster_id .∈ Ref(cluster_stats.cluster_id[1:5])) .&& (agg.h3 .∈ Ref(df.h3)), :] # takes a while but who cares
+only_big = agg[(agg.cluster_id .∈ Ref(cluster_stats.cluster_id[1:10])) .&& (agg.h3 .∈ Ref(df.h3)), :] # takes a while but who cares
 
 function cellToPos(h3)
     ll = cellToLatLng(h3)
@@ -99,7 +99,16 @@ find_destination(row) = begin
     end
 end
 
-weight_df = select_df(con(), "select geoToH3(stop_lat, stop_lon, 6) h3, least(greatest(sum(crow_km), 3), 1000) weight from transitous_everything_20260117_stop_statistics_unmerged group by h3")
+weight_df = select_df(con(), """
+                      select h3, (weight * pop) weight from (
+                          select geoToH3(stop_lat, stop_lon, 6) h3, least(greatest(sum(crow_km), 3), 1000) weight from transitous_everything_20260117_stop_statistics_unmerged3 group by h3
+                      ) tr
+                      left join (
+                          select h3ToParent(h3, 6) h3, sum(population) pop from public_kontur_population_20231101
+                          group by h3
+                      ) kt
+                      on kt.h3 = tr.h3
+""")
 leftjoin!(only_big, weight_df, on=:h3)
 dropmissing!(only_big)
 
@@ -114,4 +123,4 @@ for i in 1:n
     full_finish = first(df[df.h3 .== finish.h3, :])
     push!(days, (start_lat=full_row.stop_lat, start_lon=full_row.stop_lon, finish_lat=full_finish.stop_lat, finish_lon=full_finish.stop_lon))
 end
-write("races_weighted.json", JSON.json(days))
+write("races_weighted_pop.json", JSON.json(days))
