@@ -5,8 +5,8 @@ import H3.API: LatLng, latLngToCell, h3ToString, cellToLatLng
 
 include("lib.jl")
 
-big_df = select_df(con(), "select distinct on (h3, next_h3) h3ToParent(h3, 6) h3, h3ToParent(next_h3, 6) next_h3, stop_lat, stop_lon from transitous_everything_20260117_edgelist_fahrtle")
-df = big_df
+df = select_df(con(), "select distinct on (h3, next_h3) h3ToParent(h3, 6) h3, h3ToParent(next_h3, 6) next_h3, stop_lat, stop_lon from transitous_everything_20260117_edgelist_fahrtle")
+df = semijoin(df, df, on = [:h3 => :next_h3, :next_h3 => :h3]) # remove unidirectional edges
 
 ## borrowed from uuid generator
 struct DisjointSet
