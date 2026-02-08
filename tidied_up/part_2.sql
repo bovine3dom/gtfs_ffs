@@ -13,13 +13,14 @@ SET http_send_timeout = 40000;
 SET http_receive_timeout = 40000;
 
 -- isn't this just an extra column? why aren't we using alter
-create table transitous_everything_stop_times_one_day_even_saner
+drop table if exists transitous_everything_20260117_stop_times_one_day_even_saner2;
+create table transitous_everything_20260117_stop_times_one_day_even_saner2
 engine = MergeTree
-order by (source, stop_uuid, sane_route_id, stop_lat, stop_lon, trip_id, arrival_time, departure_time)
+order by (source, sane_route_id, trip_id, departure_time) -- order optimised for fahrtle
 settings allow_nullable_key = 1
 as
-select *, geoToH3(stop_lat, stop_lon, 11) h3 from transitous_everything_stop_times_one_day_sane st
-left join transitous_everything_stop_uuids tu on tu.h3 = h3
+select *, geoToH3(stop_lat, stop_lon, 11) h3 from transitous_everything_20260117_stop_times_one_day_sane st
+left join transitous_everything_20260117_stop_uuids tu on tu.h3 = h3
 
 
 drop table if exists transitous_everything_edgelist_sane;
