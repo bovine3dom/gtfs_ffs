@@ -12,19 +12,23 @@ SET http_connection_timeout = 40000;
 SET http_send_timeout = 40000;
 SET http_receive_timeout = 40000;
 
+ -- avoid oom killer
+SET max_bytes_before_external_group_by = '90G';
+SET max_memory_usage = '100G';
+
 -- isn't this just an extra column? why aren't we using alter
-drop table if exists transitous_everything_20260117_stop_times_one_day_even_saner2;
-create table transitous_everything_20260117_stop_times_one_day_even_saner2
+drop table if exists transitous_everything_20260213_stop_times_one_day_even_saner2;
+create table transitous_everything_20260213_stop_times_one_day_even_saner2
 engine = MergeTree
 order by (source, sane_route_id, trip_id, departure_time) -- order optimised for fahrtle
 settings allow_nullable_key = 1
 as
-select *, geoToH3(stop_lat, stop_lon, 11) h3 from transitous_everything_20260117_stop_times_one_day_sane st
-left join transitous_everything_20260117_stop_uuids tu on tu.h3 = h3
+select *, geoToH3(stop_lat, stop_lon, 11) h3 from transitous_everything_20260213_stop_times_one_day_sane st
+left join transitous_everything_20260213_stop_uuids tu on tu.h3 = h3
 
 
-drop table if exists transitous_everything_edgelist_sane;
-create table transitous_everything_edgelist_sane
+drop table if exists transitous_everything_20260213_edgelist_sane;
+create table transitous_everything_20260213_edgelist_sane
 ENGINE MergeTree
 ORDER BY (stop_uuid, source, trip_id, next_stop, stop_lat, stop_lon, departure_time, next_pop, pop_per_minute)
 settings allow_nullable_key = 1
@@ -49,7 +53,7 @@ lagInFrame(ring, 1, ring) over (
 ) next_ring,
 source, trip_id, stop_uuid, arrival_time, departure_time, stop_lat, stop_lon, route_type,
 h3kRing(geoToH3(stop_lat, stop_lon, 9), 4) ring
-from transitous_everything_stop_times_one_day_even_saner
+from transitous_everything_20260213_stop_times_one_day_even_saner2
 -- no point including NA until we do GHS pop
 where source not like 'us%'
 and source not like 'ca%'
@@ -80,8 +84,8 @@ group by all;
 -- select distinct lower(hex(geoToH3(stop_lat, stop_lon, 11))) h3 from (
 -- get stops on routes that go at least 100km
 
-DROP TABLE IF EXISTS transitous_everything_20260117_stop_statistics;
-CREATE TABLE IF NOT EXISTS transitous_everything_20260117_stop_statistics
+DROP TABLE IF EXISTS transitous_everything_20260213_stop_statistics;
+CREATE TABLE IF NOT EXISTS transitous_everything_20260213_stop_statistics
 ENGINE = MergeTree
 ORDER BY (stop_lat, stop_lon, stop_uuid)
 AS
@@ -101,7 +105,7 @@ FROM (
             sane_route_id, 
             geoDistance(max(stop_lat), max(stop_lon), min(stop_lat), min(stop_lon))/1000 AS crow_km, 
             groupArray(stop_uuid) AS stops 
-        FROM transitous_everything_20260117_stop_times_one_day_even_saner 
+        FROM transitous_everything_20260213_stop_times_one_day_even_saner2 
         GROUP BY sane_route_id
     )
     ARRAY JOIN stops AS stop_uuid
@@ -144,22 +148,22 @@ LEFT JOIN (
                 -- 10. Default
                 999 
             ) AS route_priority_rank
-        FROM transitous_everything_20260117_stop_times_one_day_even_saner
+        FROM transitous_everything_20260213_stop_times_one_day_even_saner2
         GROUP BY stop_uuid, stop_lat, stop_lon, stop_name, route_type
     )
     GROUP BY stop_uuid
 ) st ON st.stop_uuid = bs.stop_uuid;
 
 -- include all stops for higher zoom levels
-drop table if exists transitous_everything_20260117_stop_statistics_unmerged2;
-create table if not exists transitous_everything_20260117_stop_statistics_unmerged2
+drop table if exists transitous_everything_20260213_stop_statistics_unmerged2;
+create table if not exists transitous_everything_20260213_stop_statistics_unmerged2
 engine = MergeTree
 order by (stop_lat, stop_lon, crow_km, stop_uuid)
 as
 select * from (
     select max(crow_km) crow_km, stop_id_tuple.1 stop_id, stop_id_tuple.2 source, stop_id_tuple.3 stop_uuid from (
         select sane_route_id, crow_km, arrayJoin(stops) stop_id_tuple from (
-            select sane_route_id, geoDistance(max(stop_lat), max(stop_lon), min(stop_lat), min(stop_lon))/1000 crow_km, groupArray((stop_id, source, stop_uuid)) stops from transitous_everything_20260117_stop_times_one_day_even_saner group by sane_route_id
+            select sane_route_id, geoDistance(max(stop_lat), max(stop_lon), min(stop_lat), min(stop_lon))/1000 crow_km, groupArray((stop_id, source, stop_uuid)) stops from transitous_everything_20260213_stop_times_one_day_even_saner2 group by sane_route_id
         )
     )
     group by stop_id_tuple
@@ -196,12 +200,12 @@ select * from (
         -- 10. Taxi / Misc / Horse (Lowest Priority)
         999 
     ), groupArray(route_type))[1] AS route_type
-    from transitous_everything_20260117_stop_times_one_day_even_saner group by (stop_id, ru.source)
+    from transitous_everything_20260213_stop_times_one_day_even_saner2 group by (stop_id, ru.source)
 ) st on st.stop_uuid = bs.stop_uuid and st.stop_id = bs.stop_id;
 
 -- same as unmerged2 but calculates crow_km based on remaining stops
-drop table if exists transitous_everything_20260117_stop_statistics_unmerged3;
-create table if not exists transitous_everything_20260117_stop_statistics_unmerged3
+drop table if exists transitous_everything_20260213_stop_statistics_unmerged3;
+create table if not exists transitous_everything_20260213_stop_statistics_unmerged3
 engine = MergeTree
 order by (stop_lat, stop_lon, crow_km, stop_uuid)
 as
@@ -224,7 +228,7 @@ select * from (
                 arraySort(t -> t.6, groupArray((stop_id, source, stop_uuid, stop_lat, stop_lon, arrival_time))) as stops_sorted,
                 stops_sorted[-1].4 as term_lat,
                 stops_sorted[-1].5 as term_lon
-            from transitous_everything_20260117_stop_times_one_day_even_saner 
+            from transitous_everything_20260213_stop_times_one_day_even_saner2 
             group by sane_route_id
         )
         ARRAY JOIN stops_sorted as s_tuple
@@ -245,14 +249,14 @@ select * from (
         x = 3 OR (x >= 700 AND x <= 716), 9,
         999 
     ), groupArray(route_type))[1] AS route_type
-    from transitous_everything_20260117_stop_times_one_day_even_saner group by (stop_id, ru.source)
+    from transitous_everything_20260213_stop_times_one_day_even_saner2 group by (stop_id, source)
 ) st on st.stop_uuid = bs.stop_uuid and st.stop_id = bs.stop_id;
 
 
 
 -- table for fahrtle
-drop table if exists transitous_everything_edgelist_fahrtle;
-create table transitous_everything_edgelist_fahrtle
+drop table if exists transitous_everything_20260213_edgelist_fahrtle;
+create table transitous_everything_20260213_edgelist_fahrtle
 ENGINE MergeTree
 ORDER BY (h3, source, stop_uuid, sane_route_id, stop_lat, stop_lon, trip_id, arrival_time, departure_time)
 settings allow_nullable_key = 1
@@ -271,7 +275,6 @@ select
     any(next_arrival) as next_arrival, 
 	any(next_lat) as next_lat,
 	any(next_lon) as next_lon,
-    geoToH3(next_lat, next_lon, 11) as next_h3,
     any(final_stop) as final_stop,
     any(final_arrival) as final_arrival,
     any(final_lat) as final_lat,
@@ -330,7 +333,7 @@ from (
             sane_route_id,
             route_color,
             route_text_color,
-        from transitous_everything_stop_times_one_day_even_saner
+        from transitous_everything_20260213_stop_times_one_day_even_saner2
     ) st
     where next_stop != stop_uuid
 )
@@ -339,12 +342,116 @@ group by all
 settings receive_timeout = 10000;
 -- receive_timeout needs increasing https://clickhouse.com/docs/operations/settings/settings#receive_timeout
 
+-- TODO: test this optimisation which avoids window functions
+DROP TABLE IF EXISTS transitous_everything_20260213_edgelist_fahrtle;
+CREATE TABLE transitous_everything_20260213_edgelist_fahrtle
+ENGINE = MergeTree
+-- Optimized for H3 Geospatial lookups
+ORDER BY (h3, source, sane_route_id, trip_id)
+SETTINGS allow_nullable_key = 1
+AS
+WITH trip_data AS (
+    SELECT
+        source,
+        trip_id,
+        sane_route_id,
+        
+        -- Static Trip info (Optimization: take any(), these don't change per trip)
+        any(route_short_name) as route_short_name,
+        any(route_long_name) as route_long_name,
+        any(route_type) as route_type,
+        any(route_color) as route_color,
+        any(route_text_color) as route_text_color,
+        any(trip_headsign) as trip_headsign,
+
+        -- THE MAGIC: Create the array, but sort by TIME, not SEQUENCE.
+        arraySort(x -> x.1, groupArray(
+            (
+                -- 1. SORT KEY (The "Safe" Time)
+                -- If Arrival is set (not 1970/0), use it. Otherwise use Departure.
+                -- This handles Start/End stops correctly.
+                if(toUInt32(arrival_time) > 0, arrival_time, departure_time),
+                
+                -- 2. TIE BREAKER
+                -- If times are identical (common in some feeds), use sequence to keep stable order.
+                stop_sequence,
+
+                -- 3. The actual data we need later
+                stop_id,       -- mapped to stop_uuid
+                stop_lat,      
+                stop_lon,      
+                arrival_time,  
+                departure_time,
+                stop_name      
+            )
+        )) AS stops
+    FROM transitous_everything_20260213_stop_times_one_day_sane
+    GROUP BY source, trip_id, sane_route_id
+)
+SELECT
+    source,
+    trip_id,
+    sane_route_id,
+    
+    -- Geospatial Index
+    geoToH3(curr_stop.4, curr_stop.5, 11) AS h3,
+    geoToH3(next_stop.4, next_stop.5, 11) AS next_h3,
+
+    -- Current Stop
+    curr_stop.3 AS stop_uuid,
+    curr_stop.4 AS stop_lat,
+    curr_stop.5 AS stop_lon,
+    curr_stop.6 AS arrival_time,
+    curr_stop.7 AS departure_time,
+    curr_stop.8 AS stop_name,
+
+    -- Next Stop
+    next_stop.3 AS next_stop,
+    next_stop.4 AS next_lat,
+    next_stop.5 AS next_lon,
+    next_stop.6 AS next_arrival,
+
+    -- Trip Metadata
+    route_short_name,
+    route_long_name,
+    route_type,
+    route_color,
+    route_text_color,
+    trip_headsign,
+
+    -- Travel Time (Minutes)
+    -- We use Next Arrival - Current Departure
+    dateDiff('minute', curr_stop.7, next_stop.6) AS travel_time,
+
+    -- First Stop (Index 1 of the time-sorted array)
+    stops[1].3 AS initial_stop,
+    stops[1].4 AS initial_lat,
+    stops[1].5 AS initial_lon,
+    stops[1].6 AS initial_arrival,
+    stops[1].8 AS initial_name,
+
+    -- Final Stop (Index -1 of the time-sorted array)
+    stops[-1].3 AS final_stop,
+    stops[-1].4 AS final_lat,
+    stops[-1].5 AS final_lon,
+    stops[-1].6 AS final_arrival,
+    stops[-1].8 AS final_name
+
+FROM trip_data
+-- Slicing logic:
+-- curr_stop = items 1 to N-1
+-- next_stop = items 2 to N
+ARRAY JOIN 
+    arraySlice(stops, 1, length(stops) - 1) AS curr_stop,
+    arraySlice(stops, 2) AS next_stop
+-- Ensure we don't have negative travel times (e.g. broken feeds where next arrives before current departs)
+WHERE travel_time >= 0;
 
 -- ALTER TABLE transitous_everything_edgelist_fahrtle ADD COLUMN next_h3 UInt64 DEFAULT geoToH3(next_lat, next_lon, 11);
 -- OPTIMIZE TABLE transitous_everything_edgelist_fahrtle;
 
 -- let's see if we need it first
--- ALTER TABLE transitous_everything_20260117_edgelist_fahrtle
+-- ALTER TABLE transitous_everything_20260213_edgelist_fahrtle
 --     ASS PROJECTION prj_arrivals (
 --         SELECT *
 --         ORDER BY (next_h3, arrival_time) -- do we need any more indices?

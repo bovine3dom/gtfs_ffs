@@ -6,6 +6,7 @@ include("lib.jl")
 
 # can provide own yyyymmdd to ... lie
 target_date = length(ARGS) > 0 ? Date(ARGS[1], "yyyymmdd") : today()
+# target_date = Date("20260213", "yyyymmdd")
 date_str = Dates.format(target_date, "yyyymmdd")
 date_dir_name = Dates.format(target_date, "yyyy-mm-dd")
 
