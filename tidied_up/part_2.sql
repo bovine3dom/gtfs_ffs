@@ -343,11 +343,13 @@ settings receive_timeout = 10000;
 -- receive_timeout needs increasing https://clickhouse.com/docs/operations/settings/settings#receive_timeout
 
 -- TODO: test this optimisation which avoids window functions
-DROP TABLE IF EXISTS transitous_everything_20260213_edgelist_fahrtle;
-CREATE TABLE transitous_everything_20260213_edgelist_fahrtle
+-- yeah it is a bazillion times faster. maybe. it sits chilling at 99% for a while
+-- 850 seconds? i think that's slower
+DROP TABLE IF EXISTS transitous_everything_20260213_edgelist_fahrtle2;
+CREATE TABLE transitous_everything_20260213_edgelist_fahrtle2
 ENGINE = MergeTree
 -- Optimized for H3 Geospatial lookups
-ORDER BY (h3, source, sane_route_id, trip_id)
+ORDER BY (h3, departure_time, arrival_time)
 SETTINGS allow_nullable_key = 1
 AS
 WITH trip_data AS (
@@ -395,7 +397,7 @@ SELECT
     
     -- Geospatial Index
     geoToH3(curr_stop.4, curr_stop.5, 11) AS h3,
-    geoToH3(next_stop.4, next_stop.5, 11) AS next_h3,
+    geoToH3(next_stop_arr.4, next_stop_arr.5, 11) AS next_h3,
 
     -- Current Stop
     curr_stop.3 AS stop_uuid,
@@ -406,10 +408,10 @@ SELECT
     curr_stop.8 AS stop_name,
 
     -- Next Stop
-    next_stop.3 AS next_stop,
-    next_stop.4 AS next_lat,
-    next_stop.5 AS next_lon,
-    next_stop.6 AS next_arrival,
+    next_stop_arr.3 AS next_stop,
+    next_stop_arr.4 AS next_lat,
+    next_stop_arr.5 AS next_lon,
+    next_stop_arr.6 AS next_arrival,
 
     -- Trip Metadata
     route_short_name,
@@ -421,7 +423,7 @@ SELECT
 
     -- Travel Time (Minutes)
     -- We use Next Arrival - Current Departure
-    dateDiff('minute', curr_stop.7, next_stop.6) AS travel_time,
+    dateDiff('minute', curr_stop.7, next_stop_arr.6) AS travel_time,
 
     -- First Stop (Index 1 of the time-sorted array)
     stops[1].3 AS initial_stop,
@@ -443,9 +445,9 @@ FROM trip_data
 -- next_stop = items 2 to N
 ARRAY JOIN 
     arraySlice(stops, 1, length(stops) - 1) AS curr_stop,
-    arraySlice(stops, 2) AS next_stop
+    arraySlice(stops, 2) AS next_stop_arr;
 -- Ensure we don't have negative travel times (e.g. broken feeds where next arrives before current departs)
-WHERE travel_time >= 0;
+-- WHERE travel_time >= 0; -- not sure we need this
 
 -- ALTER TABLE transitous_everything_edgelist_fahrtle ADD COLUMN next_h3 UInt64 DEFAULT geoToH3(next_lat, next_lon, 11);
 -- OPTIMIZE TABLE transitous_everything_edgelist_fahrtle;
