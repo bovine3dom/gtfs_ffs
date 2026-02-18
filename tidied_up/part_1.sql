@@ -293,8 +293,8 @@ ORDER BY (source, trip_id)
 AS
 WITH
     -- 1. Define bounds once
-    toDate('2025-12-20') AS min_date,
-    toDate('2026-07-01') AS max_date,
+    toDate('2020-12-01') AS min_date, -- todo: find these automatically?
+    toDate('2030-01-01') AS max_date,
 
     -- 2. Pre-calculate Trip Counts per Service/Route
     -- This collapses 25M rows into ~500k rows before we even look at dates.
