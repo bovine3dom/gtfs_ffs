@@ -3,6 +3,9 @@ using DataFrames, ImageFiltering, LinearAlgebra, CSV, Interpolations
 PARIS_LAT = 48.8566
 PARIS_LON = 2.3522
 
+VIENNA_LAT = 48.210215
+VIENNA_LON = 16.370628
+
 RESOLUTION = 0.1
 GRID_WIDTH = round(Int, 360 / RESOLUTION)
 GRID_HEIGHT = round(Int, 180 / RESOLUTION)
@@ -33,8 +36,8 @@ function build_vector_field(edges_df::DataFrame)
     # grid_W = ones(Float64, GRID_HEIGHT, GRID_WIDTH)
     
     for row in eachrow(edges_df)
-        dist_start = haversine_dist(row.start_lat, row.start_lon, PARIS_LAT, PARIS_LON)
-        dist_finish = haversine_dist(row.finish_lat, row.finish_lon, PARIS_LAT, PARIS_LON)
+        dist_start = haversine_dist(row.start_lat, row.start_lon, VIENNA_LAT, VIENNA_LON)
+        dist_finish = haversine_dist(row.finish_lat, row.finish_lon, VIENNA_LAT, VIENNA_LON)
         
         if dist_start > dist_finish
             lat1, lon1 = row.start_lat, row.start_lon
@@ -60,8 +63,8 @@ function build_vector_field(edges_df::DataFrame)
         
         if steps == 0
             # Apply to specific cell
-            grid_U[y1, x1] += u
-            grid_V[y1, x1] += v
+            grid_U[y1, x1] = u
+            grid_V[y1, x1] = v
             # grid_W[y1, x1] += 1.0
         else
             x_inc = (x2 - x1) / steps
@@ -100,6 +103,7 @@ function build_vector_field(edges_df::DataFrame)
 end
 
 edges_df = CSV.read("trains_a_vitesse.csv", DataFrame)
+edges_df = edges_df[400 .> edges_df.speed .> 0, :]
 smoothed_U, smoothed_V = build_vector_field(edges_df)
 
 interp_U = linear_interpolation((1:GRID_HEIGHT, 1:GRID_WIDTH), smoothed_U)
@@ -179,7 +183,7 @@ for p in raw_points
                 push!(all_features, Dict(
                     "type" => "Feature",
                     "geometry" => Dict("type" => "LineString", "coordinates" => copy(current_line_points)),
-                    "properties" => Dict("speed" => min(round(last_speed, digits=1), 350)) # hack
+                    "properties" => Dict("speed" => round(last_speed, digits=1)) # hack
                 ))
             end
             
@@ -196,7 +200,7 @@ for p in raw_points
 end
 
 geojson_data = Dict("type" => "FeatureCollection", "features" => all_features)
-open("rail_flow_segmented3.geojson", "w") do io
+open("rail_flow_segmented_wien.geojson", "w") do io
     JSON3.write(io, geojson_data)
 end
 
