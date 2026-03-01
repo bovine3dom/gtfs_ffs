@@ -700,15 +700,16 @@ df = select_df(con(), """
 -- todo: daft switcherooo here: best effort parse datetime parses to 2025-01-01, toTime parses to 1970-01-2
 with 
 60 as delta,
-'2025-01-01' as start,
+'2026-01-01' as start,
 probes as (select addMinutes(start, number*delta) probe from numbers(24*2*(60/delta))) -- * 2 = 2 days
 select any(probe) bedtime, h3 from (
 --select argMin(probe, abs(p - 0.1)) bedtime, h3 from (
 select sum(yes.dt between probe and addMinutes(probe, delta)) c, c/(max(c) over wndw) p, probe, geoToH3(stop_lon, stop_lat, 5) h3 from probes pr
 left outer join (
-select departure_time dt, stop_lon, stop_lat from transitous_stop_times_one_day st
+select departure_time dt, stop_lon, stop_lat from transitous_everything_20260213_stop_times_one_day_even_saner2 st
+-- select departure_time dt, stop_lon, stop_lat from transitous_stop_times_one_day st
 where true
---and source ilike 'ch_%'
+and source like 'ch_%' -- and route type = trains?
 ) yes on true -- clickhouse doesn't support < or > on joins so we do an outer join :(
 group by all
 window wndw as (
@@ -717,7 +718,7 @@ window wndw as (
 )
 order by probe
 )
-where probe >= '2025-01-01 17:00:00' -- todo: use 'start' + 5pm
+where probe >= '2026-01-01 17:00:00' -- todo: use 'start' + 5pm
 -- where probe >= '1970-01-02 12:00:00' -- lol, i had to increase this because french lunchtimes kept setting it off
 and c > 0
 and p <= 0.5
@@ -1264,3 +1265,154 @@ big_df = select_df(con(), """
 """)
 dropmissing!(big_df)
 Arrow.write("/mnt/chungus/scratch/edgelist.arrow", big_df)
+
+### Taktness vs population
+# 1.7 seconds vauban, 1.5s cyclops
+df = select_df(con(), """
+select avg((mod(60, headway) == 0) or (headway = 120)) value, geoToH3(stop_lon, stop_lat, 5) h3, anyHeavy(left(source, 2)) country, population from (
+select 
+source, stop_id, sane_route_id, departure_time, trip_headsign, stop_lon, stop_lat,
+dateDiff('minute', lagInFrame(departure_time, 1, departure_time) over (
+    partition by source, stop_id, sane_route_id
+    order by departure_time asc
+    rows between 1 preceding and current row
+), departure_time) headway
+from transitous_everything_stop_times_one_day_sane st
+where true
+and ((trip_headsign = '') or (trip_headsign != stop_name))
+and (route_type = 2 or route_type between 100 and 199)
+) tbl
+left join (select h3ToParent(h3, 5) h3, sum(population) population from population_h3 group by all) bp on h3 = bp.h3
+where headway between 10 and 60*5 -- exclude sub-10 minute headway because we're not following a timetable at that point
+group by all
+""")
+dft = df[(df.population .< 500_000) .&& (df.value .> -0.1) .&& (in.(df.country, Ref(split("gb")))), :]
+scatter(dft.population, dft.value, group=dft.country, markerstrokewidth=0.01, marker=:o, markersize=1, xlabel="Population near station", ylabel="Clockface fraction of departures")
+
+sort!(combine(groupby(dft, :country), [:value, :population] => ((v, p) -> cor(v, p)) => :cor), :cor)
+
+# df.index = string.(df.h3, base=16)
+# today = Dates.today()
+# mkpath("$(homedir())/projects/H3-MON/www/data/taktness/")
+# write("""$(homedir())/projects/H3-MON/www/data/taktness/$today.json""", JSON.json(Dict(
+#     "t" => "Fraction of public transport departures following a clockface schedule",
+#     "raw" => true,
+#     "c" => "Transitous et al.",
+# )))
+# CSV.write("""$(homedir())/projects/H3-MON/www/data/taktness/$today.csv""", df[!, [:index, :value]])
+
+
+###
+#
+# bedtimes by 'station' take 2
+#
+###
+df = select_df(con(), """
+WITH 
+    60 AS delta,
+    toDateTime('2026-01-01') AS start_date,
+    start_date + INTERVAL 17 HOUR AS min_bedtime
+
+SELECT 
+    min(probe) AS bedtime, 
+    h3,
+    any(population) population,
+    any(name) name,
+    any(country_code) country_code
+FROM (
+    SELECT 
+        c, 
+        c / max(c) OVER (PARTITION BY h3) AS p, 
+        probe, 
+        h3 
+    FROM (
+        SELECT 
+            toStartOfInterval(departure_time, toIntervalMinute(delta)) AS probe,
+            geoToH3(stop_lat, stop_lon, 5) AS h3,
+            count() AS c
+        -- FROM transitous_everything_20260213_stop_times_one_day_even_saner2
+        FROM transitous_everything_20260117_stop_times_one_day_even_saner2 -- 'research grade', one day per source
+        WHERE true
+        -- AND source LIKE 'ch_%'
+        AND (route_type BETWEEN 100 AND 199 or route_type = 2)  -- only trains, not metros
+        GROUP BY probe, h3
+    )
+) b
+LEFT JOIN (
+    select sum(population) population, h3ToParent(h3, 5) h3_2 from public_kontur_population_20231101
+    group by h3_2
+) p on b.h3 = p.h3_2
+LEFT JOIN (
+    select name, country_code, h3ToParent(h3, 5) h3_3 from public_geonames order by population desc limit 1 by h3_3
+) big_towns on b.h3 = big_towns.h3_3
+WHERE probe >= min_bedtime 
+  AND p <= 0.5
+GROUP BY h3
+""")
+df.index = string.(df.h3, base=16)
+df.bedtime_int = map(x-> x.instant.periods.value, df.bedtime)
+df.t_bedtime = Time.(df.bedtime)
+#df = df[df.bedtime_int .> 0, :]
+# scaled between zero and one
+lower = quantile(df.bedtime_int, 0.01)
+upper = quantile(df.bedtime_int, 0.99)
+df.value = (df.bedtime_int .- lower) ./ (upper - lower)
+sort!(df, :value)
+probes = 0:0.2:1.0 # looks like this always needs to be 0:0.2:1.0
+probe_times = Time.(df[map(p -> findfirst(>=(p), df.value), probes), :bedtime])
+mkpath("$(homedir())/projects/H3-MON/www/data/bedtime")
+write("""$(homedir())/projects/H3-MON/www/data/bedtime/$(today()).json""", 
+    JSON.json(Dict(
+    "t" => "The first time after 5pm at which fewer than 50% of peak rail services are running",
+    "raw" => true,
+    "c" => "Transitous et al.",
+    "scale" => Dict(zip(probes, probe_times)),
+)))
+CSV.write("""$(homedir())/projects/H3-MON/www/data/bedtime/$(today()).csv""", df[!, [:index, :value, :t_bedtime, :population, :name, :country_code]])
+
+sort!(df, :population, rev=true)
+sdf = @view df[in.(df.country_code, Ref(["DE", "FR", "ES", "CH", "GB", "AT"])), :]
+fdf = combine(groupby(sdf, :country_code), g -> g[1:min(10, size(g, 1)), :])
+
+transform!(groupby(fdf, :country_code), 
+    [:population, :bedtime] => ((pop, bed) -> begin
+        x = log10.(pop)
+        if bed isa AbstractVector{<:Dates.TimeType}
+            base_t = minimum(bed)
+            delta = bed .- base_t
+            y = Float64.(Dates.value.(delta))
+            x_mean, y_mean = mean(x), mean(y)
+            dx = x .- x_mean
+            variance = sum(dx.^2)
+            slope = variance == 0 ? 0.0 : sum(dx .* (y .- y_mean)) / variance
+            intercept = y_mean - slope * x_mean
+            y_trend = intercept .+ slope .* x
+            PeriodType = typeof(delta[1])
+            return base_t .+ PeriodType.(round.(Int, y_trend))
+        else
+            y = Float64.(bed)
+            x_mean, y_mean = mean(x), mean(y)
+            dx = x .- x_mean
+            variance = sum(dx.^2)
+            slope = variance == 0 ? 0.0 : sum(dx .* (y .- y_mean)) / variance
+            intercept = y_mean - slope * x_mean
+            y_trend = intercept .+ slope .* x
+            return y_trend
+        end
+    end) => :trend
+)
+
+p = scatter(
+            fdf.population, fdf.bedtime, group=fdf.country_code, markerstrokewidth=0.05, marker=:o, markersize=2, xlabel="Population within 10km radius", ylabel="Train bedtime", xscale=:log10, xformatter = x -> replace(string(round(Int, round(x, sigdigits=2))), r"(?<=\d)(?=(\d{3})+(?!\d))" => ","),
+        series_annotations=text.(fdf.name, 4, :left, :bottom, rotation=45)
+       )
+
+# # add trend
+# plot!(
+#     p,
+#     fdf.population, fdf.trend,
+#     group=fdf.country_code,
+#     linewidth=2,
+#     alpha=0.4,     # Make the lines slightly transparent
+#     label=false    # Hide from legend so we don't duplicate country names
+# ) # for some reason it has the wrong colours
