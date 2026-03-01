@@ -1377,33 +1377,51 @@ fdf = combine(groupby(sdf, :country_code), g -> g[1:min(10, size(g, 1)), :])
 transform!(groupby(fdf, :country_code), 
     [:population, :bedtime] => ((pop, bed) -> begin
         x = log10.(pop)
+        
         if bed isa AbstractVector{<:Dates.TimeType}
+            # 1. Get a baseline to anchor our math
             base_t = minimum(bed)
+            
+            # 2. Subtracting times creates a Period object (e.g. Millisecond or Nanosecond)
             delta = bed .- base_t
+            
+            # 3. Safely extract just the numbers for the regression
             y = Float64.(Dates.value.(delta))
+            
             x_mean, y_mean = mean(x), mean(y)
             dx = x .- x_mean
             variance = sum(dx.^2)
+            
             slope = variance == 0 ? 0.0 : sum(dx .* (y .- y_mean)) / variance
             intercept = y_mean - slope * x_mean
             y_trend = intercept .+ slope .* x
-            PeriodType = typeof(delta[1])
+            
+            # 4. Convert back by adding the exact Period type back to the baseline
+            PeriodType = typeof(delta[1]) # automatically Millisecond, Nanosecond, etc.
             return base_t .+ PeriodType.(round.(Int, y_trend))
         else
+            # Fallback if your bedtime column is just standard floats/ints
             y = Float64.(bed)
+            
             x_mean, y_mean = mean(x), mean(y)
             dx = x .- x_mean
             variance = sum(dx.^2)
+            
             slope = variance == 0 ? 0.0 : sum(dx .* (y .- y_mean)) / variance
             intercept = y_mean - slope * x_mean
             y_trend = intercept .+ slope .* x
+            
             return y_trend
         end
     end) => :trend
 )
 
+tick_vals = floor(minimum(fdf.bedtime), Hour) : Hour(2) : ceil(maximum(fdf.bedtime), Hour)
+tick_labels = Dates.format.(tick_vals, "HH:MM")
 p = scatter(
-            fdf.population, fdf.bedtime, group=fdf.country_code, markerstrokewidth=0.05, marker=:o, markersize=2, xlabel="Population within 10km radius", ylabel="Train bedtime", xscale=:log10, xformatter = x -> replace(string(round(Int, round(x, sigdigits=2))), r"(?<=\d)(?=(\d{3})+(?!\d))" => ","),
+            fdf.population, fdf.bedtime, group=fdf.country_code, markerstrokewidth=0.05, marker=:o, markersize=2, xlabel="Population within 10km radius", ylabel="Train bedtime", xscale=:log10,
+            xformatter = x -> replace(string(round(Int, round(x, sigdigits=2))), r"(?<=\d)(?=(\d{3})+(?!\d))" => ","),
+            yticks = (tick_vals, tick_labels),
         series_annotations=text.(fdf.name, 4, :left, :bottom, rotation=45)
        )
 
