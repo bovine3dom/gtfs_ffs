@@ -25,6 +25,7 @@ DROP TABLE IF EXISTS transitous_everything_20260218_calendar;
 DROP TABLE IF EXISTS transitous_everything_20260218_calendar_dates;
 DROP TABLE IF EXISTS transitous_everything_20260218_stops;
 DROP TABLE IF EXISTS transitous_everything_20260218_agency;
+DROP TABLE IF EXISTS transitous_everything_20260218_shapes;
 
 CREATE TABLE transitous_everything_20260218_routes
 ENGINE MergeTree
@@ -92,6 +93,19 @@ FROM file('chungus/transitous/2026-02-13/source=*/trips.txt', 'CSVWithNames', '
 '
 ) tt
 SETTINGS use_hive_partitioning = 1;
+
+CREATE TABLE transitous_everything_20260218_shapes
+ENGINE = MergeTree
+ORDER BY (source, shape_id, shape_pt_sequence)
+AS
+SELECT
+    toLowCardinality(assumeNotNull(source)) source,
+    assumeNotNull(shape_id) shape_id,
+    assumeNotNull(shape_pt_lat) shape_pt_lat,
+    assumeNotNull(shape_pt_lon) shape_pt_lon,
+    assumeNotNull(shape_pt_sequence) shape_pt_sequence,
+    shape_dist_traveled,
+FROM file('chungus/transitous/2026-02-13/source=*/shapes.txt', 'CSVWithNames');
 
 CREATE TABLE transitous_everything_20260218_stops
 ENGINE MergeTree
