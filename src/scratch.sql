@@ -13,3 +13,20 @@ select company, arrayMap(q -> round(q, 2), quantiles(0.25, 0.5, 0.75)(c/peak)) q
 inner join (select max(c) peak, company from activity group by company) pk on act.company = pk.company
 group by company
 order by q[2];
+
+
+-- latest arriving trains at least one calendar day after departure (i.e. interrail hacks)
+select distinct * from ( select
+any(initial_name) departure, 
+min(departure_time) departure_t,
+any(final_name) arrival, 
+max(arrival_time) arrival_t
+from transitous_everything_20260218_edgelist_fahrtle2
+where ( route_type between 100 and 199 or route_type = 2 )
+and source not like 'ca_%'
+and source not like 'in_%'
+and source not like 'us_%'
+group by trip_id, source
+having toDayOfYear(min(departure_time)) < toDayOfYear(max(arrival_time))
+order by max(arrival_time) desc
+limit 100);
