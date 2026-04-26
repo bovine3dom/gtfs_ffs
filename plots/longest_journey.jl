@@ -42,6 +42,17 @@ edgelist = select_df(con(), """
 """)
 edgelist.departure_time = Time.(edgelist.departure_time)
 
+# add the bovine3dom sonderfahrt shuttle
+elvas = first(edgelist[edgelist.stop_name .== "Elvas", :h3])
+badajoz = first(edgelist[edgelist.stop_name .== "Badajoz", :h3])
+distance = 13.88 # i really looked this up
+travel_time = 15 # thank u scotty
+departures = Time(04, 00):Minute(1):Time(23, 30) |> collect # it may be less frequent than this in reality
+outbound = eachrow(DataFrame(h3=elvas, next_h3=badajoz, departure_time=departures, travel_time=travel_time, distance=distance, stop_name="Elvas"))
+inbound = eachrow(DataFrame(h3=badajoz, next_h3=elvas, departure_time=departures, travel_time=travel_time, distance=distance, stop_name="Badajoz"))
+push!.(Ref(edgelist), outbound);
+push!.(Ref(edgelist), inbound);
+
 gdf = groupby(edgelist, [:h3, :next_h3])
 
 adj_list = Dict{UInt64, Vector{UInt64}}()
@@ -209,7 +220,7 @@ start_pos = UInt64(621646712112906239) # Järna
 start_pos = UInt64(622506761884139519) # Nice-Ville
 start_pos = UInt64(622054452367032319) # Nuits sous Ravières
 initial_arrival_time = DateTime(2026,01,01,09,00)
-initial_arrival_time = DateTime(2026,01,01,04,00) # Jon gets up early
+# initial_arrival_time = DateTime(2026,01,01,04,00) # Jon gets up early
 cutoff_time = DateTime(2026,01,01,12,00)
 @time results = find_earliest_arrivals(gdf, adj_list, start_pos, initial_arrival_time, cutoff_time + Day(7), friendly_keys)
 
@@ -266,3 +277,132 @@ impressum = Dict(
    "c" => "Transitous et al.",
 )
 write("data/scratch/2026-04-26-5.json", JSON.json(impressum))
+
+
+# only check portugal, finland
+using Missings
+# julia> edgelist[coalesce.(edgelist.ISO_A2 .== "PT",false), :]
+countries = copy(Arrow.Table("ne_50m_admin_0_countries.asc.arrow") |> DataFrame)
+dropmissing!(countries)
+compact = combine(groupby(countries, :ISO_A2,), :h3 => collect∘Ref => :h3)
+transform!(compact, :h3 => ByRow(x -> H3.API.uncompactCells(collect(x), 5)) => :h3)
+uncompact = flatten(compact, :h3)
+lookup = Dict(v => k for (k,v) in enumerate(unique(countries.ISO_A2)))
+
+
+
+edgelist.parent_h3 = H3.API.cellToParent.(edgelist.h3, 5)
+leftjoin!(edgelist, uncompact[!, [:h3, :ISO_A2]], on=:parent_h3 => :h3)
+
+starts = edgelist[coalesce.(edgelist.ISO_A2 .== "PT",false) .|| coalesce.(edgelist.ISO_A2 .== "FI",false), :h3] |> unique # 700. doable.
+#starts_raw = edgelist[coalesce.(edgelist.ISO_A2 .== "PT",false) .|| coalesce.(edgelist.ISO_A2 .== "FI",false), :]#h3] |> unique # 700. doable.
+#H3_RES = 6
+#starts_raw.parent_h3 = H3.API.cellToParent.(starts_raw.h3, H3_RES)
+#starts = combine(groupby(starts_raw, :parent_h3,), :h3 => first => :h3).h3
+
+getbest(rs) = begin
+    rrs = collect(pairs(rs))
+    return rrs[findmax(x -> x[2].distance, rrs)[2]]
+end
+bests = Dict()
+using ProgressMeter
+@showprogress for start_pos in starts
+    results = find_earliest_arrivals(gdf, adj_list, start_pos, initial_arrival_time, initial_arrival_time + Day(7), friendly_keys)
+    tidy_routes(results)
+    bests[start_pos] = (best=getbest(tidy_routes(results)), results=results)
+    # getbest(tidy_routes(results))
+end
+df = DataFrame(child=collect(keys(bests)), distance=round.(getfield.(deux.(getfield.(values(bests), :best)), :distance)), time=getfield.(round.(getfield.(deux.(getfield.(values(bests), :best)), :time) .- initial_arrival_time, Minute), :value)./(60*24))
+df.index = string.(H3.API.cellToParent.(df.child, 6), base=16)
+#df.index = string.(df.child, base=16)
+df.value = df.distance
+Arrow.write("data/scratch/scratch.arrow", df[!, [:index, :value, :time]])
+
+# i guess then take like the top ~20, do h3 below, repeat?
+# Arrow.write("data/scratch/2026-04-26-5.arrow", df)
+# impressum = Dict(
+#    "t" => "Furthest distance travelled along fastest route to everywhere from point in km",
+#    "c" => "Transitous et al.",
+# )
+# write("data/scratch/2026-04-26-5.json", JSON.json(impressum))
+
+# i _think_ when we're updating routes, we need to check if the distance is less and update the route that takes the lesser distance 
+
+# anyway let's see what routes we got
+function reconstruct_route(earliest_arrivals::Dict{Tuple{UInt64, Bool}, RouteStateW}, start_uuid::UInt64, target_uuid::UInt64)
+    state_transit = get(earliest_arrivals, (target_uuid, false), nothing)
+    state_walk    = get(earliest_arrivals, (target_uuid, true), nothing)
+    
+    if state_transit === nothing && state_walk === nothing
+        println("Target H3 index was never reached.")
+        return nothing
+    end
+    
+    if state_transit !== nothing && state_walk !== nothing
+        curr_was_walk = state_walk.time < state_transit.time
+    elseif state_transit !== nothing
+        curr_was_walk = false
+    else
+        curr_was_walk = true
+    end
+    
+    route =[]
+    curr_h3 = target_uuid
+    
+    while true
+        state = earliest_arrivals[(curr_h3, curr_was_walk)]
+        pushfirst!(route, (
+            h3_index = curr_h3,
+            arrival_time = state.time, 
+            accumulated_distance_km = round(state.distance, digits=2), 
+            action = state.action
+        ))
+        if curr_h3 == start_uuid
+            break
+        end
+        curr_h3 = state.parent_h3
+        curr_was_walk = state.parent_was_walk
+    end
+    return DataFrame(route)
+end
+
+using Serialization: serialize, deserialize
+serialize("bests.jls", bests)
+# todo: if we don't use this soon, delete it
+
+paths = []
+distances = []
+names = []
+for b in pairs(bests)
+    path = map(p->rad2deg.([p.lng + rand()/1000, p.lat + rand()/1000]), H3.API.cellToLatLng.(reconstruct_route(b.second.results, b.first, b.second.best.first).h3_index))
+    start_station = first(edgelist[edgelist.h3 .== b.first, :stop_name])
+    end_station = first(edgelist[edgelist.h3 .== b.second.best.first, :stop_name])
+    push!(names, "$(start_station) -> $(end_station)")
+    push!(paths, path)
+    distance = b.second.best.second.distance
+    push!(distances, distance)
+end
+#top10 = sort!(collect(zip(paths, distances)), by=x->x[2], rev=true)#[1:20]
+top10 = Iterators.filter(pd -> pd[2] > 6300, zip(paths, distances, names))
+
+features = []
+for (path, distance, name) in top10
+    push!(features, Dict(
+        "type" => "Feature",
+        "geometry" => Dict(
+            "type" => "LineString",
+            "coordinates" => path,
+        ),
+        "properties" => Dict(
+            "value" => distance,
+            "route" => name,
+        )
+    ))
+end
+json = Dict("type" => "FeatureCollection", "features" => features)
+write("data/scratch/longest_routes.geojson", JSON.json(json))
+impressum = Dict(
+   "t" => "Routes and their total distances in km",
+   "c" => "Transitous et al.",
+)
+write("data/scratch/longest_routes.json", JSON.json(impressum))
