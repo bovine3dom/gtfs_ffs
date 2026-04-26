@@ -5,7 +5,7 @@ import H3.API: LatLng, latLngToCell, h3ToString, cellToLatLng
 
 include("lib.jl")
 
-df = select_df(con(), "select distinct on (h3, next_h3) h3ToParent(h3, 6) h3, h3ToParent(next_h3, 6) next_h3, stop_lat, stop_lon from transitous_everything_20260117_edgelist_fahrtle")
+df = select_df(con(), "select distinct on (h3, next_h3) h3ToParent(h3, 6) h3, h3ToParent(next_h3, 6) next_h3, stop_lat, stop_lon from transitous_everything_20260218_edgelist_fahrtle2")
 df = semijoin(df, df, on = [:h3 => :next_h3, :next_h3 => :h3]) # remove unidirectional edges
 
 ## borrowed from uuid generator
@@ -104,7 +104,7 @@ weight_df = select_df(con(), """
                           select geoToH3(stop_lat, stop_lon, 6) h3, least(greatest(sum(crow_km), 3), 1000) weight from transitous_everything_20260117_stop_statistics_unmerged3 group by h3
                       ) tr
                       left join (
-                          select h3ToParent(h3, 6) h3, sum(population) pop from public_kontur_population_20231101
+                          select h3ToParent(h3, 6) h3, log(sum(population)) pop from public_kontur_population_20231101
                           group by h3
                       ) kt
                       on kt.h3 = tr.h3
@@ -114,7 +114,7 @@ dropmissing!(only_big)
 
 
 
-n = 365*10 # we can repeat after a decade
+n = 365 # in practice we mess around with this so often that who cares if we only have a year
 days = Array{@NamedTuple{start_lat::Float64, start_lon::Float64, finish_lat::Float64, finish_lon::Float64}, 1}()
 for i in 1:n
     row = sample(eachrow(only_big), Weights(only_big.weight))

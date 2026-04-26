@@ -14,15 +14,20 @@ SET http_connection_timeout = 40000;
 SET http_send_timeout = 40000;
 SET http_receive_timeout = 40000;
 
-DROP TABLE IF EXISTS transitous_everything_20260117_routes;
-DROP TABLE IF EXISTS transitous_everything_20260117_trips;
-DROP TABLE IF EXISTS transitous_everything_20260117_stop_times;
-DROP TABLE IF EXISTS transitous_everything_20260117_calendar;
-DROP TABLE IF EXISTS transitous_everything_20260117_calendar_dates;
-DROP TABLE IF EXISTS transitous_everything_20260117_stops;
-DROP TABLE IF EXISTS transitous_everything_20260117_agency;
+ -- avoid oom killer
+SET max_bytes_before_external_group_by = '90G';
+SET max_memory_usage = '100G';
 
-CREATE TABLE transitous_everything_20260117_routes
+DROP TABLE IF EXISTS transitous_everything_20260218_routes;
+DROP TABLE IF EXISTS transitous_everything_20260218_trips;
+DROP TABLE IF EXISTS transitous_everything_20260218_stop_times;
+DROP TABLE IF EXISTS transitous_everything_20260218_calendar;
+DROP TABLE IF EXISTS transitous_everything_20260218_calendar_dates;
+DROP TABLE IF EXISTS transitous_everything_20260218_stops;
+DROP TABLE IF EXISTS transitous_everything_20260218_agency;
+DROP TABLE IF EXISTS transitous_everything_20260218_shapes;
+
+CREATE TABLE transitous_everything_20260218_routes
 ENGINE MergeTree
 ORDER BY (source, route_id, route_type)
 AS
@@ -40,7 +45,7 @@ SELECT
     toUInt32OrNull(route_sort_order) AS route_sort_order,
     toUInt8OrNull(continuous_pickup) AS continuous_pickup,
     toUInt8OrNull(continuous_drop_off) AS continuous_drop_off
-FROM file('chungus/transitous/2026-01-17/source=*/routes.txt', 'CSVWithNames', '
+FROM file('chungus/transitous/2026-02-13/source=*/routes.txt', 'CSVWithNames', '
     source String,
     route_id String,
     agency_id String,
@@ -57,7 +62,7 @@ FROM file('chungus/transitous/2026-01-17/source=*/routes.txt', 'CSVWithNames', '
 ')
 SETTINGS use_hive_partitioning = 1;
 
-CREATE TABLE transitous_everything_20260117_trips
+CREATE TABLE transitous_everything_20260218_trips
 ENGINE MergeTree
 ORDER BY (source, route_id, service_id, trip_id)
 AS
@@ -73,7 +78,7 @@ SELECT
     shape_id,
     toUInt8OrNull(wheelchair_accessible) AS wheelchair_accessible,
     toUInt8OrNull(bikes_allowed) AS bikes_allowed
-FROM file('chungus/transitous/2026-01-17/source=*/trips.txt', 'CSVWithNames', '
+FROM file('chungus/transitous/2026-02-13/source=*/trips.txt', 'CSVWithNames', '
     source String,
     route_id String,
     service_id String,
@@ -89,7 +94,20 @@ FROM file('chungus/transitous/2026-01-17/source=*/trips.txt', 'CSVWithNames', '
 ) tt
 SETTINGS use_hive_partitioning = 1;
 
-CREATE TABLE transitous_everything_20260117_stops
+CREATE TABLE transitous_everything_20260218_shapes
+ENGINE = MergeTree
+ORDER BY (source, shape_id, shape_pt_sequence)
+AS
+SELECT
+    toLowCardinality(assumeNotNull(source)) source,
+    assumeNotNull(shape_id) shape_id,
+    assumeNotNull(shape_pt_lat) shape_pt_lat,
+    assumeNotNull(shape_pt_lon) shape_pt_lon,
+    assumeNotNull(shape_pt_sequence) shape_pt_sequence,
+    shape_dist_traveled,
+FROM file('chungus/transitous/2026-02-13/source=*/shapes.txt', 'CSVWithNames');
+
+CREATE TABLE transitous_everything_20260218_stops
 ENGINE MergeTree
 ORDER BY (source, stop_id, stop_lat, stop_lon)
 AS
@@ -109,7 +127,7 @@ SELECT
     toUInt8OrNull(wheelchair_boarding) AS wheelchair_boarding,
     level_id,
     platform_code
-FROM file('chungus/transitous/2026-01-17/source=*/stops.txt', 'CSVWithNames', '
+FROM file('chungus/transitous/2026-02-13/source=*/stops.txt', 'CSVWithNames', '
     source String,
     stop_id String,
     stop_code String,
@@ -128,7 +146,7 @@ FROM file('chungus/transitous/2026-01-17/source=*/stops.txt', 'CSVWithNames', '
 ') ts
 SETTINGS use_hive_partitioning = 1;
 
-CREATE TABLE transitous_everything_20260117_calendar
+CREATE TABLE transitous_everything_20260218_calendar
 ENGINE MergeTree
 ORDER BY (source, service_id, start_date, end_date)
 AS
@@ -144,7 +162,7 @@ SELECT
     toUInt8OrZero(sunday) AS sunday,
     toDateOrZero(start_date) AS start_date, -- Assumes YYYYMMDD format
     toDateOrZero(end_date) AS end_date     -- Assumes YYYYMMDD format
-FROM file('chungus/transitous/2026-01-17/source=*/calendar.txt', 'CSVWithNames', '
+FROM file('chungus/transitous/2026-02-13/source=*/calendar.txt', 'CSVWithNames', '
     source String,
     service_id String,
     monday String,
@@ -159,7 +177,7 @@ FROM file('chungus/transitous/2026-01-17/source=*/calendar.txt', 'CSVWithNames',
 ') tc
 SETTINGS use_hive_partitioning = 1;
 
-CREATE TABLE transitous_everything_20260117_calendar_dates
+CREATE TABLE transitous_everything_20260218_calendar_dates
 ENGINE MergeTree
 ORDER BY (source, service_id, date, exception_type)
 AS
@@ -168,7 +186,7 @@ SELECT
     tcd.service_id service_id,
     toDateOrZero(date) AS date, -- Assumes YYYYMMDD format
     toUInt8OrZero(exception_type) AS exception_type
-FROM file('chungus/transitous/2026-01-17/source=*/calendar_dates.txt', 'CSVWithNames', '
+FROM file('chungus/transitous/2026-02-13/source=*/calendar_dates.txt', 'CSVWithNames', '
     source String,
     service_id String,
     date String,
@@ -176,7 +194,7 @@ FROM file('chungus/transitous/2026-01-17/source=*/calendar_dates.txt', 'CSVWithN
 ') tcd
 SETTINGS use_hive_partitioning = 1;
 
-CREATE TABLE transitous_everything_20260117_agency
+CREATE TABLE transitous_everything_20260218_agency
 ENGINE MergeTree
 ORDER BY (source, agency_id)
 AS
@@ -190,7 +208,7 @@ SELECT
     agency_fare_url,
     agency_lang,
     agency_phone
-FROM file('chungus/transitous/2026-01-17/source=*/agency.txt', 'CSVWithNames', '
+FROM file('chungus/transitous/2026-02-13/source=*/agency.txt', 'CSVWithNames', '
     source String,
     agency_id String,
     agency_name String,
@@ -203,144 +221,8 @@ FROM file('chungus/transitous/2026-01-17/source=*/agency.txt', 'CSVWithNames', '
 ') ta
 SETTINGS use_hive_partitioning = 1;
 
-DROP TABLE IF EXISTS transitous_everything_20260117_valid_trips_lookup;
-CREATE TABLE transitous_everything_20260117_valid_trips_lookup
-ENGINE = MergeTree()
-ORDER BY (source, trip_id)
-AS
-WITH
-date_bounds AS (
-    SELECT
-        parseDateTimeBestEffort('2025-12-20') AS min_overall_date,
-        parseDateTimeBestEffort('2026-07-01') AS max_overall_date
-),
-all_dates_in_range AS (
-    SELECT
-        (SELECT min_overall_date FROM date_bounds) + toIntervalDay(number) AS check_date, true dummy
-    FROM numbers(
-            assumeNotNull(1 + toUInt32(dateDiff('day',
-                (SELECT min_overall_date FROM date_bounds),
-                (SELECT max_overall_date FROM date_bounds)
-            )
-        ))
-    )
-    WHERE check_date <= (SELECT max_overall_date FROM date_bounds)
-),
-calendar_potential_services AS (
-    SELECT
-        ad.check_date,
-        ca.service_id,
-        ca.source
-    FROM all_dates_in_range AS ad
-    JOIN (select *, true dummy from transitous_everything_20260117_calendar) AS ca
-        ON ad.check_date >= ca.start_date
-        AND ad.dummy = ca.dummy
-        AND ad.check_date <= ca.end_date
-        AND (
-            (toDayOfWeek(ad.check_date) = 1 AND ca.monday) OR
-            (toDayOfWeek(ad.check_date) = 2 AND ca.tuesday) OR
-            (toDayOfWeek(ad.check_date) = 3 AND ca.wednesday) OR
-            (toDayOfWeek(ad.check_date) = 4 AND ca.thursday) OR
-            (toDayOfWeek(ad.check_date) = 5 AND ca.friday) OR
-            (toDayOfWeek(ad.check_date) = 6 AND ca.saturday) OR
-            (toDayOfWeek(ad.check_date) = 7 AND ca.sunday)
-        )
-),
-calendar_date_exceptions AS (
-    SELECT
-        cd.date AS check_date,
-        cd.service_id,
-        cd.source,
-        cd.exception_type
-    FROM transitous_everything_20260117_calendar_dates AS cd
-),
-active_services_on_date AS (
-    SELECT
-        cps.check_date,
-        cps.service_id,
-        cps.source
-    FROM calendar_potential_services AS cps
-    LEFT ANTI JOIN calendar_date_exceptions AS cde_remove
-        ON cps.check_date = cde_remove.check_date
-        AND cps.service_id = cde_remove.service_id
-        AND cps.source = cde_remove.source
-        AND cde_remove.exception_type = 2
-    UNION DISTINCT
-    SELECT
-        cde_add.check_date,
-        cde_add.service_id,
-        cde_add.source
-    FROM calendar_date_exceptions AS cde_add
-    WHERE cde_add.exception_type = 1
-      AND cde_add.check_date IN (SELECT check_date FROM all_dates_in_range)
-),
-services_per_source_per_day AS (
-    SELECT
-        source,
-        check_date,
-        count() AS num_active_services
-    FROM active_services_on_date
-    GROUP BY source, check_date
-),
-ranked_days_per_source AS (
-    SELECT
-        source,
-        check_date,
-        num_active_services,
-        ROW_NUMBER() OVER (PARTITION BY source ORDER BY num_active_services DESC, check_date ASC) as rn
-    FROM services_per_source_per_day
-),
-best_days_per_source as (
-    SELECT
-        source,
-        check_date as best_date_for_this_source
-    FROM ranked_days_per_source
-    WHERE rn = 1
-),
-active_services_final as (
-    SELECT
-        ca.service_id service_id,
-        ca.source source
-    FROM transitous_everything_20260117_calendar AS ca
-    JOIN best_days_per_source AS bds ON ca.source = bds.source
-    LEFT ANTI JOIN transitous_everything_20260117_calendar_dates AS cd_remove
-        ON ca.service_id = cd_remove.service_id
-        AND ca.source = cd_remove.source
-        AND cd_remove.date = bds.best_date_for_this_source
-        AND cd_remove.exception_type = 2
-    WHERE
-        ca.start_date <= bds.best_date_for_this_source
-        AND ca.end_date >= bds.best_date_for_this_source
-        AND (
-            (toDayOfWeek(bds.best_date_for_this_source) = 1 AND ca.monday) OR
-            (toDayOfWeek(bds.best_date_for_this_source) = 2 AND ca.tuesday) OR
-            (toDayOfWeek(bds.best_date_for_this_source) = 3 AND ca.wednesday) OR
-            (toDayOfWeek(bds.best_date_for_this_source) = 4 AND ca.thursday) OR
-            (toDayOfWeek(bds.best_date_for_this_source) = 5 AND ca.friday) OR
-            (toDayOfWeek(bds.best_date_for_this_source) = 6 AND ca.saturday) OR
-            (toDayOfWeek(bds.best_date_for_this_source) = 7 AND ca.sunday)
-        )
-    UNION DISTINCT
-    SELECT
-        cd.service_id,
-        cd.source
-    FROM transitous_everything_20260117_calendar_dates AS cd
-    JOIN best_days_per_source AS bds ON cd.source = bds.source
-    WHERE
-        cd.date = bds.best_date_for_this_source
-        AND cd.exception_type = 1
-)
--- JOIN WITH TRIPS TO GET THE TRIP_IDs
-SELECT 
-    t.source, 
-    t.trip_id
-FROM transitous_everything_20260117_trips t
-INNER JOIN active_services_final asf 
-    ON t.service_id = asf.service_id 
-    AND t.source = asf.source;
-
-DROP TABLE IF EXISTS transitous_everything_20260117_stop_times;
-CREATE TABLE transitous_everything_20260117_stop_times
+DROP TABLE IF EXISTS transitous_everything_20260218_stop_times;
+CREATE TABLE transitous_everything_20260218_stop_times
 (
     source LowCardinality(String),
     trip_id String,
@@ -361,7 +243,7 @@ ENGINE = MergeTree
 ORDER BY (source, trip_id, stop_id, arrival_time, departure_time)
 SETTINGS allow_nullable_key = 1;
 
-INSERT INTO transitous_everything_20260117_stop_times
+INSERT INTO transitous_everything_20260218_stop_times
 SELECT
     toLowCardinality(assumeNotNull(st.source)) AS source,
     st.trip_id,
@@ -377,7 +259,7 @@ SELECT
     toFloat32OrNull(shape_dist_traveled),
     toUInt8OrNull(timepoint),
     local_zone_id
-FROM file('chungus/transitous/2026-01-17/source=*/stop_times.txt', 'CSVWithNames', '
+FROM file('chungus/transitous/2026-02-13/source=*/stop_times.txt', 'CSVWithNames', '
     source String,
     trip_id String,
     arrival_time String,
@@ -393,67 +275,193 @@ FROM file('chungus/transitous/2026-01-17/source=*/stop_times.txt', 'CSVWithNames
     timepoint String,
     local_zone_id String
 ') st
--- INNER JOIN FILTERS THE ROWS BEFORE WRITING TO DISK
-INNER JOIN transitous_everything_20260117_valid_trips_lookup vt
-    ON st.source = vt.source 
-    AND st.trip_id = vt.trip_id
 SETTINGS use_hive_partitioning = 1;
 
-
-DROP TABLE IF EXISTS transitous_everything_20260117_stop_times_one_day;
-
-CREATE TABLE transitous_everything_20260117_stop_times_one_day
+-- Now generate route_uuids based on the stop sequence for every trip
+DROP TABLE IF EXISTS transitous_everything_20260218_trip_route_uuids;
+CREATE TABLE transitous_everything_20260218_trip_route_uuids
 ENGINE = MergeTree
-ORDER BY (source, stop_id, stop_lat, stop_lon, route_type, trip_id, arrival_time, departure_time)
+ORDER BY (source, trip_id)
+AS 
+SELECT
+    source,
+    trip_id,
+    -- maybe we should include source in the hash? we get a couple of collisions
+    reinterpretAsUUID(sipHash128Reference(
+        -- inner sort here stops ch sorting the _entire_ table at once
+        arrayMap(x -> x.2, arraySort(
+            groupArray(
+                -- hash stop to shrink
+                (departure_time, xxh3(stop_id))
+            )
+        )
+    ))) as sane_route_id
+FROM transitous_everything_20260218_stop_times
+GROUP BY source, trip_id;
+
+-- Now calculate the best day per sane_route_id
+DROP TABLE IF EXISTS transitous_everything_20260218_valid_trips_lookup;
+CREATE TABLE transitous_everything_20260218_valid_trips_lookup
+ENGINE = MergeTree()
+ORDER BY (source, trip_id)
+AS
+WITH
+    -- 1. Define bounds once
+    toDate('2020-12-01') AS min_date, -- todo: find these automatically?
+    toDate('2030-01-01') AS max_date,
+
+    -- 2. Pre-calculate Trip Counts per Service/Route
+    -- This collapses 25M rows into ~500k rows before we even look at dates.
+    route_service_counts AS (
+        SELECT
+            t.source,
+            t.service_id,
+            tru.sane_route_id,
+            count() AS trip_count,
+            groupArray(t.trip_id) as trip_ids -- Keep trip IDs packed for later
+        FROM transitous_everything_20260218_trips t
+        JOIN transitous_everything_20260218_trip_route_uuids tru
+            ON t.source = tru.source AND t.trip_id = tru.trip_id
+        GROUP BY t.source, t.service_id, tru.sane_route_id
+    ),
+
+    -- 3. Efficiently Expand Calendar to Valid Dates
+    -- Instead of joining a date table, we generate dates on the fly for each service.
+    valid_service_dates AS (
+        SELECT
+            source,
+            service_id,
+            check_date
+        FROM
+        (
+            -- 3a. Expand Regular Schedule (Calendar)
+            SELECT
+                source,
+                service_id,
+                arrayJoin(
+                    arrayMap(x -> toDate(x), 
+                        range(toUInt32(greatest(start_date, min_date)), toUInt32(least(end_date, max_date)) + 1)
+                    )
+                ) AS check_date,
+                monday, tuesday, wednesday, thursday, friday, saturday, sunday
+            FROM transitous_everything_20260218_calendar
+            WHERE end_date >= min_date AND start_date <= max_date
+        )
+        WHERE 
+            -- Quick Bitmask Check for Day of Week
+            CASE toDayOfWeek(check_date)
+                WHEN 1 THEN monday WHEN 2 THEN tuesday WHEN 3 THEN wednesday
+                WHEN 4 THEN thursday WHEN 5 THEN friday WHEN 6 THEN saturday
+                WHEN 7 THEN sunday ELSE 0
+            END = 1
+        
+        UNION DISTINCT
+        
+        -- 3b. Additions (Calendar Dates Type 1)
+        SELECT source, service_id, date as check_date
+        FROM transitous_everything_20260218_calendar_dates
+        WHERE exception_type = 1 AND date BETWEEN min_date AND max_date
+
+        EXCEPT
+        
+        -- 3c. Removals (Calendar Dates Type 2)
+        SELECT source, service_id, date as check_date
+        FROM transitous_everything_20260218_calendar_dates
+        WHERE exception_type = 2 AND date BETWEEN min_date AND max_date
+    ),
+
+    -- 4. Find the "Best Date" per Route using argMax (No Sorting!)
+    best_date_per_route AS (
+        SELECT
+            source,
+            sane_route_id,
+            -- Find the date that had the highest sum of trips
+            argMax(check_date, total_trips_on_day) AS best_date
+        FROM
+        (
+            SELECT
+                r.source,
+                r.sane_route_id,
+                v.check_date,
+                sum(r.trip_count) AS total_trips_on_day
+            FROM route_service_counts r
+            JOIN valid_service_dates v 
+                ON r.source = v.source AND r.service_id = v.service_id
+            GROUP BY r.source, r.sane_route_id, v.check_date
+        )
+        GROUP BY source, sane_route_id
+    )
+-- 5. Final Assembly
+-- We have the best date for every route. Now grab the trips that are active on that specific date.
+SELECT DISTINCT
+    r.source source,
+    arrayJoin(r.trip_ids) trip_id
+FROM route_service_counts r
+JOIN best_date_per_route b
+    ON r.source = b.source AND r.sane_route_id = b.sane_route_id
+JOIN valid_service_dates v
+    ON r.source = v.source 
+    AND r.service_id = v.service_id 
+    AND v.check_date = b.best_date;
+
+DROP TABLE IF EXISTS transitous_everything_20260218_stop_times_one_day_sane;
+CREATE TABLE transitous_everything_20260218_stop_times_one_day_sane
+ENGINE = MergeTree
+ORDER BY (source, stop_lat, stop_lon, sane_route_id, trip_id, stop_sequence)
 SETTINGS allow_nullable_key = 1
 AS
 SELECT
-    -- From stop_times (st)
+    -- 1. Identifiers
+    st.source AS source,
+    tru.sane_route_id AS sane_route_id, -- UUID
+    st.trip_id AS trip_id,
+    st.stop_id AS stop_id,
+    
+    -- 2. Sequencing & Time
+    st.stop_sequence AS stop_sequence,
     st.arrival_time AS arrival_time,
     st.departure_time AS departure_time,
-    st.stop_id AS stop_id,
-    st.trip_id AS trip_id,
-    st.source AS source,
-    st.stop_sequence AS stop_sequence,
-    st.stop_headsign AS stop_headsign,
+
+    -- 3. Geometry (Float64 from Stops table)
+    ts.stop_lat AS stop_lat,
+    ts.stop_lon AS stop_lon,
+
+    -- 4. Trip Attributes
+    cast(tst.service_id as LowCardinality(String)) AS service_id,
+    tst.trip_headsign AS trip_headsign,
+    tst.trip_short_name AS trip_short_name,
+    tst.direction_id AS direction_id, -- Nullable(UInt8)
+    tst.block_id AS block_id,
+    tst.shape_id AS shape_id,
+    tst.wheelchair_accessible AS wheelchair_accessible, -- Nullable(UInt8)
+    tst.bikes_allowed AS bikes_allowed, -- Nullable(UInt8)
+
+    -- 5. Route Attributes
+    ro.route_id AS route_id,
+    ro.route_short_name AS route_short_name,
+    ro.route_long_name AS route_long_name,
+    ro.route_desc AS route_desc,
+    ro.route_type AS route_type, 
+    ro.route_url AS route_url,
+    cast(ro.route_color as LowCardinality(String)) AS route_color,
+    cast(ro.route_text_color as LowCardinality(String)) AS route_text_color,
+    ro.route_sort_order AS route_sort_order,
+    ro.continuous_pickup AS route_continuous_pickup,
+    ro.continuous_drop_off AS route_continuous_drop_off,
+
+    -- 6. Stop Attributes
     st.pickup_type AS pickup_type,
     st.drop_off_type AS drop_off_type,
+    st.stop_headsign AS stop_headsign,
     st.continuous_pickup AS continuous_pickup,
     st.continuous_drop_off AS continuous_drop_off,
     st.shape_dist_traveled AS shape_dist_traveled,
     st.timepoint AS timepoint,
     st.local_zone_id AS local_zone_id,
-
-    -- From trips (tst)
-    tst.bikes_allowed AS bikes_allowed,
-    tst.block_id AS block_id,
-    tst.service_id AS service_id,
-    tst.direction_id AS direction_id,
-    tst.wheelchair_accessible AS wheelchair_accessible,
-    tst.trip_headsign AS trip_headsign,
-    tst.trip_short_name AS trip_short_name,
-    tst.shape_id AS shape_id,
-
-    -- From routes (ro)
-    ro.route_id AS route_id,
-    ro.route_short_name AS route_short_name,
-    ro.route_long_name AS route_long_name,
-    ro.route_desc AS route_desc,
-    ro.route_type AS route_type,
-    ro.route_url AS route_url,
-    ro.route_color AS route_color,
-    ro.route_text_color AS route_text_color,
-    ro.route_sort_order AS route_sort_order,
-    -- Renamed to avoid collision with stop_times columns
-    ro.continuous_pickup AS route_continuous_pickup,
-    ro.continuous_drop_off AS route_continuous_drop_off,
-
-    -- From stops (ts)
+    
     ts.stop_code AS stop_code,
     ts.stop_name AS stop_name,
     ts.stop_desc AS stop_desc,
-    ts.stop_lat AS stop_lat,
-    ts.stop_lon AS stop_lon,
     ts.zone_id AS zone_id,
     ts.stop_url AS stop_url,
     ts.location_type AS location_type,
@@ -463,34 +471,35 @@ SELECT
     ts.level_id AS level_id,
     ts.platform_code AS platform_code
 
-FROM transitous_everything_20260117_stop_times st
-INNER JOIN transitous_everything_20260117_trips tst 
-    ON st.trip_id = tst.trip_id AND st.source = tst.source
-INNER JOIN transitous_everything_20260117_routes ro 
-    ON tst.route_id = ro.route_id AND tst.source = ro.source
-INNER JOIN transitous_everything_20260117_stops ts 
-    ON st.stop_id = ts.stop_id AND st.source = ts.source;
+FROM transitous_everything_20260218_stop_times st
 
-DROP TABLE IF EXISTS transitous_everything_20260117_stop_times_one_day_sane;
-CREATE TABLE transitous_everything_20260117_stop_times_one_day_sane -- ignore route ids, only care about stops
-ENGINE MergeTree
-order by (source, stop_id, sane_route_id, stop_lat, stop_lon, trip_id, arrival_time, departure_time)
-settings allow_nullable_key = 1
-AS
-with route_uuids as (
-    select arrayJoin(trip_id) trip_id, generateUUIDv7() sane_route_id, source from (
-        select source, stop_id, groupArray(trip_id) trip_id from (
-            select source, groupArray(stop_id) stop_id, trip_id from (
-                select source, stop_id, departure_time, trip_id from transitous_everything_20260117_stop_times_one_day st 
-                order by departure_time asc
-            )
-            group by all
-        )
-        group by all
-    )
-)
-select * from transitous_everything_20260117_stop_times_one_day st
-inner join route_uuids ru on ru.trip_id = st.trip_id and ru.source = st.source;
+-- JOIN 1: Filter to only the best day's trips
+INNER JOIN transitous_everything_20260218_valid_trips_lookup vt
+    ON st.source = vt.source 
+    AND st.trip_id = vt.trip_id
+
+-- JOIN 2: Attach the UUIDs
+INNER JOIN transitous_everything_20260218_trip_route_uuids tru 
+    ON st.source = tru.source 
+    AND st.trip_id = tru.trip_id
+
+-- JOIN 3: Attach Trip Info
+INNER JOIN transitous_everything_20260218_trips tst 
+    ON st.source = tst.source 
+    AND st.trip_id = tst.trip_id
+
+-- JOIN 4: Attach Route Info
+INNER JOIN transitous_everything_20260218_routes ro 
+    ON tst.source = ro.source 
+    AND tst.route_id = ro.route_id
+
+-- JOIN 5: Attach Stop Info (Lat/Lon)
+INNER JOIN transitous_everything_20260218_stops ts 
+    ON st.source = ts.source 
+    AND st.stop_id = ts.stop_id;
+
+
+-- i don't think we need anything below here any more
 
 drop table if exists transitous_everything_edgelist2;
 create table transitous_everything_edgelist2
@@ -517,8 +526,8 @@ lagInFrame(ring, 1, ring) over (
     rows between 1 preceding and current row
 ) next_ring,
 source, trip_id, stop_id, arrival_time, departure_time, stop_lat, stop_lon,
-h3kRing(geoToH3(stop_lon, stop_lat, 9), 4) ring
-from transitous_everything_stop_times_one_day_sane
+h3kRing(geoToH3(stop_lat, stop_lon, 9), 4) ring
+from transitous_everything_20260218_stop_times_one_day_sane
 -- no point including NA until we do GHS pop
 where source not like 'us%'
 and source not like 'ca%'
@@ -551,7 +560,7 @@ select assumeNotNull(h3ToGeo(h3).1) lon, assumeNotNull(h3ToGeo(h3).2) lat, assum
     -- value is number of transport per day, t.1 is distance
     -- average wait time is (18*60)/(number of transport per day * 2) + walking time if we say we're awake for 18 hours and we on average only wait half time
         select h3, ((2*(t.1)+1)*h3EdgeLengthM(res_trans))/walk_speed_per_min walk_to_stop, walk_to_stop + wait_time_t total_wait, (60 - total_wait - 5) * pop_per_minute_t pop_in_60, arrayJoin(t.2) pls from (
-            select geoToH3(stop_lon, stop_lat, res_trans) h3, arrayJoin(arrayMap(x->(x, h3HexRing(h3, x)), arrayMap(x->toUInt16(x), range(0,max_dist+1)))) t, argMax(pop_per_minute, greatest(0, (60 - wait_time - 5) * pop_per_minute)) pop_per_minute_t, argMax(wait_time, greatest(0, (60 - wait_time - 5) * pop_per_minute)) wait_time_t from (
+            select geoToH3(stop_lat, stop_lon, res_trans) h3, arrayJoin(arrayMap(x->(x, h3HexRing(h3, x)), arrayMap(x->toUInt16(x), range(0,max_dist+1)))) t, argMax(pop_per_minute, greatest(0, (60 - wait_time - 5) * pop_per_minute)) pop_per_minute_t, argMax(wait_time, greatest(0, (60 - wait_time - 5) * pop_per_minute)) wait_time_t from (
                 select source, stop_id, stop_lat, stop_lon, avg(value) pop_per_minute, count(*) departs_per_day, (18*60)/(departs_per_day*2) wait_time from transitous_everything_edgelist te
                 left join (
                 select source, trip_id, sum(next_pop)/(sum(travel_time) + count()*5) value from transitous_everything_edgelist -- add on 5 min walk
@@ -565,7 +574,7 @@ select assumeNotNull(h3ToGeo(h3).1) lon, assumeNotNull(h3ToGeo(h3).2) lat, assum
         )
     ) st
     -- optional if not in UK / you don't have this table
-    --left anti join (select geoToH3(lon, lat, res_trans) h3 from uprn_os) uo on h3 = uo.h3 -- exclude places where zero people live
+    --left anti join (select geoToH3(lat, lon, res_trans) h3 from uprn_os) uo on h3 = uo.h3 -- exclude places where zero people live
     group by pls
     having pop_in_60 > 0
 );
