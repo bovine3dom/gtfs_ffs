@@ -1330,7 +1330,8 @@ FROM (
             toStartOfInterval(departure_time, toIntervalMinute(delta)) AS probe,
             geoToH3(stop_lat, stop_lon, 5) AS h3,
             count() AS c
-        -- FROM transitous_everything_20260213_stop_times_one_day_even_saner2
+        -- 'fantasy' grade messes things up with replacement services etc.
+        -- FROM transitous_everything_20260218_stop_times_one_day_even_saner2 -- 'fantasy', best day per source
         FROM transitous_everything_20260117_stop_times_one_day_even_saner2 -- 'research grade', one day per source
         WHERE true
         -- AND source LIKE 'ch_%'
@@ -1354,8 +1355,8 @@ df.bedtime_int = map(x-> x.instant.periods.value, df.bedtime)
 df.t_bedtime = Time.(df.bedtime)
 #df = df[df.bedtime_int .> 0, :]
 # scaled between zero and one
-lower = quantile(df.bedtime_int, 0.01)
-upper = quantile(df.bedtime_int, 0.99)
+lower = quantile(df.bedtime_int, 0.05)
+upper = quantile(df.bedtime_int, 0.95)
 df.value = (df.bedtime_int .- lower) ./ (upper - lower)
 sort!(df, :value)
 probes = 0:0.2:1.0 # looks like this always needs to be 0:0.2:1.0
