@@ -1,11 +1,3 @@
-struct RouteStateW
-    time::DateTime
-    parent_h3::UInt64
-    parent_was_walk::Bool
-    distance::Float64
-    action::String
-end
-
 # - fix departure time
 # - find the fastest route between every pair of stations, store the sum of geodesic distances
 # - find the longest sum of geodesic distances
@@ -29,6 +21,15 @@ end
 # i guess in router.jl earliest arrivals needs to become (time, route)[] pairs?
 using JSON, CSV, DataFrames, Dates, Arrow
 import H3
+
+struct RouteStateW
+    time::DateTime
+    parent_h3::UInt64
+    parent_was_walk::Bool
+    distance::Float64
+    action::String
+end
+
 
 include("lib.jl")
 
@@ -215,10 +216,12 @@ deux(a) = a[2] # surely this already exists
 
 # edgelist[edgelist.stop_name .== "Nice-Ville", :] # find a stop you want
 # edgelist[edgelist.stop_name .== "Nuits sous Ravières", :] # find a stop you want
+# edgelist[startswith.(edgelist.stop_name, "Hannover Hbf"), :] # find a stop you want
 # 622506761884139519
 start_pos = UInt64(621646712112906239) # Järna
 start_pos = UInt64(622506761884139519) # Nice-Ville
 start_pos = UInt64(622054452367032319) # Nuits sous Ravières
+start_pos = UInt64(622043298218934271) # Hannover Hbf
 initial_arrival_time = DateTime(2026,01,01,09,00)
 # initial_arrival_time = DateTime(2026,01,01,04,00) # Jon gets up early
 cutoff_time = DateTime(2026,01,01,12,00)
@@ -232,7 +235,7 @@ addquantiles!(df, :distance)
 addquantiles!(df, :time)
 df.value = df.distance_quantile .- df.time_quantile
 # df = DataFrame(child=collect(keys(results)), value=Float64.(getfield.(round.(collect(values(results)) .- initial_arrival_time, Minute), :value)./(60*24)))
-df.index = H3.API.cellToParent.(df.child, 4)
+df.index = H3.API.cellToParent.(df.child, 5)
 bdf = combine(groupby(df, :index), group -> begin
      i = argmin(abs.(group.value))
      (value=group.value[i], time=group.time[i], distance=group.distance[i])
@@ -240,12 +243,14 @@ bdf = combine(groupby(df, :index), group -> begin
 )
 bdf.index = string.(bdf.index, base=16)
 # sshfs the_server:projects/H3-MON/www/data data
-Arrow.write("data/scratch/2026-04-26-4.arrow", bdf)
+directory = expanduser("~/projects/H3-MON/www/data/dist-vs-travel-time")
+mkpath(directory)
+Arrow.write("$directory/$(today())_mini.arrow", bdf)
 impressum = Dict(
-   "t" => "Distance - time quantile, from Nuits sous Ravières at 4am",
+   "t" => "Distance - time quantile, from Hannover Hbf at 9am",
    "c" => "Transitous et al.",
 )
-write("data/scratch/2026-04-26-4.json", JSON.json(impressum))
+write("$directory/$(today())_mini.json", JSON.json(impressum))
 
 
 getbest(rs) = begin
