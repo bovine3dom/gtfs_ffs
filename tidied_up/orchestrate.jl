@@ -4,6 +4,8 @@ using Dates
 
 const PROJECT_ROOT = dirname(@__DIR__)
 const SQL_DIR = joinpath(@__DIR__, "sql")
+const DEFAULT_CLICKHOUSE_FILE_ROOT = "/mnt/chungus/clickhouse_files"
+const DEFAULT_CLICKHOUSE_FILE_PREFIX = "chungus"
 
 mutable struct Config
     target_date::Date
@@ -14,6 +16,7 @@ mutable struct Config
     fixture::Union{Nothing,String}
     execute::Bool
     download_transitous::Bool
+    extract_only::Bool
     replace_sources::Bool
     min_date::Date
     max_date::Date
@@ -37,6 +40,7 @@ function usage()
       --min-date yyyy-mm-dd       Calendar search lower bound. Default: 2020-12-01.
       --max-date yyyy-mm-dd       Calendar search upper bound. Default: 2030-01-01.
       --download-transitous       Opt in to grabber.sh. Do not use for normal/toy runs.
+      --extract-only              Extract existing DATA_ROOT/YYYY-MM-DD/*.gtfs.zip files; skip downloads.
       --execute                   Run clickhouse-client and stop UUID generation. Without this, only render SQL.
       --help                      Show this help.
     """)
@@ -55,6 +59,7 @@ function parse_args(args)
         Pair{String,String}[],
         ["fantasy", "real"],
         nothing,
+        false,
         false,
         false,
         false,
@@ -114,6 +119,8 @@ function parse_args(args)
             cfg.execute = true
         elseif arg == "--download-transitous"
             cfg.download_transitous = true
+        elseif arg == "--extract-only"
+            cfg.extract_only = true
         elseif arg == "--replace-sources"
             cfg.replace_sources = true
         elseif startswith(arg, "--")
@@ -190,6 +197,20 @@ date_dir_name(date::Date) = Dates.format(date, "yyyy-mm-dd")
 function maybe_source_glob(path::AbstractString)
     occursin("source=*", path) && return path
     return joinpath(path, "source=*")
+end
+
+function clickhouse_file_path(path::AbstractString)
+    file_root = normpath(get(ENV, "CLICKHOUSE_FILE_ROOT", DEFAULT_CLICKHOUSE_FILE_ROOT))
+    file_prefix = get(ENV, "CLICKHOUSE_FILE_PREFIX", DEFAULT_CLICKHOUSE_FILE_PREFIX)
+    normalized_path = normpath(path)
+
+    if isabspath(normalized_path) && (normalized_path == file_root || startswith(normalized_path, file_root * "/"))
+        relative_path = relpath(normalized_path, file_root)
+        relative_path == "." && return file_prefix
+        return joinpath(file_prefix, relative_path)
+    end
+
+    return path
 end
 
 function sql_escape(value::AbstractString)
@@ -370,11 +391,21 @@ function stage_inputs!(cfg::Config, data_dir::AbstractString)
         stage_source!(name, resolve_source_path(src, cfg.data_root), data_dir; replace_existing=cfg.replace_sources)
     end
 
-    if cfg.download_transitous
+    if cfg.download_transitous || cfg.extract_only
         grabber_script = joinpath(@__DIR__, "grabber.sh")
         mkpath(data_dir)
-        println(">>> Downloading Transitous via grabber.sh. This is intentionally opt-in.")
-        run(setenv(`bash $grabber_script $data_dir`, "DATA_ROOT" => cfg.data_root))
+        if cfg.extract_only
+            println(">>> Extracting existing Transitous zips via grabber.sh. No download/listing will be attempted.")
+        else
+            println(">>> Downloading Transitous via grabber.sh. This is intentionally opt-in.")
+        end
+        flush(stdout)
+        child_env = copy(ENV)
+        child_env["DATA_ROOT"] = cfg.data_root
+        if cfg.extract_only
+            child_env["GTFS_EXTRACT_ONLY"] = "1"
+        end
+        run(setenv(`bash $grabber_script $data_dir`, child_env))
     end
 end
 
@@ -392,9 +423,10 @@ function main()
 
     stage_inputs!(cfg, data_dir)
 
-    input_glob = cfg.input_root === nothing ? maybe_source_glob(data_dir) : maybe_source_glob(cfg.input_root)
+    filesystem_input_glob = cfg.input_root === nothing ? maybe_source_glob(data_dir) : maybe_source_glob(cfg.input_root)
+    clickhouse_input_glob = clickhouse_file_path(filesystem_input_glob)
     if cfg.input_root === nothing && !isdir(data_dir)
-        error("No input data found at $data_dir. Use --source, --fixture fantasy, --input-root, or explicit --download-transitous.")
+        error("No input data found at $data_dir. Use --source, --fixture fantasy, --input-root, --extract-only, or explicit --download-transitous.")
     end
 
     temp_dir = joinpath(@__DIR__, "temp", dstr)
@@ -402,7 +434,7 @@ function main()
 
     base_vars = Dict(
         "RAW_PREFIX" => raw_prefix,
-        "INPUT_GLOB" => sql_escape(input_glob),
+        "INPUT_GLOB" => sql_escape(clickhouse_input_glob),
         "MIN_DATE" => string(cfg.min_date),
         "MAX_DATE" => string(cfg.max_date),
         "STOP_UUIDS_TABLE" => "$(raw_prefix)stop_uuids",
@@ -412,7 +444,6 @@ function main()
     run_sql_file(raw_sql, cfg.execute)
 
     if cfg.execute
-        include("stop_uuid_generator.jl")
         conn = con()
         generate_uuids(conn, "$(raw_prefix)stops", "$(raw_prefix)stop_uuids")
     else
@@ -433,6 +464,10 @@ function main()
     end
 
     println(">>> Orchestration complete. SQL is in $temp_dir")
+end
+
+if "--execute" in ARGS
+    include("stop_uuid_generator.jl")
 end
 
 main()

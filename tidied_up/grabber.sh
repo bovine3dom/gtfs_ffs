@@ -4,8 +4,9 @@ set -euo pipefail
 # Requires BASE_URL. Optionally accepts DATA_ROOT, which should be the directory
 # containing dated Transitous snapshots, e.g. /mnt/chungus/clickhouse_files/transitous.
 NUM_PARALLEL="${NUM_PARALLEL:-3}"
+EXTRACT_ONLY="${GTFS_EXTRACT_ONLY:-0}"
 
-if [ -z "${BASE_URL:-}" ]; then
+if [ "$EXTRACT_ONLY" != "1" ] && [ -z "${BASE_URL:-}" ]; then
   echo "BASE_URL is required" >&2
   exit 1
 fi
@@ -28,10 +29,14 @@ DATA_ROOT="$(cd "$DATA_ROOT" && pwd)"
 INDEX_FILE="$(mktemp)"
 LINKS_FILE="$(mktemp)"
 trap 'rm -f "$INDEX_FILE" "$LINKS_FILE"' EXIT
+STATUS_FILE="$DEST/.grabber-status.tsv"
+rm -f "$STATUS_FILE"
+touch "$STATUS_FILE"
 
-curl -fsSL "$BASE_URL" > "$INDEX_FILE"
+if [ "$EXTRACT_ONLY" != "1" ]; then
+  curl -fsSL "$BASE_URL" > "$INDEX_FILE"
 
-python3 - "$BASE_URL" "$INDEX_FILE" > "$LINKS_FILE" <<'PY'
+  python3 - "$BASE_URL" "$INDEX_FILE" > "$LINKS_FILE" <<'PY'
 import re
 import sys
 from urllib.parse import urljoin, urlparse
@@ -41,11 +46,13 @@ html = open(index_file, encoding="utf-8", errors="replace").read()
 urls = set()
 
 for href in re.findall(r'''href\s*=\s*["']([^"']+)["']''', html, flags=re.I):
+    href = href.strip()
     url = urljoin(base_url, href)
     if urlparse(url).path.endswith(".gtfs.zip"):
         urls.add(url)
 
 for raw_url in re.findall(r'''https?://[^\s"'<>]+''', html, flags=re.I):
+    raw_url = raw_url.strip()
     if urlparse(raw_url).path.endswith(".gtfs.zip"):
         urls.add(raw_url)
 
@@ -53,9 +60,20 @@ for url in sorted(urls):
     print(url)
 PY
 
-if [ ! -s "$LINKS_FILE" ]; then
-  echo "No .gtfs.zip links found at $BASE_URL" >&2
-  exit 1
+  if [ ! -s "$LINKS_FILE" ]; then
+    echo "No .gtfs.zip links found at $BASE_URL" >&2
+    exit 1
+  fi
+
+  echo "Found $(wc -l < "$LINKS_FILE") .gtfs.zip links at $BASE_URL"
+  echo "Destination: $DEST"
+  echo "Reuse search root: $DATA_ROOT"
+  if [ "${GTFS_FORCE_DOWNLOAD:-0}" = "1" ]; then
+    echo "GTFS_FORCE_DOWNLOAD=1: reuse checks disabled"
+  fi
+else
+  echo "GTFS_EXTRACT_ONLY=1: skipping Transitous listing, reuse checks, and downloads"
+  echo "Destination: $DEST"
 fi
 
 stat_size() {
@@ -80,6 +98,53 @@ meta_value() {
   local key="$2"
   [ -f "$file" ] || return 0
   awk -F= -v key="$key" '$1 == key { sub(/^[^=]+=/, ""); print; exit }' "$file"
+}
+
+trim_url() {
+  local value="$1"
+  value="${value//$'\r'/}"
+  value="${value#"${value%%[![:space:]]*}"}"
+  value="${value%"${value##*[![:space:]]}"}"
+  printf '%s' "$value"
+}
+
+safe_component() {
+  local raw="$1"
+  local suffix="${2:-}"
+  local max_bytes="${3:-180}"
+  python3 - "$raw" "$suffix" "$max_bytes" <<'PY'
+import hashlib
+import re
+import sys
+
+raw, suffix, max_bytes_s = sys.argv[1], sys.argv[2], sys.argv[3]
+max_bytes = int(max_bytes_s)
+safe = re.sub(r"[^A-Za-z0-9._%+=@-]", "_", raw.strip())
+safe = safe or "feed"
+
+if len(safe.encode("utf-8")) <= max_bytes:
+    print(safe)
+    raise SystemExit
+
+digest = hashlib.sha256(raw.encode("utf-8")).hexdigest()[:16]
+if suffix and safe.endswith(suffix):
+    stem = safe[:-len(suffix)]
+else:
+    stem = safe
+    suffix = ""
+
+hash_suffix = f"_{digest}{suffix}"
+budget = max(1, max_bytes - len(hash_suffix.encode("utf-8")))
+prefix = stem.encode("utf-8")[:budget].decode("utf-8", "ignore").rstrip("._-%+=@-")
+print((prefix or "feed") + hash_suffix)
+PY
+}
+
+record_status() {
+  local status="$1"
+  local filename="$2"
+  local detail="${3:-}"
+  printf '%s\t%s\t%s\n' "$status" "$filename" "$detail" >> "$STATUS_FILE"
 }
 
 find_unchanged_zip() {
@@ -150,7 +215,8 @@ write_meta() {
 }
 
 download_one() {
-  local url="$1"
+  local url
+  local raw_filename
   local filename
   local target
   local headers
@@ -160,11 +226,17 @@ download_one() {
   local candidate
   local tmp
 
-  filename="$(basename "${url%%\?*}")"
-  if [[ "$filename" != *.gtfs.zip ]]; then
+  url="$(trim_url "${1:-}")"
+  [ -n "$url" ] || return 0
+
+  raw_filename="$(basename "${url%%\?*}")"
+  if [[ "$raw_filename" != *.gtfs.zip ]]; then
     echo "Skipping non-GTFS zip URL: $url" >&2
+    record_status skipped "$raw_filename" "$url"
     return 0
   fi
+
+  filename="$(safe_component "$raw_filename" ".gtfs.zip" 180)"
 
   target="$DEST/$filename"
   headers="$(curl -fsSLI --max-redirs 5 "$url" 2>/dev/null || true)"
@@ -172,33 +244,104 @@ download_one() {
   etag="$(printf '%s\n' "$headers" | header_value 'etag')"
   last_modified="$(printf '%s\n' "$headers" | header_value 'last-modified')"
 
-  if candidate="$(find_unchanged_zip "$filename" "$content_length" "$etag" "$last_modified")"; then
-    echo "Reusing $filename from $candidate"
-    reuse_zip "$candidate" "$target"
-    write_meta "$target" "$url" "$content_length" "$etag" "$last_modified"
-    return 0
+  if [ "${GTFS_FORCE_DOWNLOAD:-0}" != "1" ]; then
+    if candidate="$(find_unchanged_zip "$filename" "$content_length" "$etag" "$last_modified")"; then
+      record_status reuse "$filename" "$candidate"
+      reuse_zip "$candidate" "$target"
+      write_meta "$target" "$url" "$content_length" "$etag" "$last_modified"
+      return 0
+    fi
   fi
 
-  echo "Downloading $filename"
+  record_status download_attempt "$filename" "$url"
   tmp="$target.tmp.$$"
   rm -f "$tmp"
-  curl -fL "$url" -o "$tmp"
+  if ! curl -fL "$url" -o "$tmp"; then
+    record_status failed "$filename" "$url"
+    rm -f "$tmp"
+    return 1
+  fi
   mv "$tmp" "$target"
   write_meta "$target" "$url" "$content_length" "$etag" "$last_modified"
+  record_status downloaded "$filename" "$url"
 }
 
 extract_one() {
   local zip="$1"
   local filename
   local source_name
+  local target
+  local temp_target
+  local logs_dir
+  local safe_name
+  local log_file
+  local rc
   filename="$(basename "$zip")"
-  source_name="${filename%.zip}"
-  mkdir -p "$DEST/source=$source_name"
-  7za x -y "$zip" "-o$DEST/source=$source_name"
+  source_name="$(safe_component "${filename%.zip}" "" 180)"
+  target="$DEST/source=$source_name"
+  temp_target="$DEST/.extracting-source=$source_name.$$"
+  logs_dir="$DEST/.grabber-extract-logs"
+  safe_name="$(printf '%s' "$source_name" | tr -c 'A-Za-z0-9_.=-' '_')"
+  log_file="$logs_dir/$safe_name.log"
+
+  mkdir -p "$logs_dir"
+  rm -rf "$temp_target"
+  record_status extract_attempt "$filename" "$zip"
+
+  if 7za x -y "$zip" "-o$temp_target" > "$log_file" 2>&1; then
+    rc=0
+  else
+    rc=$?
+  fi
+
+  if [ "$rc" = "0" ] || [ "$rc" = "1" ]; then
+    rm -rf "$target"
+    mv "$temp_target" "$target"
+    if [ "$rc" = "1" ]; then
+      record_status extracted_warning "$filename" "7za exit 1; log=$log_file"
+    else
+      record_status extracted "$filename" "$target"
+      rm -f "$log_file"
+    fi
+    return 0
+  fi
+
+  rm -rf "$temp_target"
+  record_status extract_failed "$filename" "7za exit $rc; log=$log_file"
+  return 0
 }
 
 export DATA_ROOT DEST
-export -f stat_size header_value meta_value find_unchanged_zip reuse_zip write_meta download_one extract_one
+export STATUS_FILE
+export -f stat_size header_value meta_value trim_url safe_component record_status find_unchanged_zip reuse_zip write_meta download_one extract_one
+export SHELL="${BASH:-$(command -v bash)}"
 
-parallel --bar -j "$NUM_PARALLEL" bash -c 'download_one "$1"' _ :::: "$LINKS_FILE"
-find "$DEST" -maxdepth 1 -type f -name '*.gtfs.zip' -print0 | parallel -0 -j4 --bar bash -c 'extract_one "$1"' _
+if [ "$EXTRACT_ONLY" != "1" ]; then
+  parallel --bar -j "$NUM_PARALLEL" download_one :::: "$LINKS_FILE"
+  echo "Download/reuse summary:"
+  awk -F '\t' '{ counts[$1]++ } END { for (status in counts) print "  " status ": " counts[status] }' "$STATUS_FILE" | sort
+  echo "Detailed status: $STATUS_FILE"
+else
+  echo "Detailed status: $STATUS_FILE"
+fi
+find "$DEST" -maxdepth 1 -type f -name '*.gtfs.zip' -print0 | parallel -0 -j4 --bar extract_one
+echo "Final grabber summary:"
+awk -F '\t' '{ counts[$1]++ } END { for (status in counts) print "  " status ": " counts[status] }' "$STATUS_FILE" | sort
+
+zip_count="$(find "$DEST" -maxdepth 1 -type f -name '*.gtfs.zip' | wc -l)"
+extract_ok_count="$(awk -F '\t' '$1 == "extracted" || $1 == "extracted_warning" { count++ } END { print count + 0 }' "$STATUS_FILE")"
+extract_failed_count="$(awk -F '\t' '$1 == "extract_failed" { count++ } END { print count + 0 }' "$STATUS_FILE")"
+
+if [ "$extract_failed_count" -gt 0 ]; then
+  echo "WARNING: $extract_failed_count GTFS zip(s) failed extraction. See $DEST/.grabber-extract-logs and $STATUS_FILE" >&2
+fi
+
+if [ "$EXTRACT_ONLY" = "1" ] && [ "$zip_count" -eq 0 ]; then
+  echo "ERROR: --extract-only found no *.gtfs.zip files in $DEST" >&2
+  exit 1
+fi
+
+if [ "$zip_count" -gt 0 ] && [ "$extract_ok_count" -eq 0 ]; then
+  echo "ERROR: no GTFS zips extracted successfully. See $DEST/.grabber-extract-logs and $STATUS_FILE" >&2
+  exit 1
+fi

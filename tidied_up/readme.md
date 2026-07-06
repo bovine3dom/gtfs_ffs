@@ -19,6 +19,8 @@ julia --project=tidied_up tidied_up/orchestrate.jl 20260105 --fixture fantasy --
 
 The ClickHouse `file()` paths must be visible to the ClickHouse server. For remote servers, stage the files wherever ClickHouse can read them and pass that root with `--data-root`, or pass an existing dated root with `--input-root`.
 
+Paths under `/mnt/chungus/clickhouse_files` are rendered for ClickHouse as `chungus/...`, because ClickHouse resolves `file('chungus/...')` inside its `user_files` sandbox. Override this mapping with `CLICKHOUSE_FILE_ROOT` and `CLICKHOUSE_FILE_PREFIX` if needed.
+
 ## Set the staging root
 
 ```bash
@@ -29,6 +31,7 @@ julia --project=tidied_up tidied_up/orchestrate.jl 20260706 \
 ```
 
 This stages into `/mnt/chungus/clickhouse_files/transitous/2026-07-06/source=fixture_fantasy/` and renders SQL that reads `/mnt/chungus/clickhouse_files/transitous/2026-07-06/source=*`.
+For ClickHouse, that path is rendered as `chungus/transitous/2026-07-06/source=*`.
 
 ## Add local non-Transitous sources
 
@@ -66,6 +69,21 @@ julia --project=tidied_up tidied_up/orchestrate.jl 20260706 \
 That reads from `/mnt/chungus/clickhouse_files/transitous/2026-07-06/source=*` after staging/downloading.
 
 The Transitous downloader only follows `.gtfs.zip` links. Before downloading a zip body, it checks `--data-root` for a same-named unchanged zip from any dated run and hardlinks/copies that into the new dated directory when possible. Unchanged means matching `Content-Length`, or matching saved `ETag`/`Last-Modified` metadata from a previous downloader run.
+
+Very long Transitous names are shortened with a stable hash suffix before writing the local `.gtfs.zip` and `source=` directory. This avoids filesystem component length errors from long percent-encoded names.
+
+The downloader writes a per-run status file at `DATA_ROOT/YYYY-MM-DD/.grabber-status.tsv` and prints a summary of `reuse`, `download_attempt`, `downloaded`, `failed`, and `skipped` rows. To debug or force a fresh network download, prefix the orchestrator command with `GTFS_FORCE_DOWNLOAD=1`.
+
+If the zips are already present in the dated directory, skip all Transitous listing/download/reuse checks and only extract them:
+
+```bash
+julia --project=tidied_up tidied_up/orchestrate.jl 20260706 \
+  --data-root /mnt/chungus/clickhouse_files/transitous \
+  --extract-only \
+  --execute
+```
+
+This reads existing `DATA_ROOT/YYYY-MM-DD/*.gtfs.zip`, extracts them to `source=*`, then continues the normal SQL pipeline.
 
 ## Use an existing staged root
 
