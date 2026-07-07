@@ -2,8 +2,8 @@
 -- Fantasy timetable: best service day per unique route within each source.
 -- This mode is intentionally silent in table names: {{OUTPUT_PREFIX}}*.
 
-SET receive_timeout = 40000;
-SET send_timeout = 40000;
+SET receive_timeout = {{TIMEOUT_SECONDS}};
+SET send_timeout = {{TIMEOUT_SECONDS}};
 SET max_threads = 5;
 SET max_execution_time = 0;
 SET max_result_rows = 0;

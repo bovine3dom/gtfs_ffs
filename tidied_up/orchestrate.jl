@@ -1,11 +1,46 @@
 #!/usr/bin/env julia
 
 using Dates
+using SHA
 
 const PROJECT_ROOT = dirname(@__DIR__)
 const SQL_DIR = joinpath(@__DIR__, "sql")
 const DEFAULT_CLICKHOUSE_FILE_ROOT = "/mnt/chungus/clickhouse_files"
 const DEFAULT_CLICKHOUSE_FILE_PREFIX = "chungus"
+const DEFAULT_TIMEOUT_SECONDS = 172800
+const POSTPROCESS_TABLE_STAGES = [
+    "even-saner",
+    "edgelist-sane",
+    "stop-statistics",
+    "stop-statistics-unmerged2",
+    "stop-statistics-unmerged3",
+    "edgelist-fahrtle",
+    "edgelist-fahrtle2",
+]
+const STAGE_ORDER = [
+    "raw",
+    "stop-uuids",
+    "fantasy-select",
+    "fantasy-even-saner",
+    "fantasy-edgelist-sane",
+    "fantasy-stop-statistics",
+    "fantasy-stop-statistics-unmerged2",
+    "fantasy-stop-statistics-unmerged3",
+    "fantasy-edgelist-fahrtle",
+    "fantasy-edgelist-fahrtle2",
+    "real-select",
+    "real-even-saner",
+    "real-edgelist-sane",
+    "real-stop-statistics",
+    "real-stop-statistics-unmerged2",
+    "real-stop-statistics-unmerged3",
+    "real-edgelist-fahrtle",
+    "real-edgelist-fahrtle2",
+]
+const STAGE_GROUPS = Dict(
+    "fantasy-postprocess" => ["fantasy-$stage" for stage in POSTPROCESS_TABLE_STAGES],
+    "real-postprocess" => ["real-$stage" for stage in POSTPROCESS_TABLE_STAGES],
+)
 
 mutable struct Config
     target_date::Date
@@ -20,6 +55,10 @@ mutable struct Config
     replace_sources::Bool
     min_date::Date
     max_date::Date
+    start_at::String
+    only_stage::Union{Nothing,String}
+    timeout_seconds::Int
+    skip_edgelist_sane::Bool
 end
 
 function usage()
@@ -39,6 +78,12 @@ function usage()
                                   real is explicit: transitous_everything_yyyymmdd_real_*.
       --min-date yyyy-mm-dd       Calendar search lower bound. Default: 2020-12-01.
       --max-date yyyy-mm-dd       Calendar search upper bound. Default: 2030-01-01.
+      --start-at STAGE            Skip earlier stages. Stages: raw, stop-uuids,
+                                  fantasy-select, fantasy-postprocess, real-select, real-postprocess,
+                                  or a concrete postprocess table stage.
+      --only-stage STAGE          Run only one stage. Useful for retrying a failed stage.
+      --timeout-seconds N         ClickHouse client/session network timeout. Default: 172800 (48h).
+      --skip-edgelist-sane        Skip the heavy population-weighted edgelist_sane table.
       --download-transitous       Opt in to grabber.sh. Do not use for normal/toy runs.
       --extract-only              Extract existing DATA_ROOT/YYYY-MM-DD/*.gtfs.zip files; skip downloads.
       --execute                   Run clickhouse-client and stop UUID generation. Without this, only render SQL.
@@ -65,6 +110,10 @@ function parse_args(args)
         false,
         Date("2020-12-01"),
         Date("2030-01-01"),
+        "raw",
+        nothing,
+        parse(Int, get(ENV, "CLICKHOUSE_TIMEOUT_SECONDS", string(DEFAULT_TIMEOUT_SECONDS))),
+        false,
     )
 
     date_was_set = false
@@ -115,6 +164,20 @@ function parse_args(args)
             cfg.max_date = Date(take_value(arg))
         elseif startswith(arg, "--max-date=")
             cfg.max_date = Date(arg[12:end])
+        elseif arg == "--start-at"
+            cfg.start_at = parse_stage(take_value(arg))
+        elseif startswith(arg, "--start-at=")
+            cfg.start_at = parse_stage(arg[12:end])
+        elseif arg == "--only-stage"
+            cfg.only_stage = parse_stage(take_value(arg))
+        elseif startswith(arg, "--only-stage=")
+            cfg.only_stage = parse_stage(arg[14:end])
+        elseif arg == "--timeout-seconds"
+            cfg.timeout_seconds = parse_positive_int(take_value(arg), arg)
+        elseif startswith(arg, "--timeout-seconds=")
+            cfg.timeout_seconds = parse_positive_int(arg[19:end], "--timeout-seconds")
+        elseif arg == "--skip-edgelist-sane"
+            cfg.skip_edgelist_sane = true
         elseif arg == "--execute"
             cfg.execute = true
         elseif arg == "--download-transitous"
@@ -136,6 +199,12 @@ function parse_args(args)
     end
 
     return cfg
+end
+
+function parse_positive_int(raw::AbstractString, flag::AbstractString)
+    value = parse(Int, raw)
+    value > 0 || error("$flag must be positive")
+    return value
 end
 
 function parse_source_spec(spec::AbstractString)
@@ -191,6 +260,53 @@ function parse_modes(raw::AbstractString)
     return unique(modes)
 end
 
+function parse_stage(raw::AbstractString)
+    stage = lowercase(strip(raw))
+    stage = replace(stage, "_" => "-")
+
+    aliases = Dict(
+        "uuids" => "stop-uuids",
+        "uuid" => "stop-uuids",
+        "stop-uuid" => "stop-uuids",
+        "fantasy" => "fantasy-select",
+        "real" => "real-select",
+        "fantasy-post" => "fantasy-postprocess",
+        "real-post" => "real-postprocess",
+        "fantasy-fahrtle2" => "fantasy-edgelist-fahrtle2",
+        "real-fahrtle2" => "real-edgelist-fahrtle2",
+    )
+    stage = get(aliases, stage, stage)
+
+    (stage in STAGE_ORDER || haskey(STAGE_GROUPS, stage)) || error("Unknown stage '$raw'. Valid stages: $(join(vcat(STAGE_ORDER, collect(keys(STAGE_GROUPS))), ", "))")
+    return stage
+end
+
+function concrete_start_stage(stage::AbstractString)
+    haskey(STAGE_GROUPS, stage) && return first(STAGE_GROUPS[stage])
+    return stage
+end
+
+function should_run_stage(cfg::Config, stage::AbstractString)
+    if cfg.only_stage !== nothing
+        if haskey(STAGE_GROUPS, cfg.only_stage)
+            return stage in STAGE_GROUPS[cfg.only_stage]
+        end
+        return stage == cfg.only_stage
+    end
+
+    stage_index = findfirst(==(stage), STAGE_ORDER)
+    start_index = findfirst(==(concrete_start_stage(cfg.start_at)), STAGE_ORDER)
+    return stage_index >= start_index
+end
+
+function maybe_run_sql_stage(cfg::Config, stage::AbstractString, sql_file::AbstractString)
+    if should_run_stage(cfg, stage)
+        run_sql_file(sql_file, cfg.execute, cfg.timeout_seconds)
+    else
+        println(">>> Skipping $stage")
+    end
+end
+
 date_str(date::Date) = Dates.format(date, "yyyymmdd")
 date_dir_name(date::Date) = Dates.format(date, "yyyy-mm-dd")
 
@@ -217,7 +333,7 @@ function sql_escape(value::AbstractString)
     return replace(value, "'" => "''")
 end
 
-function render_template(template_name::AbstractString, vars::Dict{String,String}, out_path::AbstractString)
+function render_template_text(template_name::AbstractString, vars::Dict{String,String})
     template = read(joinpath(SQL_DIR, template_name), String)
     rendered = template
     for (key, value) in vars
@@ -225,26 +341,127 @@ function render_template(template_name::AbstractString, vars::Dict{String,String
     end
     leftovers = collect(eachmatch(r"\{\{[A-Z_]+\}\}", rendered))
     isempty(leftovers) || error("Unrendered placeholders in $template_name: $(join(unique(m.match for m in leftovers), ", "))")
+    return rendered
+end
+
+function render_template(template_name::AbstractString, vars::Dict{String,String}, out_path::AbstractString)
+    rendered = render_template_text(template_name, vars)
     write(out_path, rendered)
     return out_path
 end
 
-function clickhouse_client_cmd(sql_file::AbstractString)
+function render_postprocess_templates(vars::Dict{String,String}, temp_dir::AbstractString, mode::AbstractString)
+    rendered = render_template_text("03_postprocess.sql", vars)
+    lines = split(rendered, '\n'; keepempty=true)
+    drop_indices = findall(line -> startswith(line, "DROP TABLE IF EXISTS "), lines)
+    length(drop_indices) == length(POSTPROCESS_TABLE_STAGES) || error("Expected $(length(POSTPROCESS_TABLE_STAGES)) postprocess sections, found $(length(drop_indices))")
+
+    header_end = drop_indices[1] - 1
+    header = header_end > 0 ? join(lines[1:header_end], "\n") * "\n\n" : ""
+    paths = Dict{String,String}()
+
+    for (i, suffix) in enumerate(POSTPROCESS_TABLE_STAGES)
+        start_line = drop_indices[i]
+        end_line = i == length(drop_indices) ? length(lines) : drop_indices[i + 1] - 1
+        out_path = joinpath(temp_dir, "03_$(mode)_$(suffix).sql")
+        write(out_path, header * join(lines[start_line:end_line], "\n"))
+        paths[suffix] = out_path
+    end
+
+    return paths
+end
+
+function clickhouse_client_cmd(sql_file::AbstractString, timeout_seconds::Int)
     clickhouse_user = get(ENV, "CLICKHOUSE_USER", "admin")
     clickhouse_db = get(ENV, "CLICKHOUSE_DB", "default")
     clickhouse_password = get(ENV, "CLICKHOUSE_PASSWORD", "")
     clickhouse_port = parse(Int, get(ENV, "CLICKHOUSE_NATIVE_PORT", "9000"))
     clickhouse_host = get(ENV, "CLICKHOUSE_HOST", "localhost")
-    return `clickhouse-client --host=$clickhouse_host --port=$clickhouse_port --user=$clickhouse_user --password=$clickhouse_password --database=$clickhouse_db --receive_timeout=40000 --send_timeout=40000 --max_execution_time=0 --max_result_rows=0 --max_result_bytes=0 --queries-file=$sql_file`
+    return `clickhouse-client --host=$clickhouse_host --port=$clickhouse_port --user=$clickhouse_user --password=$clickhouse_password --database=$clickhouse_db --receive_timeout=$timeout_seconds --send_timeout=$timeout_seconds --max_execution_time=0 --max_result_rows=0 --max_result_bytes=0 --queries-file=$sql_file`
 end
 
-function run_sql_file(sql_file::AbstractString, execute::Bool)
+function run_sql_file(sql_file::AbstractString, execute::Bool, timeout_seconds::Int)
     if execute
         println(">>> Running $(basename(sql_file))")
-        run(clickhouse_client_cmd(sql_file))
+        run(clickhouse_client_cmd(sql_file, timeout_seconds))
     else
         println(">>> Rendered $(sql_file)")
     end
+end
+
+function clickhouse_query_cmd(query::AbstractString, timeout_seconds::Int)
+    clickhouse_user = get(ENV, "CLICKHOUSE_USER", "admin")
+    clickhouse_db = get(ENV, "CLICKHOUSE_DB", "default")
+    clickhouse_password = get(ENV, "CLICKHOUSE_PASSWORD", "")
+    clickhouse_port = parse(Int, get(ENV, "CLICKHOUSE_NATIVE_PORT", "9000"))
+    clickhouse_host = get(ENV, "CLICKHOUSE_HOST", "localhost")
+    return `clickhouse-client --host=$clickhouse_host --port=$clickhouse_port --user=$clickhouse_user --password=$clickhouse_password --database=$clickhouse_db --receive_timeout=$timeout_seconds --send_timeout=$timeout_seconds --max_execution_time=0 --max_result_rows=0 --max_result_bytes=0 --format=TabSeparatedRaw --query=$query`
+end
+
+function clickhouse_query_lines(query::AbstractString, timeout_seconds::Int)
+    output = read(clickhouse_query_cmd(query, timeout_seconds), String)
+    return filter(!isempty, split(chomp(output), '\n'))
+end
+
+function sql_literal(value::AbstractString)
+    return "'" * sql_escape(value) * "'"
+end
+
+function safe_file_component(value::AbstractString; max_chars::Int=120)
+    safe = replace(value, r"[^A-Za-z0-9_.=-]" => "_")
+    digest = bytes2hex(sha1(value))[1:16]
+    if length(safe) <= max_chars
+        return safe * "_" * digest
+    end
+    return first(safe, max_chars) * "_" * digest
+end
+
+function source_list_for_output(cfg::Config, vars::Dict{String,String})
+    table = vars["OUTPUT_PREFIX"] * "stop_times_one_day_even_saner2"
+    query = "SELECT DISTINCT source FROM $table ORDER BY source"
+    return clickhouse_query_lines(query, cfg.timeout_seconds)
+end
+
+function run_source_split_stage(cfg::Config, stage::AbstractString, vars::Dict{String,String}, temp_dir::AbstractString, mode::AbstractString, suffix::AbstractString, init_template::AbstractString, insert_template::AbstractString)
+    if !should_run_stage(cfg, stage)
+        println(">>> Skipping $stage")
+        return
+    end
+
+    init_path = render_template(init_template, vars, joinpath(temp_dir, "03_$(mode)_$(suffix)_init.sql"))
+    run_sql_file(init_path, cfg.execute, cfg.timeout_seconds)
+
+    sources = if cfg.execute
+        source_list_for_output(cfg, vars)
+    else
+        println(">>> Dry run: rendering a placeholder per-source insert for $stage")
+        ["__SOURCE__"]
+    end
+
+    if isempty(sources)
+        println(">>> No sources found for $stage")
+        return
+    end
+
+    for source in sources
+        source_vars = copy(vars)
+        source_vars["SOURCE_LITERAL"] = sql_literal(source)
+        source_file = joinpath(temp_dir, "03_$(mode)_$(suffix)_$(safe_file_component(source)).sql")
+        source_sql = render_template(insert_template, source_vars, source_file)
+        run_sql_file(source_sql, cfg.execute, cfg.timeout_seconds)
+    end
+end
+
+function run_edgelist_sane_stage(cfg::Config, stage::AbstractString, vars::Dict{String,String}, temp_dir::AbstractString, mode::AbstractString)
+    if cfg.skip_edgelist_sane
+        println(">>> Skipping $stage (--skip-edgelist-sane)")
+        return
+    end
+    run_source_split_stage(cfg, stage, vars, temp_dir, mode, "edgelist-sane", "03_edgelist_sane_init.sql", "03_edgelist_sane_insert.sql")
+end
+
+function run_edgelist_fahrtle2_stage(cfg::Config, stage::AbstractString, vars::Dict{String,String}, temp_dir::AbstractString, mode::AbstractString)
+    run_source_split_stage(cfg, stage, vars, temp_dir, mode, "edgelist-fahrtle2", "03_edgelist_fahrtle2_init.sql", "03_edgelist_fahrtle2_insert.sql")
 end
 
 function find_gtfs_root(path::AbstractString)
@@ -421,11 +638,15 @@ function main()
     data_dir = joinpath(cfg.data_root, date_dir_name(cfg.target_date))
     raw_prefix = "transitous_everything_$(dstr)_"
 
-    stage_inputs!(cfg, data_dir)
+    if should_run_stage(cfg, "raw")
+        stage_inputs!(cfg, data_dir)
+    else
+        println(">>> Skipping input staging because raw stage is skipped")
+    end
 
     filesystem_input_glob = cfg.input_root === nothing ? maybe_source_glob(data_dir) : maybe_source_glob(cfg.input_root)
     clickhouse_input_glob = clickhouse_file_path(filesystem_input_glob)
-    if cfg.input_root === nothing && !isdir(data_dir)
+    if should_run_stage(cfg, "raw") && cfg.input_root === nothing && !isdir(data_dir)
         error("No input data found at $data_dir. Use --source, --fixture fantasy, --input-root, --extract-only, or explicit --download-transitous.")
     end
 
@@ -438,16 +659,20 @@ function main()
         "MIN_DATE" => string(cfg.min_date),
         "MAX_DATE" => string(cfg.max_date),
         "STOP_UUIDS_TABLE" => "$(raw_prefix)stop_uuids",
+        "TIMEOUT_SECONDS" => string(cfg.timeout_seconds),
+        "TIMEOUT_MS" => string(cfg.timeout_seconds * 1000),
     )
 
     raw_sql = render_template("01_raw.sql", base_vars, joinpath(temp_dir, "01_raw.sql"))
-    run_sql_file(raw_sql, cfg.execute)
+    maybe_run_sql_stage(cfg, "raw", raw_sql)
 
-    if cfg.execute
+    if should_run_stage(cfg, "stop-uuids") && cfg.execute
         conn = con()
         generate_uuids(conn, "$(raw_prefix)stops", "$(raw_prefix)stop_uuids")
-    else
+    elseif should_run_stage(cfg, "stop-uuids")
         println(">>> Dry run: stop UUID table would be $(raw_prefix)stop_uuids")
+    else
+        println(">>> Skipping stop-uuids")
     end
 
     for mode in cfg.modes
@@ -457,10 +682,19 @@ function main()
 
         selector_template = mode == "fantasy" ? "02_select_fantasy.sql" : "02_select_real.sql"
         selector_sql = render_template(selector_template, mode_vars, joinpath(temp_dir, "02_select_$(mode).sql"))
-        post_sql = render_template("03_postprocess.sql", mode_vars, joinpath(temp_dir, "03_postprocess_$(mode).sql"))
+        post_sqls = render_postprocess_templates(mode_vars, temp_dir, mode)
 
-        run_sql_file(selector_sql, cfg.execute)
-        run_sql_file(post_sql, cfg.execute)
+        maybe_run_sql_stage(cfg, "$(mode)-select", selector_sql)
+        for suffix in POSTPROCESS_TABLE_STAGES
+            stage = "$(mode)-$(suffix)"
+            if suffix == "edgelist-sane"
+                run_edgelist_sane_stage(cfg, stage, mode_vars, temp_dir, mode)
+            elseif suffix == "edgelist-fahrtle2"
+                run_edgelist_fahrtle2_stage(cfg, stage, mode_vars, temp_dir, mode)
+            else
+                maybe_run_sql_stage(cfg, stage, post_sqls[suffix])
+            end
+        end
     end
 
     println(">>> Orchestration complete. SQL is in $temp_dir")

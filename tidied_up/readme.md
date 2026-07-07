@@ -85,6 +85,48 @@ julia --project=tidied_up tidied_up/orchestrate.jl 20260706 \
 
 This reads existing `DATA_ROOT/YYYY-MM-DD/*.gtfs.zip`, extracts them to `source=*`, then continues the normal SQL pipeline.
 
+## Resume or retry stages
+
+The stage order is:
+
+```text
+raw -> stop-uuids -> fantasy-select -> fantasy-even-saner -> fantasy-edgelist-sane -> fantasy-stop-statistics -> fantasy-stop-statistics-unmerged2 -> fantasy-stop-statistics-unmerged3 -> fantasy-edgelist-fahrtle -> fantasy-edgelist-fahrtle2 -> real-select -> real-even-saner -> real-edgelist-sane -> real-stop-statistics -> real-stop-statistics-unmerged2 -> real-stop-statistics-unmerged3 -> real-edgelist-fahrtle -> real-edgelist-fahrtle2
+```
+
+`fantasy-postprocess` and `real-postprocess` are aliases for all postprocess table stages for that mode.
+
+To resume after raw ingest and stop UUID generation have already succeeded:
+
+```bash
+julia --project=tidied_up tidied_up/orchestrate.jl 20260706 \
+  --data-root /mnt/chungus/clickhouse_files/transitous \
+  --start-at fantasy-select \
+  --execute
+```
+
+To retry only the stage that failed in the fantasy postprocess:
+
+```bash
+julia --project=tidied_up tidied_up/orchestrate.jl 20260706 \
+  --data-root /mnt/chungus/clickhouse_files/transitous \
+  --only-stage fantasy-edgelist-sane \
+  --execute
+```
+
+The heavy edge stages `fantasy-edgelist-sane`, `fantasy-edgelist-fahrtle2`, `real-edgelist-sane`, and `real-edgelist-fahrtle2` are executed as one table-initialisation query plus one insert query per source. That keeps each query smaller and makes it clearer which source is slow or failing.
+
+If you only need the timetable/router output and not the population-weighted `edgelist_sane` table, skip it:
+
+```bash
+julia --project=tidied_up tidied_up/orchestrate.jl 20260706 \
+  --data-root /mnt/chungus/clickhouse_files/transitous \
+  --start-at fantasy-even-saner \
+  --skip-edgelist-sane \
+  --execute
+```
+
+When `raw` is skipped, input staging/download/extraction is skipped too. This means it is safe to keep old `--source` or `--download-transitous` flags in shell history while resuming from a later stage; they will not run unless `raw` is selected.
+
 ## Use an existing staged root
 
 ```bash

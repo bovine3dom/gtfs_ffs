@@ -1,8 +1,8 @@
 -- Rendered by tidied_up/orchestrate.jl.
 -- Runs once per timetable mode. {{OUTPUT_PREFIX}} is silent for fantasy and *_real_* for real.
 
-SET receive_timeout = 40000;
-SET send_timeout = 40000;
+SET receive_timeout = {{TIMEOUT_SECONDS}};
+SET send_timeout = {{TIMEOUT_SECONDS}};
 SET max_threads = 5;
 SET max_execution_time = 0;
 SET max_result_rows = 0;
@@ -396,7 +396,7 @@ FROM
 )
 WHERE travel_time > 0
 GROUP BY ALL
-SETTINGS receive_timeout = 10000;
+SETTINGS receive_timeout = {{TIMEOUT_SECONDS}};
 
 DROP TABLE IF EXISTS {{OUTPUT_PREFIX}}edgelist_fahrtle2;
 CREATE TABLE {{OUTPUT_PREFIX}}edgelist_fahrtle2

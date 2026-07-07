@@ -1,16 +1,16 @@
 -- Rendered by tidied_up/orchestrate.jl.
 -- Raw GTFS tables are shared by both timetable products.
 
-SET receive_timeout = 40000;
-SET send_timeout = 40000;
+SET receive_timeout = {{TIMEOUT_SECONDS}};
+SET send_timeout = {{TIMEOUT_SECONDS}};
 SET max_threads = 5;
 SET max_execution_time = 0;
 SET max_result_rows = 0;
 SET max_result_bytes = 0;
-SET connect_timeout_with_failover_ms = 40000000;
-SET http_connection_timeout = 40000;
-SET http_send_timeout = 40000;
-SET http_receive_timeout = 40000;
+SET connect_timeout_with_failover_ms = {{TIMEOUT_MS}};
+SET http_connection_timeout = {{TIMEOUT_SECONDS}};
+SET http_send_timeout = {{TIMEOUT_SECONDS}};
+SET http_receive_timeout = {{TIMEOUT_SECONDS}};
 SET input_format_skip_unknown_fields = 1;
 SET input_format_defaults_for_omitted_fields = 1;
 SET input_format_csv_empty_as_default = 1;
