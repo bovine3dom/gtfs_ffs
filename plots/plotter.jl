@@ -1,6 +1,6 @@
 #!/bin/julia
 using Plots
-using JSON, CSV, DataFrames, Dates
+using JSON, CSV, DataFrames, Dates, Arrow
 
 include("lib.jl")
 
@@ -588,7 +588,7 @@ where headway > 9
 
 using UnicodePlots
 df = select_df(con(), """
-select avg((mod(60, headway) == 0) or (headway = 120)) value, geoToH3(stop_lon, stop_lat, 5) h3 from (
+select avg((mod(60, headway) == 0) or (headway = 120)) value, geoToH3(stop_lat, stop_lon, 5) h3 from (
 select 
 source, stop_id, sane_route_id, departure_time, trip_headsign, stop_lon, stop_lat,
 dateDiff('minute', lagInFrame(departure_time, 1, departure_time) over (
@@ -596,22 +596,27 @@ dateDiff('minute', lagInFrame(departure_time, 1, departure_time) over (
     order by departure_time asc
     rows between 1 preceding and current row
 ), departure_time) headway
-from transitous_everything_stop_times_one_day_sane st
+-- from transitous_everything_stop_times_one_day_sane st
+from transitous_everything_20260706_real_stop_times_one_day_even_saner2 -- 'research grade', one day per source
 where true
 and ((trip_headsign = '') or (trip_headsign != stop_name))
+-- and ((route_type = 2) or route_type between 100 and 199)
 )
 where headway between 10 and 60*5 -- exclude sub-10 minute headway because we're not following a timetable at that point
 group by all
 """)
-df.index = string.(df.h3, base=16)
-today = Dates.today()
 mkpath("$(homedir())/projects/H3-MON/www/data/taktness/")
-write("""$(homedir())/projects/H3-MON/www/data/taktness/$today.json""", JSON.json(Dict(
+write("""$(homedir())/projects/H3-MON/www/data/taktness/$(today() + Day(1)).json""", JSON.json(Dict(
     "t" => "Fraction of public transport departures following a clockface schedule",
+    "quantileSource" => "cartogram",
     "raw" => true,
     "c" => "Transitous et al.",
 )))
-CSV.write("""$(homedir())/projects/H3-MON/www/data/taktness/$today.csv""", df[!, [:index, :value]])
+loweruint64(x) = x % UInt32
+upperuint64(x) = (x >> 32) % UInt32
+df.index_lower = map(loweruint64, df.h3)
+df.index_upper = map(upperuint64, df.h3)
+Arrow.write("""$(homedir())/projects/H3-MON/www/data/taktness/$(today() + Day(1)).arrow""", df[!, [:index_lower, :index_upper, :value]])
 # mkpath("$(homedir())/projects/H3-MON/www/data/2025-05-05")
 # write("""$(homedir())/projects/H3-MON/www/data/2025-05-05/taktness.json""", JSON.json(Dict(
 #     "t" => "Fraction of departures following a clockface schedule",
@@ -1330,9 +1335,8 @@ FROM (
             toStartOfInterval(departure_time, toIntervalMinute(delta)) AS probe,
             geoToH3(stop_lat, stop_lon, 5) AS h3,
             count() AS c
-        -- 'fantasy' grade messes things up with replacement services etc.
-        -- FROM transitous_everything_20260218_stop_times_one_day_even_saner2 -- 'fantasy', best day per source
-        FROM transitous_everything_20260117_stop_times_one_day_even_saner2 -- 'research grade', one day per source
+        -- FROM transitous_everything_20260213_stop_times_one_day_even_saner2
+        FROM transitous_everything_20260706_real_stop_times_one_day_even_saner2 -- 'research grade', one day per source
         WHERE true
         -- AND source LIKE 'ch_%'
         AND (route_type BETWEEN 100 AND 199 or route_type = 2)  -- only trains, not metros
@@ -1350,7 +1354,15 @@ WHERE probe >= min_bedtime
   AND p <= 0.5
 GROUP BY h3
 """)
-df.index = string.(df.h3, base=16)
+# df.index = string.(df.h3, base=16)
+
+# todo: add to lib.jl
+loweruint64(x) = x % UInt32
+upperuint64(x) = (x >> 32) % UInt32
+
+df.index_lower = map(loweruint64, df.h3)
+df.index_upper = map(upperuint64, df.h3)
+
 df.bedtime_int = map(x-> x.instant.periods.value, df.bedtime)
 df.t_bedtime = Time.(df.bedtime)
 #df = df[df.bedtime_int .> 0, :]
@@ -1369,7 +1381,7 @@ write("""$(homedir())/projects/H3-MON/www/data/bedtime/$(today()).json""",
     "c" => "Transitous et al.",
     "scale" => Dict(zip(probes, probe_times)),
 )))
-CSV.write("""$(homedir())/projects/H3-MON/www/data/bedtime/$(today()).csv""", df[!, [:index, :value, :t_bedtime, :population, :name, :country_code]])
+Arrow.write("""$(homedir())/projects/H3-MON/www/data/bedtime/$(today()).arrow""", df[!, [:index_lower, :index_upper, :value, :t_bedtime, :population, :name, :country_code]])
 
 sort!(df, :population, rev=true)
 sdf = @view df[in.(df.country_code, Ref(["DE", "FR", "ES", "CH", "GB", "AT"])), :]
