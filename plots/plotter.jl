@@ -1447,3 +1447,62 @@ p = scatter(
 #     alpha=0.4,     # Make the lines slightly transparent
 #     label=false    # Hide from legend so we don't duplicate country names
 # ) # for some reason it has the wrong colours
+
+###
+#
+# service frequency
+#
+###
+df = select_df(con(), """
+select medianExactWeighted(value,toUInt32(value)) median_services_per_route_per_direction_per_day, h3, country, population from (
+select stop_id, sane_route_id, count() value, anyHeavy(h3) h3, anyHeavy(left(source, 2)) country from (
+select 
+source, stop_id, sane_route_id, geoToH3(stop_lat, stop_lon, 5) h3
+from transitous_everything_20260706_real_stop_times_one_day_even_saner2
+where true
+and ((trip_headsign = '') or (trip_headsign != stop_name))
+and (route_type between 0 and 2 or route_type between 100 and 199 or route_type between 400 and 499 or route_type between 900 and 999)
+)
+group by all
+) tbl
+left join (select h3ToParent(h3, 5) h3, sum(population) population from public_kontur_population_20231101 group by all) bp on tbl.h3 = bp.h3
+group by all
+""")
+df = select_df(con(), """
+select sum(value) total_station_calls_per_day, h3, anyHeavy(country), population from (
+select count() value, anyHeavy(left(source, 2)) country, geoToH3(any(stop_lat), any(stop_lon), 5) h3
+from transitous_everything_20260706_real_stop_times_one_day_even_saner2
+where true
+and ((trip_headsign = '') or (trip_headsign != stop_name))
+and (
+    false
+    -- or route_type between 0 and 2 -- tram, metro, train
+    or route_type = 2
+    or route_type between 100 and 199 -- train
+    -- or route_type between 400 and 499 -- metro
+    -- or route_type between 900 and 999 -- tram
+)
+group by source, stop_id
+) tbl
+left join (select h3ToParent(h3, 5) h3, sum(population) population from public_kontur_population_20231101 group by all) bp on tbl.h3 = bp.h3
+group by all
+""")
+# df.index = string.(df.h3, base=16)
+
+# todo: add to lib.jl
+loweruint64(x) = x % UInt32
+upperuint64(x) = (x >> 32) % UInt32
+
+df.index_lower = map(loweruint64, df.h3)
+df.index_upper = map(upperuint64, df.h3)
+df.value = df.total_station_calls_per_day ./ df.population
+
+
+mkpath("data/service_frequency")
+write("""data/service_frequency/$(today() + Day(1)).json""", 
+    JSON.json(Dict(
+    "t" => "The total number of heavy rail station calls per day per capita",
+    "c" => "Transitous et al.",
+    "quantileSource" => "cartogram",
+)))
+Arrow.write("""data/service_frequency/$(today() + Day(1)).arrow""", df[!, [:index_lower, :index_upper, :value]])
