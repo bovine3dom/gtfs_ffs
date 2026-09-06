@@ -1,0 +1,25 @@
+@testset "Window engine HTTP parity" begin
+    graph = pack_graph(distance_table([(1, 2, 0, 10, 1.0), (1, 2, 30, 10, 8.0),
+                                      (1, 2, 60, 10, 4.0), (2, 3, 90, 10, 2.0)]))
+    baseline = (h, t, b, w, s) -> route_window(graph, h, t, b, w; step_ms=s)
+    expected_handler = make_handler(graph; window_route=baseline)
+    engines = Any[("origin", baseline), ("catchup", (h, t, b, w, s) -> route_window_cached(graph, h, t, b, w; step_ms=s))]
+    backends = "--backend=oneapi" in ARGS ? [KA.CPU(), oneAPI.oneAPIBackend()] : [KA.CPU()]
+    for backend in backends
+        router = WindowKernelRouter(graph, backend; batch_size=3)
+        name = backend isa KA.CPU ? "ka_cpu_batched" : "gpu_batched"
+        push!(engines, (name, (h, t, b, w, s) -> route_window_kernel!(router, h, t, b, w; step_ms=s)))
+    end
+    for (name, engine) in engines
+        handler = make_handler(graph; window_route=engine)
+        for origin in DEMO_CELLS[[1, 2, 7]], encoding in ("string", "split"), metric in ("time", "distance_time_quantile")
+            target = "/reachable?index=$(H3.API.h3ToString(origin))&departure=00:00:00&budget_s=120&window_s=61&step_s=30&encoding=$encoding&metric=$metric"
+            response = handler(HTTP.Request("GET", target))
+            @test response.status == 200
+            @test response.body == expected_handler(HTTP.Request("GET", target)).body
+            @test HTTP.header(response, "X-Router-Window-Strategy") == name
+            @test HTTP.header(response, "X-Router-Backend") == (name in ("origin", "catchup") ? "reference" : name)
+            @test occursin("X-Router-Window-Strategy", HTTP.header(response, "Access-Control-Expose-Headers"))
+        end
+    end
+end

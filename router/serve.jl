@@ -12,6 +12,7 @@ else
 end
 
 backend_name = get(ENV, "ROUTER_BACKEND", "cpu")
+workspace = nothing
 route = if backend_name == "reference"
     (h, t, b) -> route_cpu(graph, h, t, b)
 else
@@ -28,8 +29,34 @@ else
     (h, t, b) -> route_kernel!(workspace, h, t, b)
 end
 
+window_backend = get(ENV, "ROUTER_WINDOW_BACKEND", "catchup")
+window_route = if window_backend == "origin"
+    (h, t, b, w, s) -> route_window(graph, h, t, b, w; step_ms=s)
+elseif window_backend == "catchup"
+    chunk = parse(Int, get(ENV, "ROUTER_WINDOW_CHUNK", "64"))
+    1 <= chunk <= 256 || error("ROUTER_WINDOW_CHUNK must be between 1 and 256")
+    (h, t, b, w, s) -> route_window_cached(graph, h, t, b, w; step_ms=s, chunk_size=chunk)
+elseif window_backend in ("oneapi", "ka_cpu")
+    if window_backend == "oneapi"
+        @eval import oneAPI
+        oneAPI.functional() || error("oneAPI window backend requested but unavailable")
+    end
+    graph_workspace = if window_backend == "oneapi" && backend_name == "oneapi"
+        workspace
+    else
+        KernelRouter(graph, window_backend == "ka_cpu" ? KA.CPU() : oneAPI.oneAPIBackend())
+    end
+    batch = parse(Int, get(ENV, "ROUTER_WINDOW_BATCH", "32"))
+    checks = parse(Int, get(ENV, "ROUTER_WINDOW_CHECK_EVERY", "4"))
+    window_workspace = WindowKernelRouter(graph_workspace; batch_size=batch, check_every=checks)
+    (h, t, b, w, s) -> route_window_kernel!(window_workspace, h, t, b, w; step_ms=s)
+else
+    error("ROUTER_WINDOW_BACKEND must be origin, catchup, oneapi, or ka_cpu")
+end
+
 host = get(ENV, "ROUTER_HOST", "127.0.0.1")
 port = parse(Int, get(ENV, "ROUTER_PORT", "1988"))
 @info "Starting transit-only router" host port backend=backend_name resolution=graph.resolution distance_available=!isnothing(graph.distance_km) nodes=length(graph.h3) edges=length(graph.edge_to) profiles=length(graph.departure)
-@info "Departure-window and route-distance requests use CPU Dijkstra"
-HTTP.serve(make_handler(graph; route), host, port)
+@info "Window routing" window_backend
+@info "Single-departure route distances use CPU Dijkstra"
+HTTP.serve(make_handler(graph; route, window_route), host, port)

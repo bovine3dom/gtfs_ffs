@@ -13,7 +13,8 @@ Code, contract and measurements: [README](README.md), [window results](window-re
 - Reuse absolute arrival/distance results within a request when origin connection
   choices give the same first-hop labels. Use a common search cutoff and apply the
   moving per-departure budget during aggregation; never reuse a truncated search.
-- Use packed CPU Dijkstra for these queries. Existing GPU arrival-only routing remains.
+- Use CPU downstream catchup by default for windows; batched GPU arrivals with CPU
+  kilometre replay are opt-in. Existing point-query backend selection remains.
 - Attach optional `distance_km Float64` to each retained timetable connection. Sum
   these along the selected earliest-arrival route, without claiming minimum distance
   among equal-time routes. The export uses stop-to-stop geodesic km, not track geometry.
@@ -29,7 +30,7 @@ Implementation checklist:
 - [x] Implement exact within-call reuse and capped-mean aggregation.
 - [x] Add HTTP/Arrow window parameters, diagnostics, tests and documentation.
 - [x] Validate reuse against independent per-departure searches and benchmark it.
-- [ ] Reproduce the old distance/time quantile plot using the returned `distance_km` values.
+- [x] Reproduce the old distance/time quantile plot using the returned `distance_km` values.
 
 ## Departure-Time Ranges
 
@@ -47,7 +48,24 @@ Implementation checklist:
 
 ## Downstream Catch-Up Reuse
 
-- [ ] Reuse downstream routing work when different departures catch the same onward connection.
+Implemented; measurements and caveats are in [window optimization results](window-optimization-results.md).
+
+- [x] Shared grouping/aggregation helpers and bounded CPU catch-up implementation.
+- [x] Batched KA kernels with activity flags and configurable convergence checks.
+- [x] CPU differential tests for both implementations, including kilometre ties and overflow.
+- [x] Full iGPU differential tests, real-network benchmarks and endpoint integration.
+
+- Preserve the existing origin-group implementation as the reference.
+- Process bounded chunks of groups backwards: earlier starts only improve arrival
+  labels, so repair propagation can stop at unchanged downstream arrivals.
+- Cache selected connections for settled tails. Reconstruct canonical kilometres
+  from cached connections and final labels, preserving Dijkstra's tie behavior.
+- Aggregate chunks in chronological order to preserve the existing distance means.
+- Add a portable batched KA backend with active flags and chunked convergence checks.
+  Keep distance replay on CPU; do not introduce racy or lower-precision GPU km labels.
+- Validate every result against the reference and benchmark before selecting defaults.
+
+- [x] Reuse downstream routing work when different departures catch the same onward connection.
 
 - Keep the current origin-only grouping as a baseline; it does not reuse downstream chains.
 - Measure catch-up frequency and compare incremental search repair with reusable
@@ -62,7 +80,7 @@ Implementation checklist:
 
 ## Stop-to-Stop Distances
 
-- [ ] Calculate stop-to-stop distances to reproduce the earlier distance-quantile
+- [x] Calculate stop-to-stop distances to reproduce the earlier distance-quantile
   versus time-quantile plots.
 
 The export, router and quantile-difference calculation are implemented and tested.

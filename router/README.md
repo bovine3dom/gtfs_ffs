@@ -71,8 +71,9 @@ julia --project=router router/serve.jl data/rail_res5.arrow
 
 `ROUTER_BACKEND=cpu` is the default and runs the kernels on `KA.CPU()`.
 `ROUTER_BACKEND=reference` selects the CPU Dijkstra reference instead.
-`ROUTER_BACKEND=oneapi` selects Intel GPU kernels; only that launcher branch imports
-oneAPI, so CPU launch does not initialize it. The environment pins oneAPI.jl to `2.7.2`.
+`ROUTER_BACKEND=oneapi` selects Intel GPU kernels for arrival-only point queries.
+oneAPI is imported only when the point or window backend explicitly requests it;
+CPU-only launch does not initialize it. The environment pins oneAPI.jl to `2.7.2`.
 On this machine, launch with the required legacy-driver prefix:
 
 ```sh
@@ -120,7 +121,7 @@ or omission retains single-departure behavior. A step longer than the window pro
 one sample, and the end of the window is never sampled.
 
 ```sh
-env ROUTER_BACKEND=reference julia --project=router router/serve.jl data/rail_and_friends_res5.arrow
+env ROUTER_BACKEND=reference julia --project=router router/serve.jl data/rail_and_friends_dist_res5.arrow
 # Whole-day departures, every minute, each with its own three-hour travel budget:
 curl --fail 'http://127.0.0.1:1988/reachable?index=851fb467fffffff&departure=00:00:00&window_s=86400&step_s=60&budget_s=10800&encoding=split' -o data/day-average.arrow
 ```
@@ -142,19 +143,52 @@ the zero-leg origin). `X-Router-Distance` reports `unavailable` or `connection-s
 The internal `route_window` result includes every graph node, assigning the full budget
 to never-reachable nodes; the HTTP output omits those nodes as before.
 
-Windows and distance-bearing point queries use CPU Dijkstra, regardless of the selected
-arrival-only backend. `X-Router-Backend: reference` identifies these responses.
-`X-Router-Searches` and `X-Router-Reused-Samples` expose within-call reuse for windows.
-The existing KA CPU/oneAPI kernels remain available for arrival-only point queries.
+Window routing is selected independently of the unchanged point-query `ROUTER_BACKEND`:
+
+| `ROUTER_WINDOW_BACKEND` | Implementation |
+| --- | --- |
+| `catchup` (default) | CPU downstream arrival repair with cached profile indices |
+| `origin` | Original CPU reference with first-hop grouping only |
+| `oneapi` | Batched Intel GPU arrival labels, CPU canonical kilometre replay |
+| `ka_cpu` | Same batched kernels on CPU for verification |
+
+`ROUTER_WINDOW_CHUNK` defaults to 64 (1..256) for CPU catchup.
+The batched engines use `ROUTER_WINDOW_BATCH`, default 32 (1..256), and
+`ROUTER_WINDOW_CHECK_EVERY`, default 4 (1..32), for host convergence checks.
+To keep point queries on the CPU reference while explicitly enabling GPU windows:
+
+```sh
+env ZE_ENABLE_ALT_DRIVERS=/usr/lib/libze_intel_gpu_legacy1.so.1 ROUTER_BACKEND=reference ROUTER_WINDOW_BACKEND=oneapi julia --project=router router/serve.jl data/rail_and_friends_dist_res5.arrow
+```
+
+Distance-bearing point queries still use CPU Dijkstra regardless of backend selection.
+`make_handler` accepts a separate `window_route` callback, defaulting to CPU catchup.
+CPU `origin` and `catchup` windows retain `X-Router-Backend: reference`;
+`X-Router-Window-Strategy` distinguishes `origin`, `catchup`, `gpu_batched`, and
+`ka_cpu_batched`. `X-Router-Searches` and `X-Router-Reused-Samples` retain their
+grouping meanings. When present, `X-Router-Full-Searches`, `X-Router-Repair-Searches`,
+`X-Router-Profile-Lookups`, `X-Router-Batches`, and `X-Router-Rounds` expose engine work.
+Existing query parameters, metrics, output fields and bitwise-identical means are preserved.
 
 Reuse compares absolute first-hop arrival/distance labels, ignoring useless self-edges,
 across adjacent samples. When they are unchanged, all non-origin routing results are
 unchanged. One search covers that group, using the last sample's cutoff so newly
 admitted destinations are not lost. Integer arithmetic sums the group's changing
 elapsed times and capped penalties without expanding one result per sample. There is
-no cache across requests. `route_window(...; reuse=false)` is available for comparison.
-See [`window-results.md`](window-results.md) for real-network reuse measurements and
-verification, including res6/res7 input loading.
+no cache across requests. All window engines retain this source first-hop grouping.
+Catchup additionally processes groups backward inside bounded chunks, repairing only
+decreased arrival labels and caching profile indices for processed tails. It replays
+canonical kilometres per group, then aggregates chronologically to preserve exact means;
+it does not memoize complete kilometre chains. GPU groups are independent but batched,
+with kilometre replay and mean aggregation still on the CPU.
+The direct `route_window` API remains the origin reference; `route_window_cached`
+is the optimized CPU API. `route_window(...; reuse=false)` disables source grouping
+for an independent-search comparison.
+See [`window-results.md`](window-results.md) for historical first-hop reuse measurements
+and verification, including res6/res7 loading, and
+[`window-optimization-results.md`](window-optimization-results.md) for the
+new downstream-cache and batched-iGPU measurements. Catchup improves the measured wide
+windows; short or sparse sweeps may favor `origin`, which remains an explicit override.
 
 **Selected-Route Kilometres**
 Distance is attached to each retained schedule connection, not to an H3 edge group.
@@ -170,9 +204,10 @@ or railway-track length. Free movement between stops inside a single H3 cell rem
 unmeasured, so coarse resolutions can understate physical journey length substantially.
 Use finer input graphs or better upstream segment geometry when that distinction matters.
 
-All four currently supplied rail/rail-and-friends files have only the original four
-columns. Re-export with the updated `export.sql` to obtain meaningful kilometres;
-existing files can already answer time-window queries. Keep `distance_km` in `DISTINCT`
+The original four rail/rail-and-friends files have only the original four columns;
+`data/rail_and_friends_dist_res5.arrow` is the distance-enriched benchmark input.
+Re-export with the updated `export.sql` to obtain meaningful kilometres for other inputs;
+four-column files can already answer time-window queries. Keep `distance_km` in `DISTINCT`
 and `ORDER BY`, and retain the transport filter and resolution appropriate to your file.
 
 **Distance Minus Time Quantile**
@@ -253,7 +288,8 @@ See [`benchmark-results.md`](benchmark-results.md) for the 2026-09-06 measuremen
 Packed CPU Dijkstra was faster than the current one-query GPU router in every tested
 case by median, including Arrow output. For interactive use, select
 `ROUTER_BACKEND=reference`; the existing `cpu` default is the slower KA CPU algorithm.
-The default has not been changed. Batched GPU throughput has not yet been measured.
+The point-query default has not been changed. These historical measurements do not
+cover the new batched window engine; see the window optimization report linked above.
 The same result held for the larger `rail_and_friends_res5.arrow` export (16.9 million
 connections); its measurements are included in the report.
 

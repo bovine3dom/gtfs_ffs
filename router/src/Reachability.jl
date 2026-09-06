@@ -4,7 +4,8 @@ using Arrow, DataStructures, H3, HTTP
 import KernelAbstractions as KA
 import Atomix
 
-export Graph, pack_graph, route_cpu, route_details, route_window, KernelRouter, route_kernel!, make_handler
+export Graph, pack_graph, route_cpu, route_details, route_window, route_window_cached,
+       KernelRouter, route_kernel!, WindowKernelRouter, route_window_kernel!, make_handler
 
 const RESOLUTION = 5
 const PERIOD = UInt32(86_400_000)
@@ -206,6 +207,8 @@ end
 
 include("kernels.jl")
 include("window.jl")
+include("catchup.jl")
+include("window_gpu.jl")
 
 function parse_query(uri, graph)
     pairs = HTTP.queryparampairs(uri.query)
@@ -323,11 +326,12 @@ function window_arrow(graph, result, origin, encoding; metric="time")
 end
 
 """An in-process HTTP handler; the lock protects a reusable kernel workspace."""
-function make_handler(graph::Graph; route=(h, t, b) -> route_cpu(graph, h, t, b))
+function make_handler(graph::Graph; route=(h, t, b) -> route_cpu(graph, h, t, b),
+                      window_route=(h, t, b, w, s) -> route_window_cached(graph, h, t, b, w; step_ms=s))
     request_lock = ReentrantLock()
     return function (request)
         headers = ["Access-Control-Allow-Origin" => "*", "Cache-Control" => "no-store",
-                   "Access-Control-Expose-Headers" => "X-Router-Backend, X-Router-Distance, X-Router-Searches, X-Router-Reused-Samples, X-Router-Metric"]
+                   "Access-Control-Expose-Headers" => "X-Router-Backend, X-Router-Distance, X-Router-Searches, X-Router-Reused-Samples, X-Router-Metric, X-Router-Window-Strategy, X-Router-Full-Searches, X-Router-Repair-Searches, X-Router-Profile-Lookups, X-Router-Batches, X-Router-Rounds"]
         query = try
             uri = HTTP.URI(request.target)
             uri.path == "/reachable" || return HTTP.Response(404, headers, "not found")
@@ -345,10 +349,17 @@ function make_handler(graph::Graph; route=(h, t, b) -> route_cpu(graph, h, t, b)
         origin, ready, budget, encoding, window, step, metric = query
         body = lock(request_lock) do
             if window > 0
-                result = route_window(graph, origin, ready, budget, window; step_ms=step)
-                append!(headers, ["X-Router-Backend" => "reference",
+                result = window_route(origin, ready, budget, window, step)
+                strategy = hasproperty(result, :backend) ? result.backend : "origin"
+                backend = strategy in ("origin", "catchup") ? "reference" : strategy
+                append!(headers, ["X-Router-Backend" => backend,
+                    "X-Router-Window-Strategy" => strategy,
                     "X-Router-Searches" => string(result.searches),
                     "X-Router-Reused-Samples" => string(result.reused_samples)])
+                for (field, header) in ((:full_searches, "Full-Searches"), (:repair_searches, "Repair-Searches"),
+                                        (:profile_lookups, "Profile-Lookups"), (:batches, "Batches"), (:rounds, "Rounds"))
+                    hasproperty(result, field) && push!(headers, "X-Router-$header" => string(getproperty(result, field)))
+                end
                 window_arrow(graph, result, origin, encoding; metric)
             elseif !isnothing(graph.distance_km)
                 result = route_details(graph, origin, ready, budget)

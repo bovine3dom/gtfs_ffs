@@ -132,7 +132,10 @@ end
 end
 
 include("window_tests.jl")
+include("catchup_tests.jl")
+include("window_gpu_tests.jl")
 include("distance_http_tests.jl")
+include("window_engine_http_tests.jl")
 include("metric_tests.jl")
 include("kernel_tests.jl")
 
