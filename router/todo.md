@@ -29,7 +29,7 @@ Implementation checklist:
 - [x] Implement exact within-call reuse and capped-mean aggregation.
 - [x] Add HTTP/Arrow window parameters, diagnostics, tests and documentation.
 - [x] Validate reuse against independent per-departure searches and benchmark it.
-- [ ] Supply an enriched real export with `distance_km` and reproduce the old distance/time plot.
+- [ ] Reproduce the old distance/time quantile plot using the returned `distance_km` values.
 
 ## Departure-Time Ranges
 
@@ -45,13 +45,36 @@ Implementation checklist:
 - Benchmark batched departures on a resident graph and on-device sums/counts against
   the packed CPU baseline. Investigate reuse between nearby departures if it helps.
 
+## Downstream Catch-Up Reuse
+
+- [ ] Reuse downstream routing work when different departures catch the same onward connection.
+
+- Keep the current origin-only grouping as a baseline; it does not reuse downstream chains.
+- Measure catch-up frequency and compare incremental search repair with reusable
+  departure-time profiles or suffix results.
+- Keep prefix distance separate from suffix distance: equal onward arrivals do not
+  imply equal total kilometres for routes reaching the connection differently.
+- Invalidate paths through missed connections and respect each departure's moving
+  budget. Do not simply retain old arrival labels when advancing the departure time.
+- Differential-test arrivals, chosen-route kilometres and capped averages against
+  independent searches, including midnight, exact departures and equal-time alternatives.
+- Benchmark busy origins where first-hop changes currently prevent much reuse.
+
 ## Stop-to-Stop Distances
 
 - [ ] Calculate stop-to-stop distances to reproduce the earlier distance-quantile
   versus time-quantile plots.
 
-The export and router support are implemented and fixture-tested. Real-data plot
-verification awaits the additional distance column; existing files cannot supply it.
+The export, router and quantile-difference calculation are implemented and tested.
+Use `metric=distance_time_quantile`. Real-data ranks were checked against the old
+formula on a 1,067-cell full-day query; visual comparison with the old plot remains.
+
+- [x] Add a selectable distance-quantile minus time-quantile output metric.
+- Compute both ranks over the same finite-valued cell population and retain the
+  underlying distance/time columns. Match the old rescaled empirical-CDF convention,
+  with explicit handling of ties and constant columns.
+- For windows, rank the averaged distance and budget-capped time, then subtract.
+  Do not average per-departure rank differences.
 
 - Locate the original plotting calculation and match its distance definition:
   distinguish direct origin-to-stop distance from accumulated route distance.

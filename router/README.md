@@ -175,6 +175,35 @@ columns. Re-export with the updated `export.sql` to obtain meaningful kilometres
 existing files can already answer time-window queries. Keep `distance_km` in `DISTINCT`
 and `ORDER BY`, and retain the transport filter and resolution appropriate to your file.
 
+**Distance Minus Time Quantile**
+Add `metric=distance_time_quantile` to a point or window request. The default remains
+`metric=time`. This mode requires an input `distance_km` column; otherwise it returns
+HTTP 400 rather than ranking unavailable distances.
+
+```text
+/reachable?index=851fb467fffffff&departure=00:00:00&window_s=86400&step_s=60&budget_s=10800&metric=distance_time_quantile
+```
+
+For windows, averaging happens first. The router ranks the returned mean `distance_km`
+and budget-capped mean `elapsed_ms`, then returns:
+
+```text
+value = distance_quantile - time_quantile
+```
+
+This is not the average of per-departure rank differences, and does not rank the
+conditional `reachable_elapsed_ms`. Both ranks use the same returned cells with finite
+distance and time, including the origin, not just cells visible in the viewport.
+Ties share a rank; the empirical-CDF ranks are rescaled to 0..1 as in the old plotting
+helper. Constant columns and singleton results receive rank zero. No rounding is
+applied to the input means before ranking.
+
+The result retains the underlying time, distance and coverage columns and adds
+`distance_quantile` and `time_quantile`. `value` is now dimensionless, in -1..1:
+positive means a higher distance rank than time rank, negative the reverse.
+`X-Router-Metric` identifies the selected mode. Update the H3-MON title accordingly;
+its colour-quantile settings do not calculate this difference themselves.
+
 **H3-MON Snapshots**
 H3-MON now supports this API through `onclick`/`onmove` JSON metadata; its
 `www/data/reachable.json` and `reachable.csv` provide a runnable res5 example.

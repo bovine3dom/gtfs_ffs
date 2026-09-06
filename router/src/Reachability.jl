@@ -211,7 +211,7 @@ function parse_query(uri, graph)
     pairs = HTTP.queryparampairs(uri.query)
     params = Dict(pairs)
     length(params) == length(pairs) || throw(ArgumentError("duplicate query parameter"))
-    allowed = ("index", "index_lower", "index_upper", "departure", "budget_s", "encoding", "window_s", "step_s")
+    allowed = ("index", "index_lower", "index_upper", "departure", "budget_s", "encoding", "window_s", "step_s", "metric")
     all(k -> k in allowed, keys(params)) || throw(ArgumentError("unknown query parameter"))
     has_string = haskey(params, "index")
     has_split = haskey(params, "index_lower") || haskey(params, "index_upper")
@@ -240,6 +240,10 @@ function parse_query(uri, graph)
         throw(ArgumentError("budget_s must be an integer from 0 to 604800"))
     encoding = get(params, "encoding", "split")
     encoding in ("string", "split") || throw(ArgumentError("encoding must be string or split"))
+    metric = get(params, "metric", "time")
+    metric in ("time", "distance_time_quantile") || throw(ArgumentError("metric must be time or distance_time_quantile"))
+    metric == "distance_time_quantile" && isnothing(graph.distance_km) &&
+        throw(ArgumentError("distance_time_quantile requires an input distance_km column"))
     ready, _ = query_times(graph, origin, departure_ms, seconds * 1000)
     window = get(params, "window_s", "0")
     window_s = occursin(r"^[0-9]+\z", window) ? tryparse(Int, window) : nothing
@@ -248,10 +252,29 @@ function parse_query(uri, graph)
     step_s = occursin(r"^[0-9]+\z", step) ? tryparse(Int, step) : nothing
     (!isnothing(step_s) && 1 <= step_s <= 86400) || throw(ArgumentError("step_s must be an integer from 1 to 86400"))
     haskey(params, "step_s") && window_s == 0 && throw(ArgumentError("step_s requires a positive window_s"))
-    return origin, ready, seconds * 1000, encoding, window_s * 1000, step_s * 1000
+    return origin, ready, seconds * 1000, encoding, window_s * 1000, step_s * 1000, metric
 end
 
-function arrow_table(cells, columns, encoding)
+function normalized_ranks(values)
+    isempty(values) && return Float64[]
+    sorted = sort(values; lt=<)
+    # Equivalent to the old plot's (ECDF(x) - min(ECDF)) / (1 - min(ECDF)).
+    minimum_rank = searchsortedlast(sorted, first(sorted); lt=<)
+    span = length(sorted) - minimum_rank
+    span == 0 && return zeros(Float64, length(values))
+    return [(searchsortedlast(sorted, value; lt=<) - minimum_rank) / span for value in values]
+end
+
+function arrow_table(cells, columns, encoding; metric="time")
+    if metric == "distance_time_quantile"
+        valid = findall(i -> isfinite(columns.distance_km[i]) && isfinite(columns.elapsed_ms[i]), eachindex(cells))
+        cells = cells[valid]
+        columns = map(column -> column[valid], columns)
+        distance_quantile = normalized_ranks(columns.distance_km)
+        time_quantile = normalized_ranks(columns.elapsed_ms)
+        columns = merge(columns, (value=distance_quantile .- time_quantile,
+                                 distance_quantile=distance_quantile, time_quantile=time_quantile))
+    end
     indices = if encoding == "string"
         (index=H3.API.h3ToString.(cells),)
     else
@@ -263,7 +286,7 @@ function arrow_table(cells, columns, encoding)
     return take!(io)
 end
 
-function arrow_result(graph, labels, origin, ready, encoding; distance_km=nothing)
+function arrow_result(graph, labels, origin, ready, encoding; distance_km=nothing, metric="time")
     reached = findall(!=(INF), labels)
     cells = graph.h3[reached]
     elapsed = labels[reached] .- ready
@@ -275,10 +298,10 @@ function arrow_result(graph, labels, origin, ready, encoding; distance_km=nothin
     end
     table = (value=Float64.(elapsed) ./ 60_000, elapsed_ms=elapsed)
     isnothing(distances) || (table = merge(table, (distance_km=distances,)))
-    return arrow_table(cells, table, encoding)
+    return arrow_table(cells, table, encoding; metric)
 end
 
-function window_arrow(graph, result, origin, encoding)
+function window_arrow(graph, result, origin, encoding; metric="time")
     reached = findall(>(0), result.reachable_samples)
     cells = graph.h3[reached]
     elapsed = result.elapsed_ms[reached]
@@ -296,7 +319,7 @@ function window_arrow(graph, result, origin, encoding)
     return arrow_table(cells, (value=elapsed ./ 60_000, elapsed_ms=elapsed,
         distance_km=distances, reachable_elapsed_ms=conditional,
         reachable_fraction=Float64.(counts) ./ result.sample_count,
-        reachable_samples=counts, sample_count=fill(result.sample_count, length(cells))), encoding)
+        reachable_samples=counts, sample_count=fill(result.sample_count, length(cells))), encoding; metric)
 end
 
 """An in-process HTTP handler; the lock protects a reusable kernel workspace."""
@@ -304,7 +327,7 @@ function make_handler(graph::Graph; route=(h, t, b) -> route_cpu(graph, h, t, b)
     request_lock = ReentrantLock()
     return function (request)
         headers = ["Access-Control-Allow-Origin" => "*", "Cache-Control" => "no-store",
-                   "Access-Control-Expose-Headers" => "X-Router-Backend, X-Router-Distance, X-Router-Searches, X-Router-Reused-Samples"]
+                   "Access-Control-Expose-Headers" => "X-Router-Backend, X-Router-Distance, X-Router-Searches, X-Router-Reused-Samples, X-Router-Metric"]
         query = try
             uri = HTTP.URI(request.target)
             uri.path == "/reachable" || return HTTP.Response(404, headers, "not found")
@@ -319,24 +342,25 @@ function make_handler(graph::Graph; route=(h, t, b) -> route_cpu(graph, h, t, b)
             error isa Union{ArgumentError,EOFError} || rethrow()
             return HTTP.Response(400, [headers; "Content-Type" => "text/plain"], sprint(showerror, error))
         end
-        origin, ready, budget, encoding, window, step = query
+        origin, ready, budget, encoding, window, step, metric = query
         body = lock(request_lock) do
             if window > 0
                 result = route_window(graph, origin, ready, budget, window; step_ms=step)
                 append!(headers, ["X-Router-Backend" => "reference",
                     "X-Router-Searches" => string(result.searches),
                     "X-Router-Reused-Samples" => string(result.reused_samples)])
-                window_arrow(graph, result, origin, encoding)
+                window_arrow(graph, result, origin, encoding; metric)
             elseif !isnothing(graph.distance_km)
                 result = route_details(graph, origin, ready, budget)
                 push!(headers, "X-Router-Backend" => "reference")
-                arrow_result(graph, result.arrival, origin, ready, encoding; distance_km=result.distance_km)
+                arrow_result(graph, result.arrival, origin, ready, encoding; distance_km=result.distance_km, metric)
             else
                 labels = route(origin, ready, budget)
                 arrow_result(graph, labels, origin, ready, encoding)
             end
         end
         push!(headers, "X-Router-Distance" => isnothing(graph.distance_km) ? "unavailable" : "connection-sum-km")
+        push!(headers, "X-Router-Metric" => metric)
         push!(headers, "Content-Type" => "application/vnd.apache.arrow.file")
         return HTTP.Response(200, headers, body)
     end

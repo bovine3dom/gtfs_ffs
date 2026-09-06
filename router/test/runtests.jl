@@ -133,6 +133,7 @@ end
 
 include("window_tests.jl")
 include("distance_http_tests.jl")
+include("metric_tests.jl")
 include("kernel_tests.jl")
 
 @testset "HTTP and Arrow: $(typeof(backend))" for backend in kernel_backends
