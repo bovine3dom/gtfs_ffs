@@ -2,7 +2,7 @@
 
 | Item | Value |
 |---|---|
-| Status | Res5 transit-only MVP implemented; representative-data benchmarking pending |
+| Status | Res5 single-query CPU/GPU benchmarks complete; batched routing pending |
 | Research date | 2026-08-08 |
 | Router sketch | `plots/longest_journey.jl` |
 | Primary target | Low-power integrated GPUs, with Intel HD Graphics 630 as the minimum reference point |
@@ -48,8 +48,13 @@ The working legacy-driver override remains launch configuration, not routing cod
 env ZE_ENABLE_ALT_DRIVERS=/usr/lib/libze_intel_gpu_legacy1.so.1 ROUTER_BACKEND=oneapi julia --project=router router/serve.jl --demo
 ```
 
-Real-network latency, graph-sized memory headroom, and sustained-load behavior still
-require the representative edgelist. Passing synthetic tests is not a GPU speedup claim.
+The [2026-09-06 real-network benchmark](router/benchmark-results.md) compares packed
+Dijkstra, KA CPU and the P630 over 96 query cases with one and four Julia workers.
+Dijkstra wins every case by median, including Arrow output. Four-worker city-workload
+seven-day routing medians are 3.24 ms for Dijkstra, 71.11 ms for KA CPU, and 31.96 ms
+for the GPU. Use `ROUTER_BACKEND=reference` for current interactive queries; the
+dispatch default remains unchanged. GPU batching and thermal/headroom studies remain
+future work; these single-query results do not establish batched throughput.
 
 ## Scope and agreed goals
 

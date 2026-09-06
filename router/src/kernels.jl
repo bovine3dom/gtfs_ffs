@@ -59,7 +59,7 @@ end
 
 function route_kernel!(router::KernelRouter, origin::UInt64,
                        departure_ms::Integer, budget_ms::Integer)
-    ready, cutoff = query_times(origin, departure_ms, budget_ms)
+    ready, cutoff = query_times(router.graph, origin, departure_ms, budget_ms)
     graph, backend = router.graph, router.backend
     labels = fill(INF, length(graph.h3))
     source = get(graph.node_id, origin, Int32(0))

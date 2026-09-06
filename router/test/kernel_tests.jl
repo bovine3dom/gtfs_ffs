@@ -142,7 +142,7 @@ end
     @testset "Empty and edgeless graphs" begin
         empty_graph = pack_graph(kernel_table(nodes, Int[], Int[], Int[], Int[]))
         isolated = Graph(UInt64[nodes[1]], Dict(nodes[1] => Int32(1)), Int32[1, 1],
-                         Int32[], Int32[], Int32[1], UInt32[], UInt32[])
+                         Int32[], Int32[], Int32[1], UInt32[], UInt32[], 5, nothing)
         for graph in (empty_graph, isolated)
             router = KernelRouter(graph, backend)
             for origin in nodes[1:2]

@@ -30,5 +30,6 @@ end
 
 host = get(ENV, "ROUTER_HOST", "127.0.0.1")
 port = parse(Int, get(ENV, "ROUTER_PORT", "1988"))
-@info "Starting res5 transit-only router" host port backend=backend_name nodes=length(graph.h3) edges=length(graph.edge_to) profiles=length(graph.departure)
+@info "Starting transit-only router" host port backend=backend_name resolution=graph.resolution distance_available=!isnothing(graph.distance_km) nodes=length(graph.h3) edges=length(graph.edge_to) profiles=length(graph.departure)
+@info "Departure-window and route-distance requests use CPU Dijkstra"
 HTTP.serve(make_handler(graph; route), host, port)

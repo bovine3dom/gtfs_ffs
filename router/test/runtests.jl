@@ -131,6 +131,8 @@ end
     @test_throws ArgumentError route_cpu(graph, DEMO_ORIGIN, P, 0)
 end
 
+include("window_tests.jl")
+include("distance_http_tests.jl")
 include("kernel_tests.jl")
 
 @testset "HTTP and Arrow: $(typeof(backend))" for backend in kernel_backends
