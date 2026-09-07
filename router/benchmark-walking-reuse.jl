@@ -70,7 +70,7 @@ end
 module Probe
 using DataStructures, H3
 const R = Main.Reachability
-for name in (:Graph, :WalkingIndex, :WalkingNeighbor, :INF, :PERIOD, :MAX_BUDGET_MS,
+for name in (:Graph, :WalkingIndex, :WalkingNeighbor, :WalkingRange, :INF, :PERIOD, :MAX_BUDGET_MS,
              :query_times, :next_connection, :walking_neighbors)
     @eval const $name = R.$name
 end

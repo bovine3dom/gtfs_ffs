@@ -4,6 +4,15 @@ Frontend tasks are tracked in [H3-MON/todo.md](../../H3-MON/todo.md).
 
 ## Estimated Walking: Findings and Next Deliverables
 
+Resident packed adjacency is verified: explicit `prepare_walking(index)`, eager handler
+preparation, canonical geographic order and precomputed graph IDs. Both one- and
+four-thread full suites passed **52,633 checks**, including 2,884 new adjacency checks.
+Real res7 preparation took 1.524 s and retained 40.083 MiB of adjacency. Warmed
+median-of-three prepared/unprepared timings were 1.834/91.764 ms for points,
+13.456/104.655 ms for 12 samples, and 1.121/1.376 s for 1,440 samples, with exact
+output parity. Full-day prepared allocations are higher; see
+[resident adjacency results](walking-adjacency-results.md) for scope and raw samples.
+
 Status: geometry, CPU point/window routing and HTTP walking are implemented. Real
 res5/res6/res7 validation and timings are in [walking results](walking-results.md).
 Walking windows now default to parallel two-state catch-up with shared geometry and
@@ -261,11 +270,11 @@ formula on a 1,067-cell full-day query; visual comparison with the old plot rema
 - Connect dataset selection to H3-MON's metadata-defined controls. Revisit runtime
   filtering or resolution conversion only if separate snapshots become limiting.
 
-## benchmarking
-
-- see if igpu is actually faster than cpu
-
 
 ## stretch goals but out of scope
 
 - it'd be cool to run this on every h3 in europe across all minutes of the day, and then rank h3 by travel time maybe weighted by population. should find the most central h3s in europe. but it'd be cool to plot that on a map anyway. ditto for the average difference in time/distance quantiles
+
+## soon
+
+- for distance - time quantile, also try straight line distance between origin and destination. should solve bordeaux looking weirdly fast because you have to go via Paris (lol)

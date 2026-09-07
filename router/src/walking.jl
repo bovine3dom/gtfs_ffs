@@ -25,8 +25,16 @@ WalkingTopology(index::WalkingIndex, limit::Integer, shared::Union{Nothing,Walki
     WalkingTopology(index, UInt32(limit), Dict{UInt64,WalkingGeometryEntry}(),
                     Dict{UInt64,WalkingGeometryEntry}(), shared)
 
-function _walking_hops(topology, origin; geographic=false, limit=topology.limit)
+Base.@constprop :aggressive function _walking_hops(topology, origin; geographic=false, limit=topology.limit)
     iszero(limit) && return WalkingNeighbor[]
+    prepared = topology.index.prepared
+    if !isnothing(prepared) && limit <= prepared.limit
+        u = get(prepared.node_id, origin, Int32(0))
+        if u != 0
+            packed = geographic ? prepared.geographic : prepared.graph
+            return WalkingRange(packed, packed.offsets[u], packed.offsets[u + 1] - packed.offsets[u])
+        end
+    end
     cache = geographic ? topology.coverage : topology.neighbors
     entry = get(cache, origin, nothing)
     if isnothing(entry) || entry[1] < limit
@@ -57,6 +65,9 @@ function _walking_hops(topology, origin; geographic=false, limit=topology.limit)
     return entry[2]
 end
 
+_walking_node(graph, cell::UInt64) = graph.node_id[cell]
+_walking_node(graph, cell::Int32) = cell
+
 """Walking-aware CPU reference, returning sorted reachable H3 cells, arrivals and km."""
 function route_walking(graph::Graph, origin::UInt64, departure_ms::Integer, budget_ms::Integer;
                        max_walk_s::Integer=3600, walking_index::Union{Nothing,WalkingIndex}=nothing)
@@ -82,8 +93,8 @@ function _walking_route_at(graph, topology, origin, ready::UInt32, cutoff::UInt3
         push!(queue, (ready, source, 0), (ready, source, 1))
     else
         for hop in _walking_hops(topology, origin)
-            hop.duration_ms <= cutoff - ready || continue
-            v = graph.node_id[hop.cell]
+            hop.duration_ms <= min(topology.limit, cutoff - ready) || continue
+            v = _walking_node(graph, hop.cell)
             arrival[v] = ready + hop.duration_ms
             distance[v] = hop.distance_km
             push!(queue, (arrival[v], v, 0))
@@ -110,8 +121,8 @@ function _walking_route_at(graph, topology, origin, ready::UInt32, cutoff::UInt3
             end
         else
             for hop in _walking_hops(topology, graph.h3[u])
-                hop.duration_ms <= cutoff - time || continue
-                candidate, v = time + hop.duration_ms, graph.node_id[hop.cell]
+                hop.duration_ms <= min(topology.limit, cutoff - time) || continue
+                candidate, v = time + hop.duration_ms, _walking_node(graph, hop.cell)
                 candidate < arrival[v] || continue
                 km = eligible_distance[u] + hop.distance_km
                 isinf(km) && throw(ArgumentError("accumulated route distance is not finite"))
@@ -142,7 +153,7 @@ function _walking_result(graph, topology, origin, ready, cutoff, arrival, eligib
             cell, time, km = graph.h3[u], eligible[u], eligible_distance[u]
         end
         for hop in _walking_hops(topology, cell; geographic=true, limit=min(topology.limit, cutoff - time))
-            hop.duration_ms <= cutoff - time || continue
+            hop.duration_ms <= min(topology.limit, cutoff - time) || continue
             candidate = time + hop.duration_ms
             previous = get(result, hop.cell, (INF, NaN))
             candidate < previous[1] || continue

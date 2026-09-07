@@ -6,7 +6,7 @@ import Atomix
 
 export Graph, pack_graph, route_cpu, route_details, route_window, route_window_cached,
        KernelRouter, route_kernel!, WindowKernelRouter, route_window_kernel!, make_handler,
-       WalkingIndex, walking_neighbors, walking_cells, route_walking, route_window_walking,
+       WalkingIndex, prepare_walking, walking_neighbors, walking_cells, route_walking, route_window_walking,
        route_window_walking_cached
 
 const RESOLUTION = 5
@@ -340,7 +340,7 @@ function make_handler(graph::Graph; route=(h, t, b) -> route_cpu(graph, h, t, b)
                       window_route=(h, t, b, w, s) -> route_window_cached(graph, h, t, b, w; step_ms=s),
                       walking_window_route=(h, t, b, w, s, m, index) -> route_window_walking_cached(
                           graph, h, t, b, w; step_ms=s, max_walk_s=m, walking_index=index))
-    walking_index = WalkingIndex(graph)
+    walking_index = prepare_walking(WalkingIndex(graph))
     request_lock = ReentrantLock()
     return function (request)
         headers = ["Access-Control-Allow-Origin" => "*", "Cache-Control" => "no-store",

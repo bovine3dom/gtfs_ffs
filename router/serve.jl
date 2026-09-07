@@ -71,4 +71,5 @@ port = parse(Int, get(ENV, "ROUTER_PORT", "1988"))
 @info "Window routing" window_backend
 @info "Single-departure route distances use CPU Dijkstra"
 @info "Walking uses CPU routing; window catch-up unless ROUTER_WINDOW_BACKEND=origin" default_max_walk_s=3600 workers chunk
+@info "Preparing resident walking adjacency before accepting requests" max_walk_s=3600 preparation_workers=min(4, Threads.nthreads(:default))
 HTTP.serve(make_handler(graph; route, window_route, walking_window_route), host, port)

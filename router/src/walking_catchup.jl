@@ -91,8 +91,8 @@ function _walking_catchup_chunk!(workspace, graph, origin, plan, first, last, sl
             push!(queue, (ready, source, 0), (ready, source, 1))
         else
             for hop in _walking_hops(topology, origin)
-                hop.duration_ms <= cutoff - ready || continue
-                candidate, v = ready + hop.duration_ms, graph.node_id[hop.cell]
+                hop.duration_ms <= min(topology.limit, cutoff - ready) || continue
+                candidate, v = ready + hop.duration_ms, _walking_node(graph, hop.cell)
                 candidate < arrival[v] || continue
                 arrival[v] = candidate
                 push!(queue, (candidate, v, 0))
@@ -121,8 +121,8 @@ function _walking_catchup_chunk!(workspace, graph, origin, plan, first, last, sl
                 end
             else
                 for hop in _walking_hops(topology, graph.h3[u])
-                    hop.duration_ms <= cutoff - time || continue
-                    candidate, v = time + hop.duration_ms, graph.node_id[hop.cell]
+                    hop.duration_ms <= min(topology.limit, cutoff - time) || continue
+                    candidate, v = time + hop.duration_ms, _walking_node(graph, hop.cell)
                     candidate < arrival[v] || continue
                     arrival[v] = candidate
                     push!(queue, (candidate, v, 0))
@@ -161,8 +161,8 @@ function _walking_catchup_replay!(workspace, graph, origin, source, ready, cutof
         push!(queue, (ready, source, 0), (ready, source, 1))
     else
         for hop in _walking_hops(topology, origin)
-            hop.duration_ms <= cutoff - ready || continue
-            candidate, v = ready + hop.duration_ms, graph.node_id[hop.cell]
+            hop.duration_ms <= min(topology.limit, cutoff - ready) || continue
+            candidate, v = ready + hop.duration_ms, _walking_node(graph, hop.cell)
             candidate < seenA[v] || continue
             seenA[v] = candidate
             if candidate == arrival[v]
@@ -202,8 +202,8 @@ function _walking_catchup_replay!(workspace, graph, origin, source, ready, cutof
             end
         else
             for hop in _walking_hops(topology, graph.h3[u])
-                hop.duration_ms <= cutoff - time || continue
-                candidate, v = time + hop.duration_ms, graph.node_id[hop.cell]
+                hop.duration_ms <= min(topology.limit, cutoff - time) || continue
+                candidate, v = time + hop.duration_ms, _walking_node(graph, hop.cell)
                 candidate < seenA[v] || continue
                 candidate >= arrival[v] || error("cached walking arrival labels are not optimal")
                 km = kmE[u] + hop.distance_km

@@ -314,4 +314,6 @@ end
     end
 end
 
+include("walking_adjacency_tests.jl")
+
 end # module

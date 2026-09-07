@@ -139,9 +139,20 @@ destinations, not stepping stones for chained walking.
 /reachable?index=871fb4662ffffff&departure=08:00:00&budget_s=10800&max_walk_s=3600
 ```
 
-The service retains one spatial index. Request-local caches share geometry between
-window samples and workers. Partial-radius coverage is retained and reused whenever
-it covers the requested radius. Small geographic expansions use a local H3 disk only
+The service eagerly prepares one resident walking index per loaded graph at handler
+construction, before accepting requests. Every graph vertex gets exact geographic
+neighbors within 3,600,000 ms (5 km), with the graph subset derived from that same list.
+Contiguous offsets, targets, durations and kilometres preserve canonical H3 order;
+graph targets are precomputed integer node IDs. Up to four Julia threads build private
+lists, then pack deterministically. This adds startup time and retained memory
+proportional to the full adjacency, especially at fine resolutions, without resource caps.
+
+Prepared hits borrow read-only ranges without geometry calls or cache locks. Both the
+requested hop limit and remaining budget filter these ranges. Requests above the
+prepared radius and off-graph origins use the existing exact geometry and request-local
+caches, never clipping the requested `max_walk_s=0..604800`. Fallback data is shared
+between window samples and workers, not retained across requests. Cached coverage is
+reused when it covers the requested radius. Small expansions use a local H3 disk only
 after certifying that its outer cell polygons cannot intersect the walking area;
 uncertified or larger expansions fall back to complete polygon enumeration. The disk
 attempts are a fast path, not an output bound or an average-edge-length approximation.
@@ -156,12 +167,19 @@ itineraries using transit without distance data have `NaN`, including later egre
 
 Direct Julia APIs are `route_walking`, `route_window_walking` (independent reference),
 and `route_window_walking_cached` (optimized windows), with `max_walk_s`
-and optional resident `walking_index=WalkingIndex(graph)` keywords.
+and optional `walking_index` keywords. `WalkingIndex(graph)` remains cheap and unprepared;
+explicitly use `index = prepare_walking(WalkingIndex(graph); max_walk_s=3600, workers=4)`
+and pass `walking_index=index` to reuse prepared adjacency across point/window calls.
+Treat indices and their arrays as read-only and rebuild after vertex/resolution changes.
+Preparation returns a new index without modifying the original. The HTTP service always
+prepares the fixed default radius; larger requests never grow the resident adjacency.
 They return a sorted `h3` vector alongside aligned result columns. Existing
 `route_cpu`, `route_details`, `route_window` and kernel APIs remain transit-only.
 See [walking results](walking-results.md) for real res5/res6/res7 validation and timings.
 See [walking optimization results](walking-optimization-results.md) for before/after
 profiles, exact original-output parity, worker scaling and remaining bottlenecks.
+See [resident adjacency results](walking-adjacency-results.md) for preparation cost,
+memory and matched prepared/unprepared/no-walk benchmarks.
 
 **Departure Windows**
 Add `window_s` to average departures in `[departure, departure + window_s)`.

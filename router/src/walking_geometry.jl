@@ -4,6 +4,36 @@ const WALK_EARTH_RADIUS_KM = 6371.007180918475 # H3's WGS84 authalic radius
 const WALK_BIN_WIDTH = 2sin(5 / (2WALK_EARTH_RADIUS_KM))
 const WalkingNeighbor = @NamedTuple{cell::UInt64, duration_ms::UInt32, distance_km::Float64}
 
+struct PackedWalking{T}
+    offsets::Vector{Int}
+    targets::Vector{T}
+    durations::Vector{UInt32}
+    distances::Vector{Float64}
+end
+
+struct WalkingAdjacency
+    limit::UInt32
+    node_id::Dict{UInt64,Int32}
+    geographic::PackedWalking{UInt64}
+    graph::PackedWalking{Int32}
+end
+
+# Borrowed, read-only ranges: no neighbor-vector copies on a prepared hit.
+struct WalkingRange{T} <: AbstractVector{NamedTuple{(:cell, :duration_ms, :distance_km),Tuple{T,UInt32,Float64}}}
+    packed::PackedWalking{T}
+    first::Int
+    count::Int
+end
+Base.size(hops::WalkingRange) = (hops.count,)
+Base.IndexStyle(::Type{<:WalkingRange}) = IndexLinear()
+Base.iterate(hops::WalkingRange, i::Int=1) = i > length(hops) ? nothing : (hops[i], i + 1)
+function Base.getindex(hops::WalkingRange, i::Int)
+    @boundscheck checkbounds(hops, i)
+    j = hops.first + i - 1
+    p = hops.packed
+    @inbounds return (cell=p.targets[j], duration_ms=p.durations[j], distance_km=p.distances[j])
+end
+
 """
     WalkingIndex(graph::Graph)
 
@@ -16,6 +46,7 @@ struct WalkingIndex
     centres::Vector{H3.API.LatLng}
     bins::Dict{NTuple{3,Int},Vector{Int}}
     resolution::Int
+    prepared::Union{Nothing,WalkingAdjacency}
 end
 
 function _walking_xyz(p::H3.API.LatLng)
@@ -32,7 +63,50 @@ function WalkingIndex(graph::Graph)
         bin = map(x -> floor(Int, x / WALK_BIN_WIDTH), _walking_xyz(centre))
         push!(get!(Vector{Int}, bins, bin), i)
     end
-    return WalkingIndex(cells, centres, bins, graph.resolution)
+    return WalkingIndex(cells, centres, bins, graph.resolution, nothing)
+end
+
+"""
+    prepare_walking(index::WalkingIndex; max_walk_s=3600, workers=min(4, Threads.nthreads(:default)))
+
+Return a read-only index with resident packed geographic and graph adjacency.
+Enumerate exact geometry once per vertex, preserving canonical H3 order. Preparation
+does not mutate the input; larger radii and off-graph origins use request-local fallback.
+Memory and startup work scale with the complete geographic adjacency, without caps.
+"""
+function prepare_walking(index::WalkingIndex; max_walk_s::Integer=3600,
+                         workers::Integer=min(4, Threads.nthreads(:default)))
+    limit = _walking_limit(max_walk_s)
+    workers > 0 || throw(ArgumentError("workers must be positive"))
+    bare = WalkingIndex(index.cells, index.centres, index.bins, index.resolution, nothing)
+    n = length(index.cells)
+    slots = Vector{Vector{WalkingNeighbor}}(undef, n)
+    count = Int(min(workers, Threads.nthreads(:default), max(1, n)))
+    @sync for slot in 1:count
+        Threads.@spawn for u in slot:count:n
+            slots[u] = walking_cells(bare, index.cells[u], limit)
+        end
+    end
+    node_id = Dict(h => Int32(i) for (i, h) in enumerate(index.cells))
+    geographic = PackedWalking([1], UInt64[], UInt32[], Float64[])
+    network = PackedWalking([1], Int32[], UInt32[], Float64[])
+    for hops in slots
+        for hop in hops
+            push!(geographic.targets, hop.cell)
+            push!(geographic.durations, hop.duration_ms)
+            push!(geographic.distances, hop.distance_km)
+            v = get(node_id, hop.cell, Int32(0))
+            if v != 0
+                push!(network.targets, v)
+                push!(network.durations, hop.duration_ms)
+                push!(network.distances, hop.distance_km)
+            end
+        end
+        push!(geographic.offsets, length(geographic.targets) + 1)
+        push!(network.offsets, length(network.targets) + 1)
+    end
+    return WalkingIndex(index.cells, index.centres, index.bins, index.resolution,
+                        WalkingAdjacency(limit, node_id, geographic, network))
 end
 
 function _walking_validate(index, origin, max_walk_ms)
