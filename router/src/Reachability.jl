@@ -45,8 +45,10 @@ function validate_cell(h::UInt64, resolution=nothing)
     return h
 end
 
-"""Pack daily profiles at one inferred H3 resolution, retaining optional connection km."""
-function pack_graph(table; skip_invalid_durations::Bool=false)
+include("missing_data.jl")
+
+"""Pack daily profiles; opt into the original rail repair with `badajoz_shuttle=true`."""
+function pack_graph(table; skip_invalid_durations::Bool=false, badajoz_shuttle::Bool=false)
     schema = (:from_h3 => UInt64, :to_h3 => UInt64,
               :departure_ms => UInt32, :duration_ms => Int64)
     for (name, type) in schema
@@ -57,7 +59,8 @@ function pack_graph(table; skip_invalid_durations::Bool=false)
     n = length(table.from_h3)
     all(length(getproperty(table, name)) == n for (name, _) in schema) ||
         throw(ArgumentError("column lengths differ"))
-    n <= (typemax(Int32) - 1) ÷ 2 || throw(ArgumentError("too many connections for Int32 offsets"))
+    n + (badajoz_shuttle ? 2342 : 0) <= (typemax(Int32) - 1) ÷ 2 ||
+        throw(ArgumentError("too many connections for Int32 offsets"))
     all(d -> d < PERIOD, table.departure_ms) || throw(ArgumentError("departure_ms must be within one day"))
     order = findall(d -> 0 <= d <= MAX_BUDGET_MS, table.duration_ms)
     dropped = n - length(order)
@@ -79,15 +82,28 @@ function pack_graph(table; skip_invalid_durations::Bool=false)
     # Specialize the sorting loops on column types instead of Arrow.Table's dynamic lookup.
     columns = (from_h3=table.from_h3, to_h3=table.to_h3,
                departure_ms=table.departure_ms, duration_ms=table.duration_ms)
-    return _pack_columns(columns, raw_distance, order)
+    return _pack_columns(columns, raw_distance, order, badajoz_shuttle)
 end
 
-function _pack_columns(table, raw_distance, order)
-    has_distance = !isnothing(raw_distance)
+function _pack_columns(table, raw_distance, order, badajoz_shuttle)
     cells = sort!(unique(vcat(table.from_h3, table.to_h3)))
     foreach(validate_cell, cells)
     resolution = isempty(cells) ? RESOLUTION : Int(H3.API.getResolution(first(cells)))
     all(h -> H3.API.getResolution(h) == resolution, cells) || throw(ArgumentError("graph must use one H3 resolution"))
+    if badajoz_shuttle
+        extra = _badajoz_shuttle(resolution)
+        n = length(table.from_h3)
+        table = map(_PatchedColumn, table, NamedTuple{keys(table)}(extra))
+        isnothing(raw_distance) || (raw_distance = _PatchedColumn(raw_distance, extra.distance_km))
+        append!(order, (n + 1):(n + length(extra.from_h3)))
+        sort!(union!(cells, extra.from_h3))
+        @info "Added Elvas-Badajoz fantasy rail shuttle" resolution connections=length(extra.from_h3)
+    end
+    return _pack_profiles(table, raw_distance, order, cells, resolution)
+end
+
+function _pack_profiles(table, raw_distance, order, cells, resolution)
+    has_distance = !isnothing(raw_distance)
     node_id = Dict(h => Int32(i) for (i, h) in enumerate(cells))
     sort!(order; by=i -> (table.from_h3[i], table.to_h3[i]))
     n = length(order)
@@ -137,8 +153,8 @@ function _pack_columns(table, raw_distance, order)
     return Graph(cells, node_id, out_ptr, edge_from, edge_to, schedule_ptr, departure, arrival, resolution, distance_km)
 end
 
-pack_graph(path::AbstractString; skip_invalid_durations=false) =
-    pack_graph(Arrow.Table(path); skip_invalid_durations)
+pack_graph(path::AbstractString; skip_invalid_durations=false, badajoz_shuttle=false) =
+    pack_graph(Arrow.Table(path); skip_invalid_durations, badajoz_shuttle)
 
 @inline function next_connection(schedule_ptr, departure, arrival, edge,
                                  ready::UInt32, cutoff::UInt32)

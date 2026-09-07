@@ -138,6 +138,7 @@ include("distance_http_tests.jl")
 include("window_engine_http_tests.jl")
 include("metric_tests.jl")
 include("kernel_tests.jl")
+include("shuttle_tests.jl")
 
 @testset "HTTP and Arrow: $(typeof(backend))" for backend in kernel_backends
     graph = pack_graph(fixture_table())

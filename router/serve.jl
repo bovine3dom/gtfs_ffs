@@ -8,7 +8,7 @@ graph = if only(ARGS) == "--demo"
     include("fixture.jl")
     pack_graph(fixture_table())
 else
-    pack_graph(only(ARGS); skip_invalid_durations=true)
+    pack_graph(only(ARGS); skip_invalid_durations=true, badajoz_shuttle=true)
 end
 
 backend_name = get(ENV, "ROUTER_BACKEND", "cpu")

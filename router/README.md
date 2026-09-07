@@ -8,9 +8,9 @@ repeating fantasy daily timetable. Run the commands below from the repository ro
   Walks are available at any time, but consecutive walks are forbidden.
 - Departures repeat every 24 hours; waiting, including overnight waiting, counts.
 - Real dates, service calendars and trip continuity are not represented.
-- Transit vertices come from the input; walking also returns reachable geographic
-  cells at the graph resolution. Cell-centre estimates are not street routing or a
-  guarantee of reachability for every point in a cell.
+- Transit vertices come from the input and the file-server rail repair below.
+  Walking also returns geographic cells at the graph resolution. Cell-centre estimates
+  are not street routing or a guarantee of reachability for every point in a cell.
 - `--demo` uses a small synthetic fixture, not the real rail export.
 
 **Input And Export**
@@ -60,6 +60,62 @@ are discarded, not converted into service calendars. Confirm that this clock mat
 the intended timetable and API departure clock. For reproducibility, record the source
 snapshot/table, export time, timezone, resolution and units alongside the export.
 Replace the source table only with one having the same column semantics.
+
+**Elvas-Badajoz Repair**
+File-backed `serve.jl` loads always enable `pack_graph(path; badajoz_shuttle=true)`.
+The default `pack_graph` and `--demo` remain unpatched. This restores the fantasy
+rail service from `plots/longest_journey.jl:46-55`, not an actual published timetable
+or a walking/road connection: 15 minutes, 13.88 itinerary km, both directions,
+every minute from 04:00 through 23:30 inclusive (1,171 per direction, 2,342 rows).
+The daily clock uses the same convention as the input, without timezone conversion.
+
+`src/missing_data.jl` uses actual railway-station coordinates from OpenStreetMap
+(retrieved 2026-09-07, [ODbL attribution](https://www.openstreetmap.org/copyright)):
+
+| Station | Latitude, Longitude | OSM Source | Derived H3 res11 |
+| --- | --- | --- | --- |
+| Elvas | `38.8955418, -7.1422766` | [node 10784532230, version 4](https://www.openstreetmap.org/node/10784532230/history/4) | `8b3902851d9bfff` |
+| Badajoz | `38.8907326, -6.9816158` | [node 2962633346, version 7](https://www.openstreetmap.org/node/2962633346/history/7) | `8b3902ba1802fff` |
+
+Both nodes are tagged `railway=station`, `public_transport=station`, `train=yes`;
+Elvas has station reference `57497` and Badajoz `37606` / UIC `7137606`.
+These are not town centres. The original ClickHouse table
+`transitous_everything_20260218_edgelist_fahrtle2` and connection helper
+`plots/lib.jl:4-13` were located, but localhost native port 9000 and HTTP ports
+8110/8123 were unavailable. Thus these are verified OSM station positions, **not
+claimed to be the original first name-matched GTFS res11 cells**.
+
+Endpoints follow the export convention: station position to res11, then parent
+at the inferred graph resolution (finer-than-11 graphs use the position directly).
+Elvas/Badajoz parents are `85390287fffffff` / `853902bbfffffff` at res5,
+`863902857ffffff` / `863902ba7ffffff` at res6, and
+`873902851ffffff` / `873902ba1ffffff` at res7. Coalesced endpoints retain a
+scheduled transit self-edge, consistent with input self-edges and walking reset rules.
+
+The repair runs once at load time, logs its row count, and uses read-only column
+concatenation rather than copying the large input arrays. Existing connections,
+including faster services, share normal FIFO profile pruning with the shuttle;
+exact duplicates are pruned there too. Neither caller columns nor the Arrow file
+are modified. Four-column input keeps `distance_km=nothing`: the repair does not
+invent distances for unknown input services. Straight-line distance still measures
+cell-centre separation, not 13.88 km. File graphs receive this rail repair regardless
+of their original transport filter, since the packed schema retains no mode metadata.
+
+Offline verification on 2026-09-07 read `data/rail_and_friends_res6.arrow` (34,921,863
+rows): both station parents were already present; zero rows matched the full shuttle
+signature. One patched pack took 81.6 seconds including compilation (6.53 GB cumulative
+allocations, not peak memory), yielding 35,760 nodes, 131,968 edges and 22,444,069
+two-day profile entries. The existing duration filter skipped 4,464 invalid rows.
+Both directions at 08:00 and 23:30 arrived in exactly 900,000 ms with 13.88 itinerary
+km and walking disabled. The input size/mtime stayed unchanged; no live server was
+queried, signalled or restarted. The running server therefore needs a later normal
+restart to use this repair.
+
+Regression coverage is in `test/shuttle_tests.jl`: res5/6/7 endpoints, schedule
+boundaries and cutoffs, reverse service, FIFO merging, legacy distance absence,
+nonmutation, Arrow loading, CPU/reference/catch-up/batched windows, HTTP metrics,
+and walking access-transit-egress. The full suite passed with both `-t 1` and `-t 4`:
+`julia --project=router -t 1 router/test/runtests.jl` (repeat with `-t 4`).
 
 **Run**
 Instantiate the pinned environment, then choose either the demo or real input:
