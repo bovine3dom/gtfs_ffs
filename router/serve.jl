@@ -31,14 +31,12 @@ end
 
 window_backend = get(ENV, "ROUTER_WINDOW_BACKEND", "catchup")
 chunk = parse(Int, get(ENV, "ROUTER_WINDOW_CHUNK", "64"))
-workers = parse(Int, get(ENV, "ROUTER_WINDOW_WORKERS", string(min(4, Threads.nthreads(:default)))))
+workers = Threads.nthreads(:default)
 chunk > 0 || error("ROUTER_WINDOW_CHUNK must be positive")
-workers > 0 || error("ROUTER_WINDOW_WORKERS must be positive")
 window_route = if window_backend == "origin"
     (h, t, b, w, s) -> route_window(graph, h, t, b, w; step_ms=s)
 elseif window_backend == "catchup"
     1 <= chunk <= 256 || error("ROUTER_WINDOW_CHUNK must be between 1 and 256")
-    1 <= workers <= 256 || error("ROUTER_WINDOW_WORKERS must be between 1 and 256")
     (h, t, b, w, s) -> route_window_cached(graph, h, t, b, w; step_ms=s, chunk_size=chunk, workers=workers)
 elseif window_backend in ("oneapi", "ka_cpu")
     if window_backend == "oneapi"
@@ -82,4 +80,7 @@ port = parse(Int, get(ENV, "ROUTER_PORT", "1988"))
 @info "Walking uses CPU routing; window catch-up unless ROUTER_WINDOW_BACKEND=origin" default_max_walk_s=3600 workers chunk
 @info "Preparing resident walking adjacency before accepting requests" max_walk_s=3600 preparation_workers=min(4, Threads.nthreads(:default))
 @info "Straight-line distance uses CPU arrival-only routing, including transit-only requests"
-HTTP.serve(make_handler(graph; route, window_route, walking_window_route, straight_window_route), host, port)
+origins = filter(!isempty, strip.(split(get(ENV, "ROUTER_WS_ORIGINS", ""), ',')))
+@info "Query WebSocket browser origins" policy=isempty(origins) ? "allow all" : "allowlist" origins
+handler = make_handler(graph; route, window_route, walking_window_route, straight_window_route)
+HTTP.serve(make_stream_handler(handler; origins), host, port; stream=true)

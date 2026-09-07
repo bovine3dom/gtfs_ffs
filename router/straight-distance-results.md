@@ -37,8 +37,9 @@ smokes were performed after the benchmark. Startup numbers include compilation.
 Four-worker straight-line is **4.30x faster**, with 76.3% less cumulative allocation.
 Eight-worker straight-line is **3.70x faster**, with 73.8% less cumulative allocation.
 Going from four to eight workers improves straight-line latency only 1.17x; the
-default remains four workers. These are warmed measurements for this origin and
-workload, not a general latency guarantee or a cold HTTP benchmark.
+default was four workers at measurement time (now all default-pool threads).
+These are warmed measurements for this workload, not a general latency guarantee
+or a cold HTTP benchmark.
 
 Both modes return **732,512 cells**. At each matched worker count, H3 cells, integer
 elapsed sums, coverage counts, sample count, unconditional/conditional time means,

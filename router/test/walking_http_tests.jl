@@ -90,7 +90,7 @@ end
                 @test HTTP.header(explicit, "Access-Control-Allow-Origin") == "*"
                 @test HTTP.header(explicit, "Cache-Control") == "no-store"
                 if window
-                    nworkers = min(4, Threads.nthreads(:default), 5)
+                    nworkers = min(Threads.nthreads(:default), 5)
                     nworkers = min(nworkers, cld(5, cld(5, nworkers)))
                     for (name, value) in (("Window-Strategy", "walking_catchup"), ("Searches", "5"), ("Reused-Samples", "0"), ("Workers", string(nworkers)))
                         @test HTTP.header(explicit, "X-Router-$name") == value
@@ -176,6 +176,16 @@ end
                 @test HTTP.header(response, "X-Router-Window-Strategy") == "walking_catchup"
                 @test parse(Int, HTTP.header(response, "X-Router-Full-Searches")) +
                       parse(Int, HTTP.header(response, "X-Router-Repair-Searches")) == 5
+            end
+            for mode in ("itinerary", "straight_line")
+                target = "/reachable?index=$(H3.API.h3ToString(a))&departure=00:00:00&budget_s=600&window_s=86400&step_s=900&max_walk_s=300&distance_mode=$mode"
+                response = HTTP.get("http://127.0.0.1:$(HTTP.port(server))$target")
+                nworkers = min(Threads.nthreads(:default), 96)
+                chunks = cld(96, min(64, cld(96, nworkers)))
+                @test response.status == 200
+                @test HTTP.header(response, "X-Router-Searches") == "96"
+                @test HTTP.header(response, "X-Router-Workers") == string(min(nworkers, chunks))
+                @test response.body == reference(HTTP.Request("GET", target)).body
             end
         finally
             close(server)

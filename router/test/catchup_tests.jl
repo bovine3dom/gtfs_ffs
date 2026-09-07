@@ -27,14 +27,14 @@ end
     graph = pack_graph(window_table(rows))
     expected = route_window_cached(graph, DEMO_CELLS[1], 0, 200, 129; step_ms=1, chunk_size=16, workers=1)
     snapshot = deepcopy(graph)
-    for workers in (2, 4, 256)
+    for workers in (2, 4, 256, 257, typemax(UInt64))
         actual = route_window_cached(graph, DEMO_CELLS[1], 0, 200, 129; step_ms=1, chunk_size=16, workers)
         @test actual.full_searches == 9
         @test actual.workers == min(workers, Threads.nthreads(:default), 9)
         @test all(isequal(getproperty(actual, key), getproperty(expected, key)) for key in propertynames(expected) if key != :workers)
     end
     @test all(isequal(getfield(graph, key), getfield(snapshot, key)) for key in fieldnames(Graph))
-    for workers in (0, -1, 257, typemax(UInt64))
+    for workers in (0, -1)
         @test_throws ArgumentError route_window_cached(graph, DEMO_CELLS[1], 0, 200, 129; step_ms=1, workers)
     end
     overflow = pack_graph(window_table([(1, 2, 0, 1, 1e308), (1, 2, 1, 1, 0.0),

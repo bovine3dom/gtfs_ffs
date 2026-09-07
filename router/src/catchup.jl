@@ -5,17 +5,17 @@ Lookup and expansion counters cover arrival routing, not grouping or distance re
 function route_window_cached(graph::Graph, origin::UInt64, departure_ms::Integer,
                              budget_ms::Integer, window_ms::Integer;
                              step_ms::Integer=60_000, chunk_size::Integer=64,
-                             workers::Integer=min(4, Threads.nthreads(:default)),
+                             workers::Integer=Threads.nthreads(:default),
                              distance_mode="itinerary")
     track = _distance_mode(distance_mode) == :itinerary
     1 <= chunk_size <= 256 || throw(ArgumentError("chunk_size must be between 1 and 256"))
-    1 <= workers <= 256 || throw(ArgumentError("workers must be between 1 and 256"))
+    workers > 0 || throw(ArgumentError("workers must be positive"))
     plan = _window_plan(graph, origin, departure_ms, budget_ms, window_ms; step_ms)
     acc = _window_accumulator(graph, plan, track)
     groups = length(plan.groups)
     width = min(Int(chunk_size), groups)
     full_searches = cld(groups, Int(chunk_size))
-    worker_count = min(Int(workers), Threads.nthreads(:default), full_searches)
+    worker_count = Int(min(workers, Threads.nthreads(:default), full_searches))
     workspaces = [_catchup_workspace(graph, width, track) for _ in 1:worker_count]
     outcomes = Vector{Any}(undef, worker_count)
     profile_lookups = routing_expansions = 0

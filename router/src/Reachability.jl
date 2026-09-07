@@ -1,6 +1,6 @@
 module Reachability
 
-using Arrow, DataStructures, H3, HTTP
+using Arrow, DataStructures, H3, HTTP, JSON
 import KernelAbstractions as KA
 import Atomix
 
@@ -428,5 +428,7 @@ function make_handler(graph::Graph; route=(h, t, b) -> route_cpu(graph, h, t, b)
         end
     end
 end
+
+include("websocket.jl")
 
 end

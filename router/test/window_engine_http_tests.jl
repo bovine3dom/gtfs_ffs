@@ -28,14 +28,14 @@ end
     push!(rows, (2, 3, 150, 10, 10.0))
     graph = pack_graph(distance_table(rows))
     serial = make_handler(graph; window_route=(h, t, b, w, s) -> route_window_cached(graph, h, t, b, w; step_ms=s, chunk_size=8, workers=1))
-    parallel = make_handler(graph; window_route=(h, t, b, w, s) -> route_window_cached(graph, h, t, b, w; step_ms=s, chunk_size=8, workers=4))
+    parallel = make_handler(graph; window_route=(h, t, b, w, s) -> route_window_cached(graph, h, t, b, w; step_ms=s, chunk_size=8))
     server = HTTP.serve!(parallel, "127.0.0.1", 0; listenany=true, verbose=-1)
     try
         for encoding in ("string", "split"), metric in ("time", "distance_time_quantile")
             target = "/reachable?index=$(H3.API.h3ToString(DEMO_CELLS[1]))&departure=00:00:00&budget_s=200&window_s=129&step_s=1&encoding=$encoding&metric=$metric&max_walk_s=0"
             response = HTTP.get("http://127.0.0.1:$(HTTP.port(server))$target")
             @test response.body == serial(HTTP.Request("GET", target)).body
-            @test HTTP.header(response, "X-Router-Workers") == string(min(4, Threads.nthreads(:default)))
+            @test HTTP.header(response, "X-Router-Workers") == string(min(Threads.nthreads(:default), cld(129, 8)))
             @test occursin("X-Router-Workers", HTTP.header(response, "Access-Control-Expose-Headers"))
         end
     finally

@@ -2,7 +2,7 @@
 
 Verified on 2026-09-07, Julia 1.12.7, eight default-pool threads, CPU `skylake`.
 Prepared geographic output reduction and chronological aggregation now use stable
-integer IDs, not per-sample H3 dictionaries and sorting. The default four-worker
+integer IDs, not per-sample H3 dictionaries and sorting. The then-default four-worker
 96-sample query improved **2.30x**, from **26.528 s to 11.519 s**, with exact outputs.
 
 ## Workload And Method
@@ -86,7 +86,7 @@ old/new search counters are identical: 4 full searches, 92 repairs, 19,323,647
 profile lookups and 8,249,013 expansions for the broad query. Eight workers perform
 8 full searches and 88 repairs, with 22,955,906 lookups and 10,189,365 expansions.
 This is the existing chunk partition, not a claim that eight workers do less search.
-The default remains four workers even when Julia has eight threads.
+The default was four workers at measurement time; it now uses all default-pool threads.
 
 Four-worker broad-query cumulative allocation decreased about 74%. Sparse-query
 allocation increased: output scratch and aggregation arrays are sized to the resident

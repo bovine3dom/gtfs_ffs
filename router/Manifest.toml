@@ -2,7 +2,7 @@
 
 julia_version = "1.12.7"
 manifest_format = "2.0"
-project_hash = "5e3e79c08eff5b3488b81c66d7d05285da14e018"
+project_hash = "b9928171d764c397277550083cfcf215e0cb1094"
 
 [[deps.AbstractFFTs]]
 deps = ["LinearAlgebra"]
@@ -275,14 +275,11 @@ version = "2.14.0+0"
 git-tree-sha1 = "06b65886c7577a3784d616e29f1302c2e36e389d"
 uuid = "842dd82b-1e85-43dc-bf29-5d0ee9dffc48"
 version = "1.4.6"
+weakdeps = ["ArrowTypes", "Parsers"]
 
     [deps.InlineStrings.extensions]
     ArrowTypesExt = "ArrowTypes"
     ParsersExt = "Parsers"
-
-    [deps.InlineStrings.weakdeps]
-    ArrowTypes = "31f734f8-188a-4ce0-8406-c8a06bd891cd"
-    Parsers = "69de0a69-1ddd-5017-9359-2bf0b02dc9f0"
 
 [[deps.InteractiveUtils]]
 deps = ["Markdown"]
@@ -304,6 +301,16 @@ deps = ["Artifacts", "Preferences"]
 git-tree-sha1 = "7204148362dafe5fe6a273f855b8ccbe4df8173e"
 uuid = "692b3bcd-3c85-4b1f-b108-f13ce0eb3210"
 version = "1.8.0"
+
+[[deps.JSON]]
+deps = ["Dates", "Logging", "Parsers", "PrecompileTools", "StructUtils", "UUIDs", "Unicode"]
+git-tree-sha1 = "88352712893ec50bee3680605891eaf0e9ed6368"
+uuid = "682c06a0-de6a-54ab-a142-c8b1cf79cde6"
+version = "1.8.0"
+weakdeps = ["ArrowTypes"]
+
+    [deps.JSON.extensions]
+    JSONArrowExt = ["ArrowTypes"]
 
 [[deps.JuliaSyntaxHighlighting]]
 deps = ["StyledStrings"]
@@ -523,6 +530,12 @@ git-tree-sha1 = "05f45c2e0de6259db764adbfd2f1dc6d3f8de13c"
 uuid = "bac558e1-5e72-5ebc-8fee-abe8a469f55d"
 version = "2.0.1"
 
+[[deps.Parsers]]
+deps = ["Dates", "PrecompileTools"]
+git-tree-sha1 = "663e8b48b789916221e0765393b289ca6c88f24e"
+uuid = "69de0a69-1ddd-5017-9359-2bf0b02dc9f0"
+version = "3.0.0"
+
 [[deps.Pkg]]
 deps = ["Artifacts", "Dates", "Downloads", "FileWatching", "LibGit2", "Libdl", "Logging", "Markdown", "Printf", "Random", "SHA", "TOML", "Tar", "UUIDs", "p7zip_jll"]
 uuid = "44cfe95a-1eb2-52ea-b672-e2afdf69b78f"
@@ -685,6 +698,22 @@ weakdeps = ["SparseArrays"]
 git-tree-sha1 = "f2dcb92855b31ad92fe8f079d4f75ac57c93e4b8"
 uuid = "354b36f9-a18e-4713-926e-db85100087ba"
 version = "1.3.7"
+
+[[deps.StructUtils]]
+deps = ["Dates", "UUIDs"]
+git-tree-sha1 = "2d0fc55c61321ba245c47be599570d11bac50303"
+uuid = "ec057cc2-7a8d-4b58-b3b3-92acb9f63b42"
+version = "2.8.5"
+
+    [deps.StructUtils.extensions]
+    StructUtilsMeasurementsExt = ["Measurements"]
+    StructUtilsStaticArraysCoreExt = ["StaticArraysCore"]
+    StructUtilsTablesExt = ["Tables"]
+
+    [deps.StructUtils.weakdeps]
+    Measurements = "eff96d63-e80a-5855-80a2-b1b0885c5ab7"
+    StaticArraysCore = "1e83bf80-4336-4d27-bf5d-d5a4f845583c"
+    Tables = "bd369af6-aec1-5ad0-b16a-f7cc5008161c"
 
 [[deps.StyledStrings]]
 uuid = "f489334b-da3d-4c2e-b8f0-e476e12c162b"

@@ -87,7 +87,74 @@ env ZE_ENABLE_ALT_DRIVERS=/usr/lib/libze_intel_gpu_legacy1.so.1 ROUTER_BACKEND=o
 
 `ROUTER_HOST` defaults to `127.0.0.1`; `ROUTER_PORT` defaults to `1988`.
 
+<a id="query-websocket"></a>
+**Query WebSocket**
+`ws://127.0.0.1:1988/query` shares the HTTP server, resident index, routing callbacks,
+workspace lock and Arrow encoder. Existing `/reachable` requests are unchanged.
+No frontend configuration or files are changed automatically. The client contract is
+[H3-MON's query protocol](../../H3-MON/docs/query-websocket.md).
+
+Browser origins are allowed by default, including `null` origins, with no configuration
+required. Requests without Origin are also accepted. Optionally restrict browser access
+by setting `ROUTER_WS_ORIGINS` to exact page origins (scheme, host and port):
+
+```sh
+ROUTER_WS_ORIGINS=http://localhost:8000,http://127.0.0.1:8000 julia --threads=4 --project=router router/serve.jl --demo
+```
+
+An unset or empty list allows all origins. Nonempty comma-separated entries are trimmed
+and compared exactly, not by prefix; nonmatching origins receive HTTP 403. Explicit
+allowlists cannot contain `null` or wildcards. Duplicate Origin headers are rejected.
+There is **no built-in authentication**; Origin is not identity and can be forged by
+non-browser clients. Keep the default loopback bind for local use. Remote deployments
+must authenticate/authorize at a trusted reverse proxy, restrict direct backend access,
+and terminate TLS with WebSocket upgrade forwarding for `wss://` on HTTPS pages.
+Avoid payload/URL logging at the proxy if parameters contain sensitive information.
+
+Send one JSON text message per query, with no subprotocol or acknowledgement:
+
+```json
+{"type":"query","id":42,"url":"/reachable?index=85075dd7fffffff&departure=08:00:00&budget_s=3600&encoding=split"}
+```
+
+- IDs are increasing, connection-local JSON integers in `1..4294967295`; gaps and
+  integer-valued numbers such as `42.0` are allowed, booleans are not. Reconnect before
+  wrapping. A valid ID is consumed even if its type or URL validation fails.
+- Success is one binary message: four big-endian ID bytes, then the **complete Arrow
+  IPC file**, identical to the HTTP response body. For 42 the prefix is `00 00 00 2a`.
+  Remove those four bytes before decoding Arrow; every result includes its schema.
+- Errors are text `{"type":"error","id":42,"message":"query failed"}`. Validation
+  errors use fixed safe messages, never reflected parameters or exception details.
+- Only `/reachable` plus an optional query string is dispatched in-process. Absolute
+  URLs, credentials/authority, fragments, other paths, raw whitespace/control characters
+  and backslashes are rejected. Parameters and defaults are the HTTP API's, including
+  both metrics, encodings, windows, walking and default `distance_mode=itinerary`.
+- Unknown JSON fields are ignored. Wrong type/URL and parameter errors use the same
+  serialized response lane and may be superseded while pending. Malformed JSON, binary
+  requests, missing/invalid/reused/decreasing IDs close with policy code **1008**, not
+  an invented ID-zero error. HTTP.jl retains its standard malformed-frame/UTF-8 policy.
+- Each connection has one active job and one newest pending job. While 42 runs,
+  arrivals 43, 44, 45 replace that slot: finish/send 42, then run 45. There are no
+  ACK, done, cancel, progressive chunk or heartbeat messages at the application level.
+  Close clears pending; already dispatched work finishes without cancellation and
+  its result is discarded. A failed send stops further dispatch.
+
+Routing across HTTP and all sockets remains serialized by the original handler lock.
+The socket reader does not wait on that lock. Tasks yield before pending dispatch so
+buffered arrivals can coalesce. Julia scheduling is cooperative: with only one runtime
+thread, a non-yielding CPU calculation can delay reads until it finishes; there is no
+preemption or latency guarantee, including when all available workers are busy.
+No thread count is required, no worker process is created, and no query resource caps
+are added. Large valid requests can still consume substantial CPU, memory and bandwidth.
+The pending slot bounds jobs, not transport buffers, result sizes or connection counts.
+
+For embedding, keep `make_handler(graph; ...)` for the shipped request-handler API;
+wrap that **same instance** using `make_stream_handler(handler; origins=[...])` and
+`HTTP.serve!(...; stream=true)`. Plain `/query` requests return HTTP 426.
+
 **HTTP API**
+The same server also supports the optional [query WebSocket API](#query-websocket).
+
 Save a response from the running server:
 
 ```sh
@@ -278,8 +345,8 @@ still evaluated per departure, then collapsed results are aggregated chronologic
 They report `X-Router-Backend: reference`, `X-Router-Window-Strategy: walking_catchup`,
 and actual workers/full searches/repairs/profile lookups. `X-Router-Searches` remains
 the sample count and `X-Router-Reused-Samples` remains zero: reuse is downstream repair,
-not transit-only origin grouping. `ROUTER_WINDOW_CHUNK` and `ROUTER_WINDOW_WORKERS`
-also control walking catch-up. Short windows use smaller chunks to expose parallelism.
+not transit-only origin grouping. `ROUTER_WINDOW_CHUNK` also controls walking catch-up.
+Short windows use smaller chunks to expose parallelism.
 
 Routing workspaces remain worker-private. Geometry is shared within a request using
 per-cell build locks and lock-free private cache hits. Workers prepare different parts
@@ -298,12 +365,14 @@ With `max_walk_s=0`, window routing is selected independently of `ROUTER_BACKEND
 | `ka_cpu` | Same batched kernels on CPU for verification |
 
 `ROUTER_WINDOW_CHUNK` defaults to 64 (1..256) for CPU catchup.
-`ROUTER_WINDOW_WORKERS` defaults to up to four available Julia default-pool threads
-(1..256 requested, capped by the thread pool and number of chunks). Start Julia with
-`--threads=4` to use four workers; without extra Julia threads execution stays serial.
+CPU catch-up windows use all available Julia default-pool threads, capped by the
+number of chunks. Julia's `--threads` controls window workers: start with
+`--threads=8` to allow eight workers or `--threads=1` for serial execution.
 Each slot owns a private reusable workspace. Waves run in parallel, then aggregate
-in chronological order, preserving exact floating-point means. Set workers to 1
-for an explicit serial comparison. `X-Router-Workers` reports the actual count.
+in chronological order, preserving exact floating-point means. The Julia routing
+APIs retain a positive `workers` keyword for explicit benchmark/test comparisons.
+`X-Router-Workers` reports the actual count. Startup walking preparation is unchanged
+and still defaults to at most four threads.
 
 ```sh
 env ROUTER_BACKEND=reference julia --project=router --threads=4 router/serve.jl data/rail_and_friends_dist_res5.arrow
@@ -319,7 +388,7 @@ env ZE_ENABLE_ALT_DRIVERS=/usr/lib/libze_intel_gpu_legacy1.so.1 ROUTER_BACKEND=r
 
 Distance-bearing point queries still use CPU Dijkstra regardless of backend selection.
 `make_handler` accepts a separate `window_route` callback, defaulting to CPU catchup
-with up to four available workers. Its `walking_window_route(h, t, b, w, s, max_walk_s,
+with all available default-pool threads. Its `walking_window_route(h, t, b, w, s, max_walk_s,
 walking_index)` callback defaults to walking catch-up and receives the resident index.
 CPU `origin` and `catchup` windows retain `X-Router-Backend: reference`;
 `X-Router-Window-Strategy` distinguishes `origin`, `catchup`, `gpu_batched`, and

@@ -79,9 +79,9 @@ and **6.31x** versus the origin-only reference measured in this run. Routing wor
 counts remain identical: 20 full starts, 1,237 repairs, and 329,260 / 1,224,973 profile
 lookups. The gain is parallel execution, not skipped work or approximate results.
 
-The default is now up to four available Julia default-pool workers, capped by the
-number of chunks. Set `ROUTER_WINDOW_WORKERS=1` to force serial execution. Julia must
-be started with `--threads=4` (or equivalent configuration) to provide four workers.
+These measurements used up to four Julia default-pool workers. Window routing now
+defaults to all default-pool threads, capped by the number of chunks. Start Julia
+with `--threads=1` for serial execution or `--threads=4` to provide four workers.
 Scratch memory grows with active workers, not the entire window: approximately
 `O(workers * (chunk_size * vertices + edges))`. Wave barriers and serial aggregation
 limit scaling; four workers are not expected to produce a fourfold speedup.

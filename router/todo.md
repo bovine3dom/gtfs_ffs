@@ -1,5 +1,22 @@
 # Backend TODO
 
+## Window Worker Decision
+
+- [x] CPU catch-up windows use all Julia default-pool threads, bounded by available
+  chunks; `--threads` controls server parallelism with no worker environment override.
+  Keep the positive Julia `workers` keyword for comparisons, without an upper cap.
+  Startup walking preparation and point-query geometry remain unchanged.
+- [x] Full one/four-thread suites each pass 65,690 checks; targeted eight-thread
+  suites pass 26,402. Isolated eight-thread launcher smoke passes eight checks,
+  reporting eight workers for 96-sample itinerary and straight-line windows.
+
+## Query WebSocket Milestones
+
+- [x] Read the full H3-MON protocol/client and existing handler/server; backend only.
+- [x] Add same-server `/query`, safe validation, optional exact Origin allowlist and latest-pending scheduling. Browser origins are allowed by default.
+- [x] Verify live framing, HTTP parity, scheduling, failures and disconnects: full one/four-thread suites each pass 65,672 checks; eight-thread WebSocket suite passes 355. Includes two sockets waiting on the HTTP-held workspace lock.
+- [x] Document deployment, protocol policy and cooperative scheduling limitations. No query caps, frontend edits, or interaction with the user's running server.
+
 Frontend tasks are tracked in [H3-MON/todo.md](../../H3-MON/todo.md).
 
 ## Estimated Walking: Findings and Next Deliverables
@@ -42,8 +59,8 @@ Frontend tasks are tracked in [H3-MON/todo.md](../../H3-MON/todo.md).
   new indexed-output checks and whole HTTP-body parity for both metrics.
 - [x] Verify exact oracle/HTTP parity, thread suites and same-graph old/new benchmarks.
   Matched actual-input four-worker median: 26.528 -> 11.519 s (2.30x), allocations
-  17,624 -> 4,585 MiB. Eight requested workers: 8.233 s, exact parity; default
-  stays four. Twelve-sample regression: 16.969 -> 15.955 ms, but sparse allocation
+  17,624 -> 4,585 MiB. Eight requested workers: 8.233 s, exact parity; the default
+  was four then. Twelve-sample regression: 16.969 -> 15.955 ms, but sparse allocation
   increases because output scratch spans the full universe. Eight-thread selected
   suites passed 10,159 checks. Supplemental probe: aggregation 0.195 s, indexed
   output 3.565 summed worker seconds; replay dominates at 32.587 worker seconds.

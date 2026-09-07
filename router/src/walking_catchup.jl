@@ -7,7 +7,7 @@ function route_window_walking_cached(graph::Graph, origin::UInt64, departure_ms:
                                      step_ms::Integer=60_000, max_walk_s::Integer=3600,
                                      walking_index::Union{Nothing,WalkingIndex}=nothing,
                                      chunk_size::Integer=64,
-                                      workers::Integer=min(4, Threads.nthreads(:default)),
+                                      workers::Integer=Threads.nthreads(:default),
                                       distance_mode="itinerary")
     chunk_size > 0 || throw(ArgumentError("chunk_size must be positive"))
     workers > 0 || throw(ArgumentError("workers must be positive"))
