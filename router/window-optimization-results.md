@@ -54,6 +54,48 @@ chunk 64 is a bounded compromise, not a universal optimum. Catchup is strongest 
 these wide-window measurements; short or sparse sweeps may favor `origin`. There
 is no automatic crossover policy; the override remains available.
 
+## Parallel CPU Chunks
+
+Independent chunks now execute in bounded waves on private worker workspaces. The
+caller waits for each wave, aggregates chunks and groups chronologically, then reuses
+the buffers. This preserves bitwise-identical time, kilometre and quantile results;
+no parallel reduction changes the floating-point order. Worker exceptions are joined
+and rethrown before any unfinished workspace can escape.
+
+The following CPU-only run uses the same distance-enriched graph, Paris origin,
+24-hour departure window and 1,440 minute samples. Chunk size is 64. Each row is the
+median of five warmed repetitions in one Julia process with four default-pool threads.
+No GPU work was run or changed for this experiment.
+
+| Engine | CPU workers | 3h budget (s) | 7d budget (s) |
+| --- | ---: | ---: | ---: |
+| Origin-only reference | 1 | 0.222469 | 5.172819 |
+| Catch-up | 1 | 0.136981 | 2.141335 |
+| Catch-up | 2 | 0.095397 | 1.271049 |
+| Catch-up | 4 | 0.074541 | 0.819525 |
+
+Four workers improve catch-up by **1.84x** and **2.61x** respectively, or **2.98x**
+and **6.31x** versus the origin-only reference measured in this run. Routing work
+counts remain identical: 20 full starts, 1,237 repairs, and 329,260 / 1,224,973 profile
+lookups. The gain is parallel execution, not skipped work or approximate results.
+
+The default is now up to four available Julia default-pool workers, capped by the
+number of chunks. Set `ROUTER_WINDOW_WORKERS=1` to force serial execution. Julia must
+be started with `--threads=4` (or equivalent configuration) to provide four workers.
+Scratch memory grows with active workers, not the entire window: approximately
+`O(workers * (chunk_size * vertices + edges))`. Wave barriers and serial aggregation
+limit scaling; four workers are not expected to produce a fourfold speedup.
+
+```sh
+env ROUTER_BENCH_CHUNKS=64 ROUTER_BENCH_WORKERS=1,2,4 julia --project=router --threads=4 router/benchmark-window-engines.jl data/rail_and_friends_dist_res5.arrow 851fb467fffffff 86400 5
+```
+
+Timings exclude graph loading and HTTP/Arrow serialization. They are a representative
+engineering measurement on a shared host, not a universal scaling guarantee.
+The CPU suite passed 11,538 checks with both one and four Julia threads, including
+exact worker-count parity, multiple waves and a partial tail, error propagation,
+graph nonmutation, and identical HTTP/Arrow outputs for both metrics and encodings.
+
 ## Batched iGPU
 
 The portable KernelAbstractions/Atomix kernels use UInt32 arrival labels and flags,

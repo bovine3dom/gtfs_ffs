@@ -48,6 +48,11 @@ Implementation checklist:
 
 ## Downstream Catch-Up Reuse
 
+- [x] Benchmark independent CPU chunks on 1/2/4 workers; keep aggregation chronological
+  and workspaces bounded by worker count. GPU implementation stays unchanged.
+  Four workers improved the measured catch-up window time by 1.84x / 2.61x for
+  three-hour / seven-day travel budgets. See the optimization report for commands.
+
 Implemented; measurements and caveats are in [window optimization results](window-optimization-results.md).
 
 - [x] Shared grouping/aggregation helpers and bounded CPU catch-up implementation.

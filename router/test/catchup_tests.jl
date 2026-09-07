@@ -2,9 +2,9 @@
 function check_catchup(graph, origin, departure, budget, window; step_ms=10)
     reference = route_window(graph, origin, departure, budget, window; step_ms)
     naive = naive_window(graph, origin, departure, budget, window; step_ms)
-    for chunk_size in (1, 2, 3, 64)
+    for chunk_size in (1, 2, 3, 64), workers in (1, 2, 4)
         actual = Reachability.route_window_cached(graph, origin, departure, budget, window;
-                                                 step_ms, chunk_size)
+                                                 step_ms, chunk_size, workers)
         for field in propertynames(reference)
             @test isequal(getproperty(actual, field), getproperty(reference, field))
         end
@@ -16,8 +16,33 @@ function check_catchup(graph, origin, departure, budget, window; step_ms=10)
         @test actual.repair_searches == reference.searches - actual.full_searches
         @test actual.profile_lookups >= 0
         @test actual.routing_expansions >= 0
+        @test actual.workers == min(workers, Threads.nthreads(:default), actual.full_searches)
     end
     return reference
+end
+
+@testset "Parallel catch-up waves and errors" begin
+    rows = [(1, 2, i, 1, Float64(i + 1)) for i in 0:128]
+    push!(rows, (2, 3, 150, 10, 10.0))
+    graph = pack_graph(window_table(rows))
+    expected = route_window_cached(graph, DEMO_CELLS[1], 0, 200, 129; step_ms=1, chunk_size=16, workers=1)
+    snapshot = deepcopy(graph)
+    for workers in (2, 4, 256)
+        actual = route_window_cached(graph, DEMO_CELLS[1], 0, 200, 129; step_ms=1, chunk_size=16, workers)
+        @test actual.full_searches == 9
+        @test actual.workers == min(workers, Threads.nthreads(:default), 9)
+        @test all(isequal(getproperty(actual, key), getproperty(expected, key)) for key in propertynames(expected) if key != :workers)
+    end
+    @test all(isequal(getfield(graph, key), getfield(snapshot, key)) for key in fieldnames(Graph))
+    for workers in (0, -1, 257, typemax(UInt64))
+        @test_throws ArgumentError route_window_cached(graph, DEMO_CELLS[1], 0, 200, 129; step_ms=1, workers)
+    end
+    overflow = pack_graph(window_table([(1, 2, 0, 1, 1e308), (1, 2, 1, 1, 0.0),
+                                        (1, 3, 0, 2, 0.0), (1, 3, 1, 1, 0.0),
+                                        (2, 4, 2, 8, 1e308), (3, 4, 2, 1, 0.0)]))
+    @test_throws ArgumentError route_window_cached(overflow, DEMO_CELLS[1], 0, 20, 2; step_ms=1, chunk_size=1, workers=4)
+    recovered = route_window_cached(overflow, DEMO_CELLS[1], 1, 20, 1; step_ms=1, workers=4)
+    @test isequal(recovered.distance_km, route_window(overflow, DEMO_CELLS[1], 1, 20, 1; step_ms=1).distance_km)
 end
 
 @testset "Downstream catch-up routing" begin

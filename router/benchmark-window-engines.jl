@@ -18,6 +18,7 @@ function main(args)
     repetitions = length(args) >= 4 ? parse(Int, args[4]) : 3
     repetitions > 0 || error("repetitions must be positive")
     chunks = parse.(Int, split(get(ENV, "ROUTER_BENCH_CHUNKS", "32,64,128"), ','))
+    workers = parse.(Int, split(get(ENV, "ROUTER_BENCH_WORKERS", "1"), ','))
     batches = parse.(Int, split(get(ENV, "ROUTER_BENCH_BATCHES", "32,64,128"), ','))
     check_every = parse(Int, get(ENV, "ROUTER_BENCH_CHECK_EVERY", "4"))
     gpu_routers = []
@@ -29,9 +30,9 @@ function main(args)
     end
     @info "Window engine comparison" origin=H3.API.h3ToString(origin) window_s=window÷1000 resolution=graph.resolution nodes=length(graph.h3) distance_available=!isnothing(graph.distance_km)
     for budget in (10_800_000, 604_800_000)
-        names = ["origin"; ["catchup_$c" for c in chunks]; ["gpu_$(r.batch_size)_check$(r.check_every)" for r in gpu_routers]]
+        names = ["origin"; ["catchup_$(c)_workers$w" for c in chunks for w in workers]; ["gpu_$(r.batch_size)_check$(r.check_every)" for r in gpu_routers]]
         functions = Any[() -> route_window(graph, origin, 0, budget, window)]
-        append!(functions, [() -> route_window_cached(graph, origin, 0, budget, window; chunk_size=c) for c in chunks])
+        append!(functions, [() -> route_window_cached(graph, origin, 0, budget, window; chunk_size=c, workers=w) for c in chunks for w in workers])
         append!(functions, [() -> route_window_kernel!(r, origin, 0, budget, window) for r in gpu_routers])
         expected = first(functions)()
         stats = []
@@ -59,8 +60,9 @@ function main(args)
             full = hasproperty(result, :full_searches) ? result.full_searches : result.searches
             lookups = hasproperty(result, :profile_lookups) ? result.profile_lookups : -1
             rounds = hasproperty(result, :rounds) ? result.rounds : 0
-            @printf("%s budget=%dh groups=%d full=%d lookups=%d rounds=%d median=%.6fs speedup=%.2fx\n",
-                names[i], budget ÷ 3_600_000, result.searches, full, lookups, rounds,
+            used_workers = hasproperty(result, :workers) ? result.workers : 1
+            @printf("%s budget=%dh groups=%d full=%d lookups=%d rounds=%d cpu_workers=%d median=%.6fs speedup=%.2fx\n",
+                names[i], budget ÷ 3_600_000, result.searches, full, lookups, rounds, used_workers,
                 median(times[i]), median(first(times)) / median(times[i]))
             if hasproperty(result, :device_s)
                 @printf("  last-sample stages: planning=%.4fs device+checks=%.4fs downloads=%.4fs host-replay=%.4fs aggregation=%.4fs\n",

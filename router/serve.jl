@@ -34,8 +34,10 @@ window_route = if window_backend == "origin"
     (h, t, b, w, s) -> route_window(graph, h, t, b, w; step_ms=s)
 elseif window_backend == "catchup"
     chunk = parse(Int, get(ENV, "ROUTER_WINDOW_CHUNK", "64"))
+    workers = parse(Int, get(ENV, "ROUTER_WINDOW_WORKERS", string(min(4, Threads.nthreads(:default)))))
     1 <= chunk <= 256 || error("ROUTER_WINDOW_CHUNK must be between 1 and 256")
-    (h, t, b, w, s) -> route_window_cached(graph, h, t, b, w; step_ms=s, chunk_size=chunk)
+    1 <= workers <= 256 || error("ROUTER_WINDOW_WORKERS must be between 1 and 256")
+    (h, t, b, w, s) -> route_window_cached(graph, h, t, b, w; step_ms=s, chunk_size=chunk, workers=workers)
 elseif window_backend in ("oneapi", "ka_cpu")
     if window_backend == "oneapi"
         @eval import oneAPI

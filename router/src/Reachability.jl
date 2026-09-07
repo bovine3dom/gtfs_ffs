@@ -331,7 +331,7 @@ function make_handler(graph::Graph; route=(h, t, b) -> route_cpu(graph, h, t, b)
     request_lock = ReentrantLock()
     return function (request)
         headers = ["Access-Control-Allow-Origin" => "*", "Cache-Control" => "no-store",
-                   "Access-Control-Expose-Headers" => "X-Router-Backend, X-Router-Distance, X-Router-Searches, X-Router-Reused-Samples, X-Router-Metric, X-Router-Window-Strategy, X-Router-Full-Searches, X-Router-Repair-Searches, X-Router-Profile-Lookups, X-Router-Batches, X-Router-Rounds"]
+                   "Access-Control-Expose-Headers" => "X-Router-Backend, X-Router-Distance, X-Router-Searches, X-Router-Reused-Samples, X-Router-Metric, X-Router-Window-Strategy, X-Router-Full-Searches, X-Router-Repair-Searches, X-Router-Profile-Lookups, X-Router-Batches, X-Router-Rounds, X-Router-Workers"]
         query = try
             uri = HTTP.URI(request.target)
             uri.path == "/reachable" || return HTTP.Response(404, headers, "not found")
@@ -357,7 +357,7 @@ function make_handler(graph::Graph; route=(h, t, b) -> route_cpu(graph, h, t, b)
                     "X-Router-Searches" => string(result.searches),
                     "X-Router-Reused-Samples" => string(result.reused_samples)])
                 for (field, header) in ((:full_searches, "Full-Searches"), (:repair_searches, "Repair-Searches"),
-                                        (:profile_lookups, "Profile-Lookups"), (:batches, "Batches"), (:rounds, "Rounds"))
+                                        (:profile_lookups, "Profile-Lookups"), (:batches, "Batches"), (:rounds, "Rounds"), (:workers, "Workers"))
                     hasproperty(result, field) && push!(headers, "X-Router-$header" => string(getproperty(result, field)))
                 end
                 window_arrow(graph, result, origin, encoding; metric)

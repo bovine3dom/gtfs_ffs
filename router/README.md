@@ -153,6 +153,17 @@ Window routing is selected independently of the unchanged point-query `ROUTER_BA
 | `ka_cpu` | Same batched kernels on CPU for verification |
 
 `ROUTER_WINDOW_CHUNK` defaults to 64 (1..256) for CPU catchup.
+`ROUTER_WINDOW_WORKERS` defaults to up to four available Julia default-pool threads
+(1..256 requested, capped by the thread pool and number of chunks). Start Julia with
+`--threads=4` to use four workers; without extra Julia threads execution stays serial.
+Each slot owns a private reusable workspace. Waves run in parallel, then aggregate
+in chronological order, preserving exact floating-point means. Set workers to 1
+for an explicit serial comparison. `X-Router-Workers` reports the actual count.
+
+```sh
+env ROUTER_BACKEND=reference julia --project=router --threads=4 router/serve.jl data/rail_and_friends_dist_res5.arrow
+```
+
 The batched engines use `ROUTER_WINDOW_BATCH`, default 32 (1..256), and
 `ROUTER_WINDOW_CHECK_EVERY`, default 4 (1..32), for host convergence checks.
 To keep point queries on the CPU reference while explicitly enabling GPU windows:
@@ -162,7 +173,8 @@ env ZE_ENABLE_ALT_DRIVERS=/usr/lib/libze_intel_gpu_legacy1.so.1 ROUTER_BACKEND=r
 ```
 
 Distance-bearing point queries still use CPU Dijkstra regardless of backend selection.
-`make_handler` accepts a separate `window_route` callback, defaulting to CPU catchup.
+`make_handler` accepts a separate `window_route` callback, defaulting to CPU catchup
+with up to four available workers.
 CPU `origin` and `catchup` windows retain `X-Router-Backend: reference`;
 `X-Router-Window-Strategy` distinguishes `origin`, `catchup`, `gpu_batched`, and
 `ka_cpu_batched`. `X-Router-Searches` and `X-Router-Reused-Samples` retain their
