@@ -4,29 +4,57 @@ function _walking_limit(max_walk_s::Integer)
     return UInt32(max_walk_s * 1000)
 end
 
+const WalkingGeometryEntry = Tuple{UInt32,Vector{WalkingNeighbor}}
+
+# Request-private: all sharing topologies must use the same index and hop limit.
+struct WalkingGeometryCache
+    lock::ReentrantLock
+    entries::Dict{Tuple{Bool,UInt64},Tuple{ReentrantLock,Base.RefValue{WalkingGeometryEntry}}}
+end
+WalkingGeometryCache() = WalkingGeometryCache(ReentrantLock(),
+    Dict{Tuple{Bool,UInt64},Tuple{ReentrantLock,Base.RefValue{WalkingGeometryEntry}}}())
+
 struct WalkingTopology
     index::WalkingIndex
     limit::UInt32
-    neighbors::Dict{UInt64,Vector{WalkingNeighbor}}
-    coverage::Dict{UInt64,Vector{WalkingNeighbor}}
+    neighbors::Dict{UInt64,WalkingGeometryEntry}
+    coverage::Dict{UInt64,WalkingGeometryEntry}
+    shared::Union{Nothing,WalkingGeometryCache}
 end
-WalkingTopology(index::WalkingIndex, limit::Integer) =
-    WalkingTopology(index, UInt32(limit), Dict{UInt64,Vector{WalkingNeighbor}}(),
-                    Dict{UInt64,Vector{WalkingNeighbor}}())
+WalkingTopology(index::WalkingIndex, limit::Integer, shared::Union{Nothing,WalkingGeometryCache}=nothing) =
+    WalkingTopology(index, UInt32(limit), Dict{UInt64,WalkingGeometryEntry}(),
+                    Dict{UInt64,WalkingGeometryEntry}(), shared)
 
 function _walking_hops(topology, origin; geographic=false, limit=topology.limit)
     iszero(limit) && return WalkingNeighbor[]
     cache = geographic ? topology.coverage : topology.neighbors
-    hops = get(cache, origin, nothing)
-    if isnothing(hops)
-        hops = geographic ? walking_cells(topology.index, origin, limit) :
-                            walking_neighbors(topology.index, origin, limit)
-        # Cache full-radius geometry, never arrival labels or partial-radius results.
-        if limit == topology.limit
-            cache[origin] = hops
+    entry = get(cache, origin, nothing)
+    if isnothing(entry) || entry[1] < limit
+        shared = topology.shared
+        if isnothing(shared)
+            entry = (UInt32(limit), geographic ? walking_cells(topology.index, origin, limit) :
+                                                walking_neighbors(topology.index, origin, limit))
+        else
+            entry_lock, published = lock(shared.lock) do
+                get!(shared.entries, (geographic, origin)) do
+                    (ReentrantLock(), Ref((UInt32(0), WalkingNeighbor[])))
+                end
+            end
+            # Never hold the registry lock during geometry computation or entry waits.
+            entry = lock(entry_lock) do
+                if published[][1] < limit
+                    hops = geographic ? walking_cells(topology.index, origin, limit) :
+                                        walking_neighbors(topology.index, origin, limit)
+                    # Published vectors stay read-only, including older local snapshots.
+                    published[] = (UInt32(limit), hops)
+                end
+                published[]
+            end
         end
+        # A larger cached radius serves smaller cutoffs; callers filter durations.
+        cache[origin] = entry
     end
-    return hops
+    return entry[2]
 end
 
 """Walking-aware CPU reference, returning sorted reachable H3 cells, arrivals and km."""
@@ -92,18 +120,25 @@ function _walking_route_at(graph, topology, origin, ready::UInt32, cutoff::UInt3
             end
         end
     end
+    return _walking_result(graph, topology, origin, ready, cutoff, arrival, eligible,
+                           distance, eligible_distance)
+end
+
+function _walking_result(graph, topology, origin, ready, cutoff, arrival, eligible,
+                         distance, eligible_distance)
+    source = get(graph.node_id, origin, Int32(0))
     result = Dict{UInt64,Tuple{UInt32,Float64}}(origin => (ready, 0.0))
     for v in eachindex(arrival)
-        arrival[v] == INF && continue
+        arrival[v] <= cutoff || continue
         result[graph.h3[v]] = (arrival[v], distance[v])
     end
     # Geographic-only cells are terminal destinations, never a second walking step.
-    for u in 0:n
+    for u in 0:length(graph.h3)
         if u == 0
             source == 0 || continue
             cell, time, km = origin, ready, 0.0
         else
-            eligible[u] == INF && continue
+            eligible[u] <= cutoff || continue
             cell, time, km = graph.h3[u], eligible[u], eligible_distance[u]
         end
         for hop in _walking_hops(topology, cell; geographic=true, limit=min(topology.limit, cutoff - time))

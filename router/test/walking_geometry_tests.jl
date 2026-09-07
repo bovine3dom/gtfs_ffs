@@ -27,6 +27,10 @@ function brute_walks(cells, origin, limit)
     return result
 end
 
+polygon_walks(index, origin, limit) = iszero(limit) ? Reachability.WalkingNeighbor[] :
+    Reachability._walking_polygon_cells(index, origin, H3.API.cellToLatLng(origin), limit)
+same_walks(a, b) = length(a) == length(b) && all(x === y for (x, y) in zip(a, b))
+
 @testset "Walking graph index versus brute force" begin
     rng = MersenneTwister(7301)
     for resolution in (7, 9)
@@ -112,6 +116,7 @@ end
             for limit in (1, 600_000, 3_600_000, 7_200_000)
                 actual = walking_cells(index, origin, limit)
                 @test actual == brute_walks(reference_cells, origin, limit)
+                @test same_walks(actual, polygon_walks(index, origin, limit))
                 @test length(unique(h.cell for h in actual)) == length(actual)
                 @test all(h -> h.cell != origin && h.duration_ms <= limit, actual)
             end
@@ -132,8 +137,57 @@ end
         origins = [rand(rng, cells, 30); cell_at(90, 0, resolution);
                    cell_at(-90, 0, resolution); cell_at(0, 180, resolution)]
         for origin in origins, limit in (3_600_000, 36_000_000, Reachability.MAX_BUDGET_MS)
-            @test walking_cells(index, origin, limit) == brute_walks(cells, origin, limit)
+            actual = walking_cells(index, origin, limit)
+            @test same_walks(actual, brute_walks(cells, origin, limit))
+            @test same_walks(actual, polygon_walks(index, origin, limit))
         end
+    end
+end
+
+@testset "Certified disks versus polygon fill and random cutoffs" begin
+    rng = MersenneTwister(7304)
+    for resolution in (5, 6, 7)
+        origins = [cell_at(45 + 10rand(rng), -5 + 20rand(rng), resolution) for _ in 1:300]
+        append!(origins, [cell_at(rad2deg(asin(2rand(rng) - 1)), 360rand(rng) - 180, resolution) for _ in 1:300])
+        pentagons = zeros(UInt64, 12)
+        @test iszero(H3.Lib.getPentagons(resolution, pentagons))
+        for pentagon in pentagons
+            append!(origins, disk(pentagon, 1))
+        end
+        append!(origins, [cell_at(lat, lon, resolution) for lat in (-90, -89.96, 0, 89.96, 90)
+                         for lon in (-179.999, -90, 0, 90, 179.999)])
+        index = WalkingIndex(graph_of([first(origins)]))
+        for origin in unique(origins)
+            # An independent destination selects cutoffs that exercise inclusion
+            # even when the default walk has no neighbors at coarse resolutions.
+            boundary = rand(rng, brute_walks(disk(origin, 2), origin, Reachability.MAX_BUDGET_MS))
+            for limit in (0, 1, 3_600_000, 7_200_000, rand(rng, 1:7_200_000),
+                          Int(boundary.duration_ms) - 1, Int(boundary.duration_ms))
+                actual = walking_cells(index, origin, limit)
+                @test same_walks(actual, polygon_walks(index, origin, limit))
+                @test (boundary.cell in getproperty.(actual, :cell)) == (boundary.duration_ms <= limit)
+            end
+        end
+    end
+end
+
+@testset "Certified disk selection and unrestricted fallback" begin
+    for resolution in (5, 6, 7, 9)
+        origin = cell_at(51.5, -0.1, resolution)
+        centre = H3.API.cellToLatLng(origin)
+        index = WalkingIndex(graph_of([origin]))
+        candidates = Reachability._walking_disk(origin, centre, 3_600_000)
+        if resolution == 9
+            @test isnothing(candidates)
+            actual = walking_cells(index, origin)
+            @test any(h -> !(h.cell in disk(origin, 8)), actual)
+            @test same_walks(actual, polygon_walks(index, origin, 3_600_000))
+        else
+            @test !isnothing(candidates)
+            @test same_walks(brute_walks(filter(!iszero, candidates), origin, 3_600_000),
+                             polygon_walks(index, origin, 3_600_000))
+        end
+        @test walking_cells(index, origin, big(3_600_000)) == walking_cells(index, origin)
     end
 end
 

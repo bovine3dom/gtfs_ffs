@@ -1,5 +1,4 @@
-"""Independent walking searches with shared geometry and chronological window aggregation."""
-function route_window_walking(graph::Graph, origin::UInt64, departure_ms::Integer,
+function _walking_window_plan(graph::Graph, origin::UInt64, departure_ms::Integer,
                               budget_ms::Integer, window_ms::Integer;
                               step_ms::Integer=60_000, max_walk_s::Integer=3600,
                               walking_index::Union{Nothing,WalkingIndex}=nothing)
@@ -12,22 +11,44 @@ function route_window_walking(graph::Graph, origin::UInt64, departure_ms::Intege
     budget = UInt32(budget_ms)
     limit = min(_walking_limit(max_walk_s), budget)
     index = isnothing(walking_index) ? WalkingIndex(graph) : walking_index
-    topology = WalkingTopology(index, limit)
-    penalty = UInt64(samples) * UInt64(budget)
+    index.resolution == graph.resolution && index.cells == graph.h3 ||
+        throw(ArgumentError("walking index does not match graph"))
+    return (; ready, budget, step, samples, index, limit=UInt32(limit))
+end
+
+"""Independent walking searches with shared geometry and chronological window aggregation."""
+function route_window_walking(graph::Graph, origin::UInt64, departure_ms::Integer,
+                              budget_ms::Integer, window_ms::Integer;
+                              step_ms::Integer=60_000, max_walk_s::Integer=3600,
+                              walking_index::Union{Nothing,WalkingIndex}=nothing)
+    plan = _walking_window_plan(graph, origin, departure_ms, budget_ms, window_ms;
+                                step_ms, max_walk_s, walking_index)
+    (; ready, budget, step, samples) = plan
+    topology = WalkingTopology(plan.index, plan.limit)
     acc = Dict{UInt64,Tuple{UInt64,UInt32,Float64}}()
     for sample in 0:(samples - 1)
         time = UInt32(Int64(ready) + sample * step)
         point = _walking_route_at(graph, topology, origin, time, time + budget)
-        for i in eachindex(point.h3)
-            cell = point.h3[i]
-            total, reached, km = get(acc, cell, (penalty, UInt32(0), NaN))
-            total -= UInt64(budget - (point.arrival[i] - time))
-            reached += UInt32(1)
-            km = reached == 1 ? point.distance_km[i] :
-                km + (point.distance_km[i] - km) * (1 / reached)
-            acc[cell] = (total, reached, km)
-        end
+        _accumulate_walking!(acc, point, time, budget, samples)
     end
+    return _finish_walking_window(acc, samples; budget, searches=samples,
+                                  reused_samples=0, backend="walking_reference", workers=1)
+end
+
+function _accumulate_walking!(acc, point, ready, budget, samples)
+    penalty = UInt64(samples) * UInt64(budget)
+    for i in eachindex(point.h3)
+        cell = point.h3[i]
+        total, reached, km = get(acc, cell, (penalty, UInt32(0), NaN))
+        total -= UInt64(budget - (point.arrival[i] - ready))
+        reached += UInt32(1)
+        km = reached == 1 ? point.distance_km[i] :
+            km + (point.distance_km[i] - km) * (1 / reached)
+        acc[cell] = (total, reached, km)
+    end
+end
+
+function _finish_walking_window(acc, samples; budget, kwargs...)
     h3 = sort!(collect(keys(acc)))
     elapsed_sum_ms = [acc[cell][1] for cell in h3]
     reachable_samples = [acc[cell][2] for cell in h3]
@@ -36,6 +57,5 @@ function route_window_walking(graph::Graph, origin::UInt64, departure_ms::Intege
     reachable_elapsed_ms = [(elapsed_sum_ms[i] - UInt64(samples - reachable_samples[i]) * UInt64(budget)) /
                             reachable_samples[i] for i in eachindex(h3)]
     return (; h3, elapsed_ms, reachable_elapsed_ms, distance_km, reachable_samples,
-            sample_count=UInt32(samples), elapsed_sum_ms, searches=samples,
-            reused_samples=0, backend="walking_reference", workers=1)
+            sample_count=UInt32(samples), elapsed_sum_ms, kwargs...)
 end

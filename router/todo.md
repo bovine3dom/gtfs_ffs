@@ -4,11 +4,26 @@ Frontend tasks are tracked in [H3-MON/todo.md](../../H3-MON/todo.md).
 
 ## Estimated Walking: Findings and Next Deliverables
 
-Status: geometry, CPU point/window baseline and HTTP walking are implemented. Real
+Status: geometry, CPU point/window routing and HTTP walking are implemented. Real
 res5/res6/res7 validation and timings are in [walking results](walking-results.md).
-Walking-aware catch-up remains pending; walking requests use independent CPU searches
-with shared geometry, not the transit-only cache. Multi-origin work and GPU changes
-remain deferred.
+Walking windows now default to parallel two-state catch-up with shared geometry and
+fresh canonical km replay. The independent CPU window oracle remains available.
+Multi-origin work and GPU changes remain deferred.
+
+Optimization findings and measurements: [walking optimization results](walking-optimization-results.md).
+The old res7 12-sample profile attributed 92% of routing time to geographic enumeration
+and only 5% to graph search. Clipped radii were not cached: 11,023 builds for 2,280
+unique eligible cells. Partial-coverage reuse, certified small disks and backward
+repair remove that repeated work. Shared geometry avoids per-worker duplication;
+staggered preparation avoids workers queuing behind the same cell. Full-day minute
+sampling with a three-hour budget improved from 34.11s to 1.32s on four workers,
+with exact original-output parity. No resource caps were restored.
+
+Current verification: **49,749 checks passed with both one and four Julia threads**,
+including geometry/polygon parity, two-state replay and overflow, shared-cache
+publication/recovery, and live concurrent HTTP parity. Real res7 comparisons cover
+12/1,440 samples with a three-hour budget and 12 samples with a seven-day budget.
+The actual `serve.jl` launcher also passed an HTTP smoke test with four workers.
 
 Verification after resource-cap removal: **15,896 checks passed with both one and four
 Julia threads**, including
@@ -82,7 +97,7 @@ Real res7 validation independently matched all 68,783 graph labels and
 - [x] **3. Window correctness baseline.** Run independent walking-aware point searches
   per sampled departure; preserve capped times, coverage, kilometres and rank-of-means
   output. Do not apply the transit-only grouping/cache until validated for walks.
-- [ ] **4. Walking-aware reuse.** Adapt state, connection caches and canonical replay;
+- [x] **4. Walking-aware reuse.** Adapt state, connection caches and canonical replay;
   prove equivalence to deliverable 3 before restoring parallel catch-up performance.
 - [x] **5. Service configuration.** Expose and document the maximum hop duration, with
   `max_walk_s=3600` by default and `0` disabling walking. Reuse the spatial index and
@@ -97,7 +112,10 @@ Real res7 validation independently matched all 68,783 graph labels and
 Input limits remain: 0..604800 seconds per hop, seven-day journey budget, one-day
 window and existing sample limits. Provisional resource caps and their HTTP 422
 handling have been removed; large valid requests may use substantial memory and CPU.
-Walking-aware catch-up remains the next routing optimization, with baseline parity required.
+Further walking work should profile replay, output construction and aggregation;
+serial aggregation was about 13-16% of the optimized four-worker probes, not most
+of the tail. Point-query geography remains serial. Frontend/transfer time was not
+profiled and must not be inferred from these backend measurements.
 With centre-based estimates,
 the default 5 km hop may reach no neighbouring res5 centre; verify useful walking
 coverage on finer graphs rather than silently changing the distance model.

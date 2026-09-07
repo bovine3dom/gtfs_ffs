@@ -6,7 +6,8 @@ import Atomix
 
 export Graph, pack_graph, route_cpu, route_details, route_window, route_window_cached,
        KernelRouter, route_kernel!, WindowKernelRouter, route_window_kernel!, make_handler,
-       WalkingIndex, walking_neighbors, walking_cells, route_walking, route_window_walking
+       WalkingIndex, walking_neighbors, walking_cells, route_walking, route_window_walking,
+       route_window_walking_cached
 
 const RESOLUTION = 5
 const PERIOD = UInt32(86_400_000)
@@ -213,6 +214,7 @@ include("window_gpu.jl")
 include("walking_geometry.jl")
 include("walking.jl")
 include("walking_window.jl")
+include("walking_catchup.jl")
 
 function parse_query(uri, graph)
     pairs = HTTP.queryparampairs(uri.query)
@@ -335,7 +337,9 @@ end
 
 """An in-process HTTP handler with a resident walking index and locked routing workspaces."""
 function make_handler(graph::Graph; route=(h, t, b) -> route_cpu(graph, h, t, b),
-                      window_route=(h, t, b, w, s) -> route_window_cached(graph, h, t, b, w; step_ms=s))
+                      window_route=(h, t, b, w, s) -> route_window_cached(graph, h, t, b, w; step_ms=s),
+                      walking_window_route=(h, t, b, w, s, m, index) -> route_window_walking_cached(
+                          graph, h, t, b, w; step_ms=s, max_walk_s=m, walking_index=index))
     walking_index = WalkingIndex(graph)
     request_lock = ReentrantLock()
     return function (request)
@@ -360,10 +364,10 @@ function make_handler(graph::Graph; route=(h, t, b) -> route_cpu(graph, h, t, b)
         return lock(request_lock) do
             body = begin
                 if window > 0
-                    result = max_walk_s > 0 ? route_window_walking(graph, origin, ready, budget, window;
-                        step_ms=step, max_walk_s, walking_index) : window_route(origin, ready, budget, window, step)
+                    result = max_walk_s > 0 ? walking_window_route(origin, ready, budget, window,
+                        step, max_walk_s, walking_index) : window_route(origin, ready, budget, window, step)
                     strategy = hasproperty(result, :backend) ? result.backend : "origin"
-                    backend = strategy in ("origin", "catchup", "walking_reference") ? "reference" : strategy
+                    backend = strategy in ("origin", "catchup", "walking_reference", "walking_catchup") ? "reference" : strategy
                     append!(headers, ["X-Router-Backend" => backend,
                         "X-Router-Window-Strategy" => strategy,
                         "X-Router-Searches" => string(result.searches),

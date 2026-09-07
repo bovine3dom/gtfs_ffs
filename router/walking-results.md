@@ -1,5 +1,9 @@
 # Real-Data Walking Baseline
 
+This report records the original walking baseline. The current default window backend
+is parallel walking-aware catch-up; see [walking optimization results](walking-optimization-results.md)
+for updated profiles, exact parity checks and timings.
+
 Measured 2026-09-07 on the working-tree walking implementation based on commit
 `3330ddf2daac38e5477e71b9ba613dd4f7ec4cb9`. No router implementation or data was
 changed for this benchmark. All assertions passed; all three graphs completed

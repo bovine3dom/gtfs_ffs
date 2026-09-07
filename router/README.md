@@ -76,8 +76,9 @@ With walking disabled (`max_walk_s=0`), `ROUTER_BACKEND=cpu` is the default and 
 `ROUTER_BACKEND=oneapi` selects Intel GPU kernels for arrival-only point queries.
 oneAPI is imported only when the point or window backend explicitly requests it;
 CPU-only launch does not initialize it. The environment pins oneAPI.jl to `2.7.2`.
-Walking requests always use the two-state CPU reference, regardless of configured
-point/window backends. They never silently run a transit-only kernel.
+Walking requests always use two-state CPU routing, never transit-only GPU kernels.
+Walking windows use parallel catch-up by default; `ROUTER_WINDOW_BACKEND=origin`
+selects the independent walking reference for comparison.
 On this machine, launch with the required legacy-driver prefix:
 
 ```sh
@@ -139,7 +140,11 @@ destinations, not stepping stones for chained walking.
 ```
 
 The service retains one spatial index. Request-local caches share geometry between
-window samples; no walking arrival-label reuse or GPU routing is enabled yet.
+window samples and workers. Partial-radius coverage is retained and reused whenever
+it covers the requested radius. Small geographic expansions use a local H3 disk only
+after certifying that its outer cell polygons cannot intersect the walking area;
+uncertified or larger expansions fall back to complete polygon enumeration. The disk
+attempts are a fast path, not an output bound or an average-edge-length approximation.
 By user choice, walking has no resource caps on output cells, geographic candidates,
 work or request-local geometry caches. Large valid requests may consume substantial
 memory and CPU; results are not silently truncated. The existing seven-day journey
@@ -149,11 +154,14 @@ limit. `X-Router-Distance` is `connection-sum+estimated-walk-km` with transit di
 data, or `partial-estimated-walk-km` without it. Pure walks still have known km;
 itineraries using transit without distance data have `NaN`, including later egress.
 
-Direct Julia APIs are `route_walking` and `route_window_walking`, with `max_walk_s`
+Direct Julia APIs are `route_walking`, `route_window_walking` (independent reference),
+and `route_window_walking_cached` (optimized windows), with `max_walk_s`
 and optional resident `walking_index=WalkingIndex(graph)` keywords.
 They return a sorted `h3` vector alongside aligned result columns. Existing
 `route_cpu`, `route_details`, `route_window` and kernel APIs remain transit-only.
 See [walking results](walking-results.md) for real res5/res6/res7 validation and timings.
+See [walking optimization results](walking-optimization-results.md) for before/after
+profiles, exact original-output parity, worker scaling and remaining bottlenecks.
 
 **Departure Windows**
 Add `window_s` to average departures in `[departure, departure + window_s)`.
@@ -187,11 +195,24 @@ unknown samples are not excluded from that mean. With walking disabled,
 The internal `route_window` result includes every graph node, assigning the full budget
 to never-reachable nodes; the HTTP output omits those nodes as before.
 
-Walking windows run independent two-state searches per departure, including geographic
-egress, then average the collapsed per-cell results chronologically. They report
-`X-Router-Backend: reference`, `X-Router-Window-Strategy: walking_reference`, one worker,
-one search per sample and zero reused samples. This correctness baseline is slower
-than transit-only catch-up; walking-aware catch-up remains pending.
+Walking windows process chronological chunks backward, repairing both arrival and
+walking-eligible labels and caching selected transit connections. Fresh canonical km
+replay preserves itinerary ties, missing distances and overflow checks even when
+unchanged downstream arrivals have different prefix distances. Geographic egress is
+still evaluated per departure, then collapsed results are aggregated chronologically.
+
+They report `X-Router-Backend: reference`, `X-Router-Window-Strategy: walking_catchup`,
+and actual workers/full searches/repairs/profile lookups. `X-Router-Searches` remains
+the sample count and `X-Router-Reused-Samples` remains zero: reuse is downstream repair,
+not transit-only origin grouping. `ROUTER_WINDOW_CHUNK` and `ROUTER_WINDOW_WORKERS`
+also control walking catch-up. Short windows use smaller chunks to expose parallelism.
+
+Routing workspaces remain worker-private. Geometry is shared within a request using
+per-cell build locks and lock-free private cache hits. Workers prepare different parts
+of the geographic surface first to avoid all waiting for the same cell. All tasks
+join before results are consumed or errors propagate; aggregation preserves exact
+chronological means. The serial oracle remains available through
+`ROUTER_WINDOW_BACKEND=origin`, reporting `walking_reference`.
 
 With `max_walk_s=0`, window routing is selected independently of `ROUTER_BACKEND`:
 
@@ -224,7 +245,8 @@ env ZE_ENABLE_ALT_DRIVERS=/usr/lib/libze_intel_gpu_legacy1.so.1 ROUTER_BACKEND=r
 
 Distance-bearing point queries still use CPU Dijkstra regardless of backend selection.
 `make_handler` accepts a separate `window_route` callback, defaulting to CPU catchup
-with up to four available workers.
+with up to four available workers. Its `walking_window_route(h, t, b, w, s, max_walk_s,
+walking_index)` callback defaults to walking catch-up and receives the resident index.
 CPU `origin` and `catchup` windows retain `X-Router-Backend: reference`;
 `X-Router-Window-Strategy` distinguishes `origin`, `catchup`, `gpu_batched`, and
 `ka_cpu_batched`. `X-Router-Searches` and `X-Router-Reused-Samples` retain their

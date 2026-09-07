@@ -237,4 +237,5 @@ end
 
 include("walking_geometry_tests.jl")
 include("walking_tests.jl")
+include("walking_catchup_tests.jl")
 include("walking_http_tests.jl")

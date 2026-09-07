@@ -114,12 +114,49 @@ function _walking_check_h3(code)
     iszero(code) || error("H3 walking enumeration failed: $(H3.API.describeH3Error(code))")
 end
 
+function _walking_disk(origin, centre, max_walk_ms)
+    radius = Float64(max_walk_ms) / WALK_MS_PER_KM + 1e-6 # 1 mm discovery-only guard
+    boundary = Ref{H3.Lib.CellBoundary}()
+    # These attempts bound fast-path work, not output; failure uses polygon fill.
+    for k in (1, 2, 4, 8)
+        size = H3.API.maxGridDiskSize(k)::Int64
+        cells, distances = zeros(UInt64, size), zeros(Cint, size)
+        _walking_check_h3(H3.Lib.gridDiskDistances(origin, k, cells, distances))
+        certified = true
+        for i in eachindex(cells)
+            (iszero(cells[i]) || distances[i] != k) && continue
+            c = H3.API.cellToLatLng(cells[i])::H3.API.LatLng
+            d = H3.Lib.greatCircleDistanceKm(Ref(centre), Ref(c))
+            certified = d > radius
+            certified || break
+            _walking_check_h3(H3.Lib.cellToBoundary(cells[i], boundary))
+            circumradius = 0.0
+            for j in 1:boundary[].numVerts
+                circumradius = max(circumradius,
+                    H3.Lib.greatCircleDistanceKm(Ref(c), Ref(boundary[].verts[j])))
+            end
+            # H3 includes face-crossing vertices, so every boundary segment is a
+            # short great-circle arc. A vertex-enclosing cap below a hemisphere
+            # is geodesically convex and contains the whole cell polygon.
+            certified = circumradius < pi / 2 * WALK_EARTH_RADIUS_KM && d > radius + circumradius
+            certified || break
+            cells[i] = 0 # The certified outer cell cannot be a destination.
+        end
+        # A cap disjoint from the outer ring cannot cross it to reach outside
+        # this disk. An empty outer ring means the connected globe is covered.
+        certified && return cells
+    end
+    return nothing
+end
+
 """
     walking_cells(index, origin::UInt64, max_walk_ms::Integer=DEFAULT_MAX_WALK_MS)
 
 Return all geographic destinations, including nonnetwork cells, in the same
 format and with the same exact cutoff as `walking_neighbors`. Self is excluded.
-Conservative spherical-cap rectangles are filled by H3, then distance-filtered.
+A small grid disk is used only when its outer cell polygons provably miss the
+walking cap; otherwise conservative spherical-cap rectangles are filled by H3.
+Both paths use the same exact distance filter.
 """
 function walking_cells(index::WalkingIndex, origin::UInt64,
                         max_walk_ms::Integer=DEFAULT_MAX_WALK_MS)
@@ -127,6 +164,18 @@ function walking_cells(index::WalkingIndex, origin::UInt64,
     result = WalkingNeighbor[]
     iszero(max_walk_ms) && return result
     centre = H3.API.cellToLatLng(origin)::H3.API.LatLng
+    candidates = _walking_disk(origin, centre, max_walk_ms)
+    isnothing(candidates) && return _walking_polygon_cells(index, origin, centre, max_walk_ms)
+    for cell in candidates
+        (iszero(cell) || cell == origin) && continue
+        hop = _walking_neighbor(origin, cell, centre, H3.API.cellToLatLng(cell)::H3.API.LatLng, max_walk_ms)
+        isnothing(hop) || push!(result, hop)
+    end
+    return sort!(result; by=hop -> hop.cell)
+end
+
+function _walking_polygon_cells(index, origin, centre, max_walk_ms)
+    result = WalkingNeighbor[]
     rectangles = _walking_rectangles(centre, max_walk_ms)
     seen = Set{UInt64}()
     for vertices in rectangles

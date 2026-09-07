@@ -90,7 +90,9 @@ end
                 @test HTTP.header(explicit, "Access-Control-Allow-Origin") == "*"
                 @test HTTP.header(explicit, "Cache-Control") == "no-store"
                 if window
-                    for (name, value) in (("Window-Strategy", "walking_reference"), ("Searches", "5"), ("Reused-Samples", "0"), ("Workers", "1"))
+                    nworkers = min(4, Threads.nthreads(:default), 5)
+                    nworkers = min(nworkers, cld(5, cld(5, nworkers)))
+                    for (name, value) in (("Window-Strategy", "walking_catchup"), ("Searches", "5"), ("Reused-Samples", "0"), ("Workers", string(nworkers)))
                         @test HTTP.header(explicit, "X-Router-$name") == value
                         @test occursin("X-Router-$name", HTTP.header(explicit, "Access-Control-Expose-Headers"))
                     end
@@ -153,6 +155,31 @@ end
         @test ids(Arrow.Table(response.body)) == [a]
         @test !(:distance_km in propertynames(Arrow.Table(response.body)))
         @test HTTP.header(response, "X-Router-Distance") == "unavailable"
+    end
+
+    @testset "Live walking catch-up and reference parity" begin
+        graph, a, b, _ = fixture()
+        reference = make_handler(graph; walking_window_route=(h, t, budget, w, s, m, index) ->
+            route_window_walking(graph, h, t, budget, w; step_ms=s, max_walk_s=m, walking_index=index))
+        handler = make_handler(graph)
+        targets = ["/reachable?index=$(H3.API.h3ToString(origin))&departure=00:00:00&budget_s=600&window_s=121&step_s=30&encoding=$encoding&metric=$metric&max_walk_s=$seconds"
+                   for (origin, encoding, metric, seconds) in
+                   ((a, "string", "time", 3600), (b, "split", "distance_time_quantile", 300),
+                    (a, "split", "time", 300), (a, "string", "distance_time_quantile", 3600))]
+        server = HTTP.serve!(handler, "127.0.0.1", 0; listenany=true, verbose=-1)
+        try
+            tasks = [@async HTTP.get("http://127.0.0.1:$(HTTP.port(server))$target") for target in targets]
+            for (target, task) in zip(targets, tasks)
+                response = fetch(task)
+                @test response.status == 200
+                @test response.body == reference(HTTP.Request("GET", target)).body
+                @test HTTP.header(response, "X-Router-Window-Strategy") == "walking_catchup"
+                @test parse(Int, HTTP.header(response, "X-Router-Full-Searches")) +
+                      parse(Int, HTTP.header(response, "X-Router-Repair-Searches")) == 5
+            end
+        finally
+            close(server)
+        end
     end
 
     @testset "Validation and window union" begin

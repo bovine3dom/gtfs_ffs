@@ -241,12 +241,13 @@ end
         end
         for cell in graph.h3, geographic in (false, true)
             cache = geographic ? topology.coverage : topology.neighbors
-            @test Reachability._walking_hops(topology, cell; geographic) === cache[cell]
+            @test Reachability._walking_hops(topology, cell; geographic) === cache[cell][2]
         end
         fresh = Reachability.WalkingTopology(index, 1000seconds)
-        Reachability._walking_hops(fresh, a; geographic=true, limit=500seconds)
-        @test isempty(fresh.coverage)
-        @test Reachability._walking_hops(fresh, a; geographic=true) == topology.coverage[a]
+        partial = Reachability._walking_hops(fresh, a; geographic=true, limit=500seconds)
+        @test fresh.coverage[a] == (UInt32(500seconds), partial)
+        @test Reachability._walking_hops(fresh, a; geographic=true, limit=250seconds) === partial
+        @test Reachability._walking_hops(fresh, a; geographic=true) == topology.coverage[a][2]
     end
 
     @testset "Window union and independent chronological means" begin
