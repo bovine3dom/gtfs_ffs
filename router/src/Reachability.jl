@@ -214,6 +214,7 @@ include("window_gpu.jl")
 include("walking_geometry.jl")
 include("walking.jl")
 include("walking_window.jl")
+include("walking_output.jl")
 include("walking_catchup.jl")
 
 function parse_query(uri, graph)

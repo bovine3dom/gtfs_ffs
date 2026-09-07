@@ -147,6 +147,16 @@ graph targets are precomputed integer node IDs. Up to four Julia threads build p
 lists, then pack deterministically. This adds startup time and retained memory
 proportional to the full adjacency, especially at fine resolutions, without resource caps.
 
+Prepared catch-up windows also use stable integer IDs for the union of graph and
+geographic destinations. Per-worker arrival/km arrays reset only touched output slots;
+reusable sample buffers hold IDs instead of H3 keys. Geographic reduction and
+chronological incremental means use arrays, and only the final reachable H3 union is
+sorted. Off-graph origins enumerate direct geographic destinations once per request
+and extend the output IDs locally, without losing the indexed graph egress path.
+Larger hop limits and unprepared indexes retain the exact dictionary fallback.
+The independent `route_window_walking` oracle and point API remain unchanged.
+Search counters and the `walking_catchup` HTTP strategy retain their existing meanings.
+
 Prepared hits borrow read-only ranges without geometry calls or cache locks. Both the
 requested hop limit and remaining budget filter these ranges. Requests above the
 prepared radius and off-graph origins use the existing exact geometry and request-local
@@ -180,6 +190,8 @@ See [walking optimization results](walking-optimization-results.md) for before/a
 profiles, exact original-output parity, worker scaling and remaining bottlenecks.
 See [resident adjacency results](walking-adjacency-results.md) for preparation cost,
 memory and matched prepared/unprepared/no-walk benchmarks.
+See [indexed output results](walking-output-results.md) for the actual all-modes res7
+96-sample, seven-day workload, phase profile and exact same-graph comparisons.
 
 **Departure Windows**
 Add `window_s` to average departures in `[departure, departure + window_s)`.

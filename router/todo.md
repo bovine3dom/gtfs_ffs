@@ -4,6 +4,44 @@ Frontend tasks are tracked in [H3-MON/todo.md](../../H3-MON/todo.md).
 
 ## Estimated Walking: Findings and Next Deliverables
 
+### Indexed Output Milestones (2026-09-07)
+
+- [x] Inspected clean baseline `66a7a2d2a0532fb9137f80a725743676520d0ada`, all walking
+  sources and prior adjacency/reuse measurements. Machine has 64 GiB RAM, about
+  44 GiB available; live eight-thread server retains about 12.2 GiB RSS and will
+  not be signalled, stopped or queried by the benchmark.
+- [x] Read frontend defaults without changing them: seven-day budget, midnight,
+  one-day window, 900-second step (96 samples), distance/time quantiles, 3600-second
+  walking. Actual browser state is unknown; representative Paris origin will be
+  reported explicitly. Previous small rail-only measurements do not cover this workload.
+- [x] Profile prepared `everything_res7.arrow` before production edits.
+  Baseline actual-graph warmed median: 26.816 s (25.493/26.816/26.880),
+  17,624 MiB cumulative allocation, 732,512 output cells. Packing took 202.351 s;
+  preparation 7.930 s including compilation. Graph: 371,202 vertices, 1,428,854
+  directed edges, 178,493,346 profile entries. Probe wall 25.517 s; summed worker
+  elapsed times: repair 6.118 s, replay 31.672 s, geographic dictionary 26.130 s,
+  seed 1.373 s, point sorting/materialization 9.755 s. Serial aggregation 6.077 s,
+  finish 0.107 s. Worker elapsed sums overlap and include waiting, not wall-time
+  percentages or measured CPU time. No geometry builds or cache misses. Quantile
+  serialization median 0.413 s, 52,742,938 bytes; time serialization 0.020 s.
+- [x] Implement stable geographic output IDs and chronological array aggregation.
+  Graph IDs remain a prefix of a resident union; packed integer geographic targets
+  share durations/offsets/km. Off-graph direct geography extends IDs once per request.
+  Workspaces reset touched arrival slots and reuse 16-byte-per-cell point columns;
+  reduction preserves strict comparisons and traversal order. Only the final union
+  is sorted. Larger radii/unprepared indexes retain the exact dictionary engine.
+  Full suites passed 58,057 checks each with one and four threads, including 5,424
+  new indexed-output checks and whole HTTP-body parity for both metrics.
+- [x] Verify exact oracle/HTTP parity, thread suites and same-graph old/new benchmarks.
+  Matched actual-input four-worker median: 26.528 -> 11.519 s (2.30x), allocations
+  17,624 -> 4,585 MiB. Eight requested workers: 8.233 s, exact parity; default
+  stays four. Twelve-sample regression: 16.969 -> 15.955 ms, but sparse allocation
+  increases because output scratch spans the full universe. Eight-thread selected
+  suites passed 10,159 checks. Supplemental probe: aggregation 0.195 s, indexed
+  output 3.565 summed worker seconds; replay dominates at 32.587 worker seconds.
+  See [indexed output results](walking-output-results.md) for raw samples, payload
+  size, startup/retained memory, reset microprobe caveats and remaining limitations.
+
 Resident packed adjacency is verified: explicit `prepare_walking(index)`, eager handler
 preparation, canonical geographic order and precomputed graph IDs. Both one- and
 four-thread full suites passed **52,633 checks**, including 2,884 new adjacency checks.

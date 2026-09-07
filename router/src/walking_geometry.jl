@@ -16,6 +16,9 @@ struct WalkingAdjacency
     node_id::Dict{UInt64,Int32}
     geographic::PackedWalking{UInt64}
     graph::PackedWalking{Int32}
+    output_cells::Vector{UInt64}
+    output_id::Dict{UInt64,Int32}
+    output::PackedWalking{Int32}
 end
 
 # Borrowed, read-only ranges: no neighbor-vector copies on a prepared hit.
@@ -105,8 +108,20 @@ function prepare_walking(index::WalkingIndex; max_walk_s::Integer=3600,
         push!(geographic.offsets, length(geographic.targets) + 1)
         push!(network.offsets, length(network.targets) + 1)
     end
+    # Graph IDs stay a prefix; geographic IDs follow first canonical discovery.
+    output_cells, output_id = copy(index.cells), copy(node_id)
+    targets = Int32[]
+    sizehint!(targets, length(geographic.targets))
+    for cell in geographic.targets
+        id = get!(output_id, cell) do
+            push!(output_cells, cell)
+            Int32(length(output_cells))
+        end
+        push!(targets, id)
+    end
+    output = PackedWalking(geographic.offsets, targets, geographic.durations, geographic.distances)
     return WalkingIndex(index.cells, index.centres, index.bins, index.resolution,
-                        WalkingAdjacency(limit, node_id, geographic, network))
+                        WalkingAdjacency(limit, node_id, geographic, network, output_cells, output_id, output))
 end
 
 function _walking_validate(index, origin, max_walk_ms)

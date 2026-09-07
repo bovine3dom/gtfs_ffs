@@ -266,4 +266,6 @@ end
     end
 end
 
+include("walking_output_tests.jl")
+
 end # module

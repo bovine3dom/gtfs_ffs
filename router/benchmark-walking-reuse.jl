@@ -70,7 +70,7 @@ end
 module Probe
 using DataStructures, H3
 const R = Main.Reachability
-for name in (:Graph, :WalkingIndex, :WalkingNeighbor, :WalkingRange, :INF, :PERIOD, :MAX_BUDGET_MS,
+for name in (:Graph, :WalkingIndex, :WalkingNeighbor, :WalkingRange, :PackedWalking, :INF, :PERIOD, :MAX_BUDGET_MS,
              :query_times, :next_connection, :walking_neighbors)
     @eval const $name = R.$name
 end
@@ -81,6 +81,7 @@ Base.@kwdef mutable struct Metrics
     seed_ns::UInt64 = 0
     egress_ns::UInt64 = 0
     output_ns::UInt64 = 0
+    indexed_ns::UInt64 = 0
     neighbor_ns::UInt64 = 0
     cells_ns::UInt64 = 0
     disk_ns::UInt64 = 0
@@ -204,6 +205,15 @@ function install_probe()
     window = change(window, "sample_count=UInt32(samples), elapsed_sum_ms, kwargs...)\nend",
         "sample_count=UInt32(samples), elapsed_sum_ms, kwargs...)\n    FINISH_NS[] += time_ns() - started\n    return output\nend")
     Base.include_string(Probe, window, "probe_walking_window.jl")
+    indexed = CURRENT_SOURCES["walking_output.jl"]
+    indexed = change(indexed, "    @inbounds for i in eachindex(point.ids)",
+        "    started = time_ns()\n    @inbounds for i in eachindex(point.ids)")
+    indexed = change(indexed, " * (1 / reached)\n    end\nend", " * (1 / reached)\n    end\n    AGGREGATE_NS[] += time_ns() - started\nend")
+    indexed = change(indexed, "    ids = sort!", "    started = time_ns()\n    ids = sort!")
+    indexed = change(indexed, "    return (; h3,", "    output = (; h3,")
+    indexed = change(indexed, "sample_count=UInt32(samples), elapsed_sum_ms, kwargs...)\nend",
+        "sample_count=UInt32(samples), elapsed_sum_ms, kwargs...)\n    FINISH_NS[] += time_ns() - started\n    return output\nend")
+    Base.include_string(Probe, indexed, "probe_walking_output.jl")
 
     cached = CURRENT_SOURCES["walking_catchup.jl"]
     cached = change(cached, "    outcomes = Vector{Any}", "    WORKSPACES[] = workspaces\n    outcomes = Vector{Any}")
@@ -212,10 +222,13 @@ function install_probe()
     cached = change(cached, "                    profile_lookups += 1", "                    profile_lookups += 1\n                    s.profile_lookups += 1")
     cached = change(cached, "        _walking_catchup_replay!(workspace, graph, origin, source, ready, cutoff)",
         "        s.graph_ns += time_ns() - graph_start\n        replay_start = time_ns()\n        s.replay_visits += _walking_catchup_replay!(workspace, graph, origin, source, ready, cutoff)\n        s.replay_ns += time_ns() - replay_start")
-    cached = change(cached, "        if sample == last && workers > 1",
-        "        if sample == last && workers > 1\n            warming_start = time_ns()\n            warming_requests, warming_builds = s.geo_requests, s.geo_calls\n            s.warming_passes += 1")
-    cached = change(cached, "            end\n        end\n        workspace.points[sample - first + 1] = _walking_result(",
-        "            end\n            s.warming_ns += time_ns() - warming_start\n            s.warming_requests += s.geo_requests - warming_requests\n            s.warming_builds += s.geo_calls - warming_builds\n        end\n        workspace.points[sample - first + 1] = _walking_result(")
+    cached = change(cached, "        if sample == last && workers > 1 && isnothing(workspace.output)",
+        "        if sample == last && workers > 1 && isnothing(workspace.output)\n            warming_start = time_ns()\n            warming_requests, warming_builds = s.geo_requests, s.geo_calls\n            s.warming_passes += 1")
+    cached = change(cached, "            end\n        end\n        point = sample - first + 1",
+        "            end\n            s.warming_ns += time_ns() - warming_start\n            s.warming_requests += s.geo_requests - warming_requests\n            s.warming_builds += s.geo_calls - warming_builds\n        end\n        point = sample - first + 1")
+    cached = change(cached, "            _walking_indexed_result!", "            indexed_start = time_ns()\n            _walking_indexed_result!")
+    cached = change(cached, "topology.limit, arrival, eligible, workspace.kmA, workspace.kmE)\n        end",
+        "topology.limit, arrival, eligible, workspace.kmA, workspace.kmE)\n            s.indexed_ns += time_ns() - indexed_start\n        end")
     Base.include_string(Probe, cached, "probe_walking_catchup.jl")
 end
 install_probe()
