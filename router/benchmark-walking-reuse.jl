@@ -71,7 +71,7 @@ module Probe
 using DataStructures, H3
 const R = Main.Reachability
 for name in (:Graph, :WalkingIndex, :WalkingNeighbor, :WalkingRange, :PackedWalking, :INF, :PERIOD, :MAX_BUDGET_MS,
-             :query_times, :next_connection, :walking_neighbors)
+             :query_times, :next_connection, :walking_neighbors, :_distance_mode, :_od_distances)
     @eval const $name = R.$name
 end
 Base.@kwdef mutable struct Metrics
@@ -197,7 +197,8 @@ function install_probe()
     Base.include_string(Probe, point, "probe_walking.jl")
 
     window = CURRENT_SOURCES["walking_window.jl"]
-    window = change(window, "    penalty = UInt64(samples)", "    started = time_ns()\n    penalty = UInt64(samples)")
+    window = change(window, "function _accumulate_walking!(acc, point, ready, budget, samples)",
+        "function _accumulate_walking!(acc, point, ready, budget, samples)\n    started = time_ns()")
     window = change(window, "        acc[cell] = (total, reached, km)\n    end\nend",
         "        acc[cell] = (total, reached, km)\n    end\n    AGGREGATE_NS[] += time_ns() - started\nend")
     window = change(window, "    h3 = sort!(collect(keys(acc)))", "    started = time_ns()\n    h3 = sort!(collect(keys(acc)))")
@@ -208,7 +209,7 @@ function install_probe()
     indexed = CURRENT_SOURCES["walking_output.jl"]
     indexed = change(indexed, "    @inbounds for i in eachindex(point.ids)",
         "    started = time_ns()\n    @inbounds for i in eachindex(point.ids)")
-    indexed = change(indexed, " * (1 / reached)\n    end\nend", " * (1 / reached)\n    end\n    AGGREGATE_NS[] += time_ns() - started\nend")
+    indexed = change(indexed, " * (1 / reached)\n        end\n    end\nend", " * (1 / reached)\n        end\n    end\n    AGGREGATE_NS[] += time_ns() - started\nend")
     indexed = change(indexed, "    ids = sort!", "    started = time_ns()\n    ids = sort!")
     indexed = change(indexed, "    return (; h3,", "    output = (; h3,")
     indexed = change(indexed, "sample_count=UInt32(samples), elapsed_sum_ms, kwargs...)\nend",
@@ -220,8 +221,8 @@ function install_probe()
     cached = change(cached, "    for sample in last:-1:first", "    s = topology.stats\n    for sample in last:-1:first\n        graph_start = time_ns()")
     cached = change(cached, "            routing_expansions += 1", "            routing_expansions += 1\n            s.routing_expansions += 1")
     cached = change(cached, "                    profile_lookups += 1", "                    profile_lookups += 1\n                    s.profile_lookups += 1")
-    cached = change(cached, "        _walking_catchup_replay!(workspace, graph, origin, source, ready, cutoff)",
-        "        s.graph_ns += time_ns() - graph_start\n        replay_start = time_ns()\n        s.replay_visits += _walking_catchup_replay!(workspace, graph, origin, source, ready, cutoff)\n        s.replay_ns += time_ns() - replay_start")
+    cached = change(cached, "        plan.track_distance && _walking_catchup_replay!(workspace, graph, origin, source, ready, cutoff)",
+        "        s.graph_ns += time_ns() - graph_start\n        replay_start = time_ns()\n        plan.track_distance && (s.replay_visits += _walking_catchup_replay!(workspace, graph, origin, source, ready, cutoff))\n        s.replay_ns += time_ns() - replay_start")
     cached = change(cached, "        if sample == last && workers > 1 && isnothing(workspace.output)",
         "        if sample == last && workers > 1 && isnothing(workspace.output)\n            warming_start = time_ns()\n            warming_requests, warming_builds = s.geo_requests, s.geo_calls\n            s.warming_passes += 1")
     cached = change(cached, "            end\n        end\n        point = sample - first + 1",

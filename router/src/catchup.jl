@@ -5,16 +5,18 @@ Lookup and expansion counters cover arrival routing, not grouping or distance re
 function route_window_cached(graph::Graph, origin::UInt64, departure_ms::Integer,
                              budget_ms::Integer, window_ms::Integer;
                              step_ms::Integer=60_000, chunk_size::Integer=64,
-                             workers::Integer=min(4, Threads.nthreads(:default)))
+                             workers::Integer=min(4, Threads.nthreads(:default)),
+                             distance_mode="itinerary")
+    track = _distance_mode(distance_mode) == :itinerary
     1 <= chunk_size <= 256 || throw(ArgumentError("chunk_size must be between 1 and 256"))
     1 <= workers <= 256 || throw(ArgumentError("workers must be between 1 and 256"))
     plan = _window_plan(graph, origin, departure_ms, budget_ms, window_ms; step_ms)
-    acc = _window_accumulator(graph, plan)
+    acc = _window_accumulator(graph, plan, track)
     groups = length(plan.groups)
     width = min(Int(chunk_size), groups)
     full_searches = cld(groups, Int(chunk_size))
     worker_count = min(Int(workers), Threads.nthreads(:default), full_searches)
-    workspaces = [_catchup_workspace(graph, width) for _ in 1:worker_count]
+    workspaces = [_catchup_workspace(graph, width, track) for _ in 1:worker_count]
     outcomes = Vector{Any}(undef, worker_count)
     profile_lookups = routing_expansions = 0
     for wave in 1:max(worker_count, 1):full_searches
@@ -52,17 +54,18 @@ function route_window_cached(graph::Graph, origin::UInt64, departure_ms::Integer
             end
         end
     end
-    return _finish_window(acc, plan; searches=groups, backend="catchup", full_searches,
+    return _finish_window(acc, plan; searches=groups, origin, cells=graph.h3, backend="catchup", full_searches,
                           repair_searches=groups - full_searches, profile_lookups, routing_expansions,
                           workers=worker_count)
 end
 
-function _catchup_workspace(graph, width)
+function _catchup_workspace(graph, width, track_distance=true)
     vertices = length(graph.h3)
+    replay = track_distance && !isnothing(graph.distance_km)
     return (saved_arrivals=Matrix{UInt32}(undef, vertices, width),
-            saved_distances=isnothing(graph.distance_km) ? nothing : Matrix{Float64}(undef, vertices, width),
-            labels=Vector{UInt32}(undef, vertices), connections=zeros(Int32, length(graph.edge_to)),
-            seen=Vector{UInt32}(undef, vertices), queue=BinaryMinHeap{Tuple{UInt32,Int32}}())
+            saved_distances=replay ? Matrix{Float64}(undef, vertices, width) : nothing,
+            labels=Vector{UInt32}(undef, vertices), connections=replay ? zeros(Int32, length(graph.edge_to)) : nothing,
+            seen=replay ? Vector{UInt32}(undef, vertices) : nothing, queue=BinaryMinHeap{Tuple{UInt32,Int32}}())
 end
 
 function _catchup_chunk!(state, graph, plan, first_group, last_group)
@@ -85,7 +88,7 @@ function _catchup_chunk!(state, graph, plan, first_group, last_group)
                 v == u && continue
                 connection = next_connection(graph.schedule_ptr, graph.departure,
                                              graph.arrival, edge, time, cutoff)
-                connections[edge] = connection
+                isnothing(connections) || (connections[edge] = connection)
                 profile_lookups += 1
                 connection == 0 && continue
                 candidate = (time ÷ PERIOD) * PERIOD + graph.arrival[connection]

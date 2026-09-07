@@ -70,33 +70,37 @@ _walking_node(graph, cell::Int32) = cell
 
 """Walking-aware CPU reference, returning sorted reachable H3 cells, arrivals and km."""
 function route_walking(graph::Graph, origin::UInt64, departure_ms::Integer, budget_ms::Integer;
-                       max_walk_s::Integer=3600, walking_index::Union{Nothing,WalkingIndex}=nothing)
+                       max_walk_s::Integer=3600, walking_index::Union{Nothing,WalkingIndex}=nothing,
+                       distance_mode="itinerary")
+    mode = _distance_mode(distance_mode)
     ready, cutoff = query_times(graph, origin, departure_ms, budget_ms)
     limit = min(_walking_limit(max_walk_s), budget_ms)
     index = isnothing(walking_index) ? WalkingIndex(graph) : walking_index
     topology = WalkingTopology(index, limit)
-    return _walking_route_at(graph, topology, origin, ready, cutoff)
+    result = _walking_route_at(graph, topology, origin, ready, cutoff, mode == :itinerary)
+    return mode == :itinerary ? result : merge(result, (distance_km=_od_distances(origin, result.h3),))
 end
 
-function _walking_route_at(graph, topology, origin, ready::UInt32, cutoff::UInt32)
+function _walking_route_at(graph, topology, origin, ready::UInt32, cutoff::UInt32, track_distance=true)
     topology.index.resolution == graph.resolution && topology.index.cells == graph.h3 ||
         throw(ArgumentError("walking index does not match graph"))
     n = length(graph.h3)
     arrival, eligible = fill(INF, n), fill(INF, n)
-    distance, eligible_distance = fill(NaN, n), fill(NaN, n)
+    distance = track_distance ? fill(NaN, n) : nothing
+    eligible_distance = track_distance ? fill(NaN, n) : nothing
     # State 0 boards transit; state 1 starts a walk. Only transit updates both.
     queue = BinaryMinHeap{Tuple{UInt32,Int32,Int}}()
     source = get(graph.node_id, origin, Int32(0))
     if source != 0
         arrival[source] = eligible[source] = ready
-        distance[source] = eligible_distance[source] = 0.0
+        track_distance && (distance[source] = eligible_distance[source] = 0.0)
         push!(queue, (ready, source, 0), (ready, source, 1))
     else
         for hop in _walking_hops(topology, origin)
             hop.duration_ms <= min(topology.limit, cutoff - ready) || continue
             v = _walking_node(graph, hop.cell)
             arrival[v] = ready + hop.duration_ms
-            distance[v] = hop.distance_km
+            track_distance && (distance[v] = hop.distance_km)
             push!(queue, (arrival[v], v, 0))
         end
     end
@@ -110,12 +114,16 @@ function _walking_route_at(graph, topology, origin, ready::UInt32, cutoff::UInt3
                 candidate = (time ÷ PERIOD) * PERIOD + graph.arrival[connection]
                 v = graph.edge_to[edge]
                 candidate < eligible[v] || continue
-                km = isnothing(graph.distance_km) ? NaN : distance[u] + graph.distance_km[connection]
-                isinf(km) && throw(ArgumentError("accumulated route distance is not finite"))
-                eligible[v], eligible_distance[v] = candidate, km
+                if track_distance
+                    km = isnothing(graph.distance_km) ? NaN : distance[u] + graph.distance_km[connection]
+                    isinf(km) && throw(ArgumentError("accumulated route distance is not finite"))
+                    eligible_distance[v] = km
+                end
+                eligible[v] = candidate
                 push!(queue, (candidate, v, 1))
                 if candidate < arrival[v]
-                    arrival[v], distance[v] = candidate, km
+                    arrival[v] = candidate
+                    track_distance && (distance[v] = km)
                     push!(queue, (candidate, v, 0))
                 end
             end
@@ -124,15 +132,43 @@ function _walking_route_at(graph, topology, origin, ready::UInt32, cutoff::UInt3
                 hop.duration_ms <= min(topology.limit, cutoff - time) || continue
                 candidate, v = time + hop.duration_ms, _walking_node(graph, hop.cell)
                 candidate < arrival[v] || continue
-                km = eligible_distance[u] + hop.distance_km
-                isinf(km) && throw(ArgumentError("accumulated route distance is not finite"))
-                arrival[v], distance[v] = candidate, km
+                if track_distance
+                    km = eligible_distance[u] + hop.distance_km
+                    isinf(km) && throw(ArgumentError("accumulated route distance is not finite"))
+                    distance[v] = km
+                end
+                arrival[v] = candidate
                 push!(queue, (candidate, v, 0))
             end
         end
     end
     return _walking_result(graph, topology, origin, ready, cutoff, arrival, eligible,
                            distance, eligible_distance)
+end
+
+function _walking_result(graph, topology, origin, ready, cutoff, arrival, eligible,
+                         ::Nothing, ::Nothing)
+    result = Dict{UInt64,UInt32}(origin => ready)
+    for v in eachindex(arrival)
+        arrival[v] <= cutoff && (result[graph.h3[v]] = arrival[v])
+    end
+    for u in 0:length(graph.h3)
+        if u == 0
+            haskey(graph.node_id, origin) && continue
+            cell, time = origin, ready
+        else
+            eligible[u] <= cutoff || continue
+            cell, time = graph.h3[u], eligible[u]
+        end
+        limit = min(topology.limit, cutoff - time)
+        for hop in _walking_hops(topology, cell; geographic=true, limit)
+            hop.duration_ms <= limit || continue
+            candidate = time + hop.duration_ms
+            candidate < get(result, hop.cell, INF) && (result[hop.cell] = candidate)
+        end
+    end
+    h3 = sort!(collect(keys(result)))
+    return (; h3, arrival=UInt32[result[h] for h in h3])
 end
 
 function _walking_result(graph, topology, origin, ready, cutoff, arrival, eligible,

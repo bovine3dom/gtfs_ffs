@@ -41,9 +41,10 @@ function _window_plan(graph::Graph, origin::UInt64, departure_ms::Integer,
     return (; source, ready, budget=UInt32(budget), step, samples=Int(samples), cutoff, groups)
 end
 
-function _window_accumulator(graph, plan)
+function _window_accumulator(graph, plan, track_distance=true)
     return (elapsed_sum_ms=fill(UInt64(plan.samples) * UInt64(plan.budget), length(graph.h3)),
-            reachable_samples=zeros(UInt32, length(graph.h3)), distance_km=fill(NaN, length(graph.h3)))
+            reachable_samples=zeros(UInt32, length(graph.h3)),
+            distance_km=track_distance ? fill(NaN, length(graph.h3)) : nothing)
 end
 
 function _accumulate_window!(acc, plan, group, arrivals, distances)
@@ -69,11 +70,11 @@ function _accumulate_window!(acc, plan, group, arrivals, distances)
     return acc
 end
 
-function _finish_window(acc, plan; searches::Int, kwargs...)
+function _finish_window(acc, plan; searches::Int, origin=nothing, cells=nothing, kwargs...)
     if plan.source != 0
         acc.elapsed_sum_ms[plan.source] = 0
         acc.reachable_samples[plan.source] = UInt32(plan.samples)
-        acc.distance_km[plan.source] = 0.0
+        isnothing(acc.distance_km) || (acc.distance_km[plan.source] = 0.0)
     end
     elapsed_ms = Float64.(acc.elapsed_sum_ms) ./ plan.samples
     reachable_elapsed_ms = fill(NaN, length(elapsed_ms))
@@ -83,7 +84,13 @@ function _finish_window(acc, plan; searches::Int, kwargs...)
         conditional_sum = acc.elapsed_sum_ms[vertex] - UInt64(plan.samples - reached) * UInt64(plan.budget)
         reachable_elapsed_ms[vertex] = conditional_sum / reached
     end
-    return (; elapsed_ms, reachable_elapsed_ms, distance_km=acc.distance_km,
+    distance_km = acc.distance_km
+    if isnothing(distance_km)
+        distance_km = fill(NaN, length(elapsed_ms))
+        ids = findall(!iszero, acc.reachable_samples)
+        distance_km[ids] = _od_distances(origin, cells[ids])
+    end
+    return (; elapsed_ms, reachable_elapsed_ms, distance_km,
             reachable_samples=acc.reachable_samples, sample_count=UInt32(plan.samples),
             searches, reused_samples=plan.samples - searches, elapsed_sum_ms=acc.elapsed_sum_ms, kwargs...)
 end

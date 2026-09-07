@@ -65,6 +65,15 @@ else
                                 walking_index=index, chunk_size=chunk, workers)
 end
 
+straight_window_route = (h, t, b, w, s, m, index) -> if m == 0
+    route_window_cached(graph, h, t, b, w; step_ms=s, chunk_size=chunk, workers, distance_mode=:straight_line)
+elseif window_backend == "origin"
+    route_window_walking(graph, h, t, b, w; step_ms=s, max_walk_s=m, walking_index=index, distance_mode=:straight_line)
+else
+    route_window_walking_cached(graph, h, t, b, w; step_ms=s, max_walk_s=m,
+        walking_index=index, chunk_size=chunk, workers, distance_mode=:straight_line)
+end
+
 host = get(ENV, "ROUTER_HOST", "127.0.0.1")
 port = parse(Int, get(ENV, "ROUTER_PORT", "1988"))
 @info "Starting router" host port backend=backend_name resolution=graph.resolution distance_available=!isnothing(graph.distance_km) nodes=length(graph.h3) edges=length(graph.edge_to) profiles=length(graph.departure)
@@ -72,4 +81,5 @@ port = parse(Int, get(ENV, "ROUTER_PORT", "1988"))
 @info "Single-departure route distances use CPU Dijkstra"
 @info "Walking uses CPU routing; window catch-up unless ROUTER_WINDOW_BACKEND=origin" default_max_walk_s=3600 workers chunk
 @info "Preparing resident walking adjacency before accepting requests" max_walk_s=3600 preparation_workers=min(4, Threads.nthreads(:default))
-HTTP.serve(make_handler(graph; route, window_route, walking_window_route), host, port)
+@info "Straight-line distance uses CPU arrival-only routing, including transit-only requests"
+HTTP.serve(make_handler(graph; route, window_route, walking_window_route, straight_window_route), host, port)

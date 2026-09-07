@@ -1,4 +1,4 @@
-"""Walking windows with backward arrival repair and fresh canonical distance replay.
+"""Walking windows with backward arrival repair and optional canonical distance replay.
 
 Lookup and expansion counters cover arrival routing, not distance replay or geography.
 """
@@ -7,11 +7,12 @@ function route_window_walking_cached(graph::Graph, origin::UInt64, departure_ms:
                                      step_ms::Integer=60_000, max_walk_s::Integer=3600,
                                      walking_index::Union{Nothing,WalkingIndex}=nothing,
                                      chunk_size::Integer=64,
-                                     workers::Integer=min(4, Threads.nthreads(:default)))
+                                      workers::Integer=min(4, Threads.nthreads(:default)),
+                                      distance_mode="itinerary")
     chunk_size > 0 || throw(ArgumentError("chunk_size must be positive"))
     workers > 0 || throw(ArgumentError("workers must be positive"))
     plan = _walking_window_plan(graph, origin, departure_ms, budget_ms, window_ms;
-                                step_ms, max_walk_s, walking_index)
+                                step_ms, max_walk_s, walking_index, distance_mode)
     worker_count = Int(min(workers, Threads.nthreads(:default), plan.samples))
     width = Int(min(chunk_size, cld(plan.samples, worker_count)))
     full_searches = cld(plan.samples, width)
@@ -20,8 +21,9 @@ function route_window_walking_cached(graph::Graph, origin::UInt64, departure_ms:
     output = _walking_output_plan(plan, origin)
     workspaces = [_walking_catchup_workspace(graph, plan, width, shared, output) for _ in 1:worker_count]
     outcomes = Vector{Any}(undef, worker_count)
-    acc = isnothing(output) ? Dict{UInt64,Tuple{UInt64,UInt32,Float64}}() :
-          WalkingOutputAccumulator(output.cells, plan.samples, plan.budget)
+    acc = isnothing(output) ? (plan.track_distance ? Dict{UInt64,Tuple{UInt64,UInt32,Float64}}() :
+          Dict{UInt64,Tuple{UInt64,UInt32}}()) :
+          WalkingOutputAccumulator(output.cells, plan.samples, plan.budget, plan.track_distance)
     profile_lookups = routing_expansions = 0
     for wave in 1:worker_count:full_searches
         active = min(worker_count, full_searches - wave + 1)
@@ -59,7 +61,7 @@ function route_window_walking_cached(graph::Graph, origin::UInt64, departure_ms:
             end
         end
     end
-    return _finish_walking_window(acc, plan.samples; budget=plan.budget,
+    return _finish_walking_window(acc, plan.samples; budget=plan.budget, origin,
                                   searches=plan.samples, reused_samples=0,
                                   backend="walking_catchup", workers=worker_count, full_searches,
                                   repair_searches=plan.samples - full_searches,
@@ -68,16 +70,19 @@ end
 
 function _walking_catchup_workspace(graph, plan, width, shared=nothing, output=nothing)
     n = length(graph.h3)
-    points = isnothing(output) ?
+    track = plan.track_distance
+    points = !track ? (isnothing(output) ?
+        Vector{@NamedTuple{h3::Vector{UInt64}, arrival::Vector{UInt32}}}(undef, width) :
+        [(ids=Int32[], arrival=UInt32[]) for _ in 1:width]) : isnothing(output) ?
         Vector{@NamedTuple{h3::Vector{UInt64}, arrival::Vector{UInt32}, distance_km::Vector{Float64}}}(undef, width) :
         WalkingIndexedPoint[(ids=Int32[], arrival=UInt32[], distance_km=Float64[]) for _ in 1:width]
     return (arrival=Vector{UInt32}(undef, n), eligible=Vector{UInt32}(undef, n),
-            connections=zeros(Int32, length(graph.edge_to)),
-            seenA=Vector{UInt32}(undef, n), seenE=Vector{UInt32}(undef, n),
-            kmA=Vector{Float64}(undef, n), kmE=Vector{Float64}(undef, n),
+            connections=track ? zeros(Int32, length(graph.edge_to)) : nothing,
+            seenA=track ? Vector{UInt32}(undef, n) : nothing, seenE=track ? Vector{UInt32}(undef, n) : nothing,
+            kmA=track ? Vector{Float64}(undef, n) : nothing, kmE=track ? Vector{Float64}(undef, n) : nothing,
             queue=BinaryMinHeap{Tuple{UInt32,Int32,Int}}(),
             topology=WalkingTopology(plan.index, plan.limit, shared),
-            output=isnothing(output) ? nothing : WalkingOutputWorkspace(output), points=points)
+            output=isnothing(output) ? nothing : WalkingOutputWorkspace(output, track), points=points)
 end
 
 function _walking_catchup_chunk!(workspace, graph, origin, plan, first, last, slot=1, workers=1)
@@ -110,7 +115,7 @@ function _walking_catchup_chunk!(workspace, graph, origin, plan, first, last, sl
                 for edge in graph.out_ptr[u]:(graph.out_ptr[u + 1] - Int32(1))
                     connection = next_connection(graph.schedule_ptr, graph.departure,
                                                  graph.arrival, edge, time, cutoff)
-                    connections[edge] = connection
+                    isnothing(connections) || (connections[edge] = connection)
                     profile_lookups += 1
                     connection == 0 && continue
                     candidate = (time ÷ PERIOD) * PERIOD + graph.arrival[connection]
@@ -134,7 +139,7 @@ function _walking_catchup_chunk!(workspace, graph, origin, plan, first, last, sl
             end
         end
         # Retain labels above shrinking cutoffs for repair; replay and output mask them.
-        _walking_catchup_replay!(workspace, graph, origin, source, ready, cutoff)
+        plan.track_distance && _walking_catchup_replay!(workspace, graph, origin, source, ready, cutoff)
         if sample == last && workers > 1 && isnothing(workspace.output)
             # Warm different parts of the shared surface first, rather than having
             # every worker queue behind the same H3 entry. Merge order stays canonical.

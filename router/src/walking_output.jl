@@ -28,14 +28,14 @@ function _walking_output_plan(plan, origin)
     return (; cells, origin=origin_id, direct, packed=prepared.output)
 end
 
-struct WalkingOutputWorkspace{P}
+struct WalkingOutputWorkspace{P,D}
     plan::P
     arrival::Vector{UInt32}
-    distance::Vector{Float64}
+    distance::D
     touched::Vector{Int32}
 end
-WalkingOutputWorkspace(plan) = WalkingOutputWorkspace(plan, fill(INF, length(plan.cells)),
-                                                      Vector{Float64}(undef, length(plan.cells)), Int32[])
+WalkingOutputWorkspace(plan, track_distance=true) = WalkingOutputWorkspace(plan, fill(INF, length(plan.cells)),
+    track_distance ? Vector{Float64}(undef, length(plan.cells)) : nothing, Int32[])
 
 const WalkingIndexedPoint = @NamedTuple{ids::Vector{Int32}, arrival::Vector{UInt32}, distance_km::Vector{Float64}}
 
@@ -46,10 +46,13 @@ function _walking_relax_output!(out, packed::PackedWalking{Int32}, range, time, 
         candidate = time + packed.durations[i]
         previous = out.arrival[v]
         candidate < previous || continue
-        total_km = km + packed.distances[i]
-        isinf(total_km) && throw(ArgumentError("accumulated route distance is not finite"))
+        if !isnothing(out.distance)
+            total_km = km + packed.distances[i]
+            isinf(total_km) && throw(ArgumentError("accumulated route distance is not finite"))
+            out.distance[v] = total_km
+        end
         previous == INF && push!(out.touched, v)
-        out.arrival[v], out.distance[v] = candidate, total_km
+        out.arrival[v] = candidate
     end
 end
 
@@ -59,12 +62,14 @@ function _walking_indexed_result!(point, out, ready, cutoff, limit, arrival, eli
     end
     empty!(out.touched)
     origin = out.plan.origin
-    out.arrival[origin], out.distance[origin] = ready, 0.0
+    out.arrival[origin] = ready
+    isnothing(out.distance) || (out.distance[origin] = 0.0)
     push!(out.touched, origin)
     @inbounds for v in eachindex(arrival)
         arrival[v] <= cutoff || continue
         out.arrival[v] == INF && push!(out.touched, Int32(v))
-        out.arrival[v], out.distance[v] = arrival[v], kmA[v]
+        out.arrival[v] = arrival[v]
+        isnothing(out.distance) || (out.distance[v] = kmA[v])
     end
     # Preserve the oracle's off-graph-origin-first, then graph-ID egress order.
     direct, packed = out.plan.direct, out.plan.packed
@@ -72,42 +77,46 @@ function _walking_indexed_result!(point, out, ready, cutoff, limit, arrival, eli
     @inbounds for u in eachindex(eligible)
         eligible[u] <= cutoff || continue
         _walking_relax_output!(out, packed, packed.offsets[u]:(packed.offsets[u + 1] - 1),
-                               eligible[u], kmE[u], min(limit, cutoff - eligible[u]))
+                               eligible[u], isnothing(kmE) ? nothing : kmE[u], min(limit, cutoff - eligible[u]))
     end
     n = length(out.touched)
     resize!(point.ids, n)
     resize!(point.arrival, n)
-    resize!(point.distance_km, n)
+    isnothing(out.distance) || resize!(point.distance_km, n)
     @inbounds for i in 1:n
         v = out.touched[i]
-        point.ids[i], point.arrival[i], point.distance_km[i] = v, out.arrival[v], out.distance[v]
+        point.ids[i], point.arrival[i] = v, out.arrival[v]
+        isnothing(out.distance) || (point.distance_km[i] = out.distance[v])
     end
     return point
 end
 
-struct WalkingOutputAccumulator
+struct WalkingOutputAccumulator{D}
     cells::Vector{UInt64}
     total::Vector{UInt64}
     reached::Vector{UInt32}
-    km::Vector{Float64}
+    km::D
 end
-WalkingOutputAccumulator(cells, samples, budget) = WalkingOutputAccumulator(cells,
+WalkingOutputAccumulator(cells, samples, budget, track_distance=true) = WalkingOutputAccumulator(cells,
     fill(UInt64(samples) * UInt64(budget), length(cells)), zeros(UInt32, length(cells)),
-    Vector{Float64}(undef, length(cells)))
+    track_distance ? Vector{Float64}(undef, length(cells)) : nothing)
 
 function _accumulate_walking!(acc::WalkingOutputAccumulator, point, ready, budget, samples)
     @inbounds for i in eachindex(point.ids)
         v = point.ids[i]
         acc.total[v] -= UInt64(budget - (point.arrival[i] - ready))
         reached = acc.reached[v] += UInt32(1)
-        acc.km[v] = reached == 1 ? point.distance_km[i] :
-            acc.km[v] + (point.distance_km[i] - acc.km[v]) * (1 / reached)
+        if !isnothing(acc.km)
+            acc.km[v] = reached == 1 ? point.distance_km[i] :
+                acc.km[v] + (point.distance_km[i] - acc.km[v]) * (1 / reached)
+        end
     end
 end
 
-function _finish_walking_window(acc::WalkingOutputAccumulator, samples; budget, kwargs...)
+function _finish_walking_window(acc::WalkingOutputAccumulator, samples; budget, origin=nothing, kwargs...)
     ids = sort!(findall(!iszero, acc.reached); by=i -> acc.cells[i])
-    h3, elapsed_sum_ms, reachable_samples, distance_km = acc.cells[ids], acc.total[ids], acc.reached[ids], acc.km[ids]
+    h3, elapsed_sum_ms, reachable_samples = acc.cells[ids], acc.total[ids], acc.reached[ids]
+    distance_km = isnothing(acc.km) ? _od_distances(origin, h3) : acc.km[ids]
     elapsed_ms = Float64.(elapsed_sum_ms) ./ samples
     reachable_elapsed_ms = [(elapsed_sum_ms[i] - UInt64(samples - reachable_samples[i]) * UInt64(budget)) /
                             reachable_samples[i] for i in eachindex(h3)]

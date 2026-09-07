@@ -4,6 +4,14 @@ Frontend tasks are tracked in [H3-MON/todo.md](../../H3-MON/todo.md).
 
 ## Estimated Walking: Findings and Next Deliverables
 
+### Straight-Line Distance Milestones (2026-09-07)
+
+- [x] Inspect walking reference, indexed output, catch-up replay, transit windows and HTTP dispatch. Itinerary stays the default; frontend selection is unchanged.
+- [x] Check available memory before benchmarking (56 GiB available); do not signal or query the user's server.
+- [x] Implement explicit `distance_mode=itinerary|straight_line`, with no per-sample km state or replay in straight-line routing. Independent/fallback searches also skip km propagation; transit-only HTTP uses CPU arrival-only routing.
+- [x] Verify independent-oracle arrival parity, HTTP metrics, overflow bypass and absent km buffers. Full one/four-thread suites each pass 65,317 checks; selected eight-thread suites pass 17,419. Existing diagnostic probes smoke-tested, including zero straight-line replay visits.
+- [x] Measure actual res7 seven-day/96-sample workload at four/eight workers. Warm medians: 11.275 -> 2.624 s (4 workers), 8.324 -> 2.252 s (8). See [straight-line results](straight-distance-results.md) for raw samples, parity, payload/memory measurements and caveats.
+
 ### Indexed Output Milestones (2026-09-07)
 
 - [x] Inspected clean baseline `66a7a2d2a0532fb9137f80a725743676520d0ada`, all walking

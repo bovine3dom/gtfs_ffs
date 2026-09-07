@@ -114,12 +114,56 @@ Both include `value Float64`, elapsed **minutes including waiting**, and
 Rows are unique and sorted by H3, include arrivals exactly at the budget cutoff,
 and always include the origin at elapsed zero. An off-graph origin can walk to transit
 or directly to surrounding cells; with walking disabled it returns only itself.
-Single-departure responses include `distance_km` when walking is enabled or transit
-distances are available, following the selected earliest-arrival itinerary.
+Single-departure responses include `distance_km` in straight-line mode, when walking
+is enabled or transit distances are available. Its meaning follows the selected
+distance mode below.
 
 Responses use `Content-Type: application/vnd.apache.arrow.file` and
 `Arrow.write(io, table; file=true, compress=nothing, dictencode=false)`:
 true IPC files with `ARROW1` at the head and footer, no IPC compression or dictionaries.
+
+**Distance Modes**
+`distance_mode=itinerary` is the default. Omission preserves existing Arrow bodies,
+chosen-itinerary distances, tie handling, overflow checks and distance headers.
+Use `distance_mode=straight_line` explicitly for faster CPU arrival-only routing.
+No frontend selection or default is changed.
+
+```text
+/reachable?index=871fb4662ffffff&departure=00:00:00&budget_s=604800&window_s=86400&step_s=900&max_walk_s=3600&metric=distance_time_quantile&distance_mode=straight_line
+```
+
+In straight-line mode, `distance_km` is the origin-to-destination **H3-centre
+great-circle distance**, using H3's WGS84 authalic sphere (radius 6371.007180918475 km).
+It is not route geometry, accumulated transit/walking distance, or a road distance.
+The origin is exactly zero. Distances are computed once per returned final cell,
+after window aggregation, not averaged across departure samples. Travel times,
+coverage counts and conditional/unconditional time means are unchanged.
+`metric=time` still returns this distance column; `metric=distance_time_quantile`
+ranks these OD distances and subtracts time ranks, so its values deliberately differ
+from itinerary-distance ranks. Straight-line mode needs **no input `distance_km`
+column**; the existing missing-column guard still applies to itinerary quantiles.
+
+`X-Router-Distance-Mode` exposes the selected mode through CORS.
+Straight-line responses have `X-Router-Distance: origin-destination-great-circle-km`;
+itinerary distance headers retain their existing values.
+Straight-line HTTP routing explicitly uses the CPU reference backend, including
+`max_walk_s=0`; it does not call configured itinerary-only CPU/oneAPI callbacks.
+`X-Router-Backend: reference` and the window strategy identify the actual engine.
+The launcher honors walking `origin` versus catch-up selection and configured
+workers/chunks; transit-only straight-line windows use CPU catch-up.
+
+Julia APIs `route_walking`, `route_window_walking`, `route_window_walking_cached`
+and transit-only `route_window_cached` accept `distance_mode="itinerary"` or
+`distance_mode="straight_line"` (the equivalent Symbols are also accepted).
+Invalid values/types throw `ArgumentError` before routing. `route_cpu` already
+returns arrival-only labels and remains unchanged. Straight-line catch-up retains
+two-state arrival repair but omits canonical km replay, connection caches needed
+only by replay, km scratch, per-sample km columns and km averaging. Indexed point
+columns are 8 bytes per cell (Int32 ID + UInt32 arrival), versus 16 for itinerary.
+The independent point/window search and unprepared/larger-radius fallback also
+skip km propagation. Walking-hop geometry for durations is unchanged.
+See [straight-line results](straight-distance-results.md) and
+[`benchmark-distance-modes.jl`](benchmark-distance-modes.jl) for matched measurements.
 
 **Estimated Walking**
 Walk duration is the great-circle distance between H3 centres at **5 km/h**, rounded
@@ -154,7 +198,7 @@ chronological incremental means use arrays, and only the final reachable H3 unio
 sorted. Off-graph origins enumerate direct geographic destinations once per request
 and extend the output IDs locally, without losing the indexed graph egress path.
 Larger hop limits and unprepared indexes retain the exact dictionary fallback.
-The independent `route_window_walking` oracle and point API remain unchanged.
+The independent `route_window_walking` oracle and point API retain itinerary defaults.
 Search counters and the `walking_catchup` HTTP strategy retain their existing meanings.
 
 Prepared hits borrow read-only ranges without geometry calls or cache locks. Both the
@@ -212,7 +256,7 @@ Window output retains `value` in minutes for H3-MON and adds these statistics:
 | --- | --- |
 | `elapsed_ms Float64` | Mean elapsed time, charging the full budget for unsuccessful departures |
 | `reachable_elapsed_ms Float64` | Mean elapsed time over successful departures only |
-| `distance_km Float64` | Mean selected-route length over those same successful departures |
+| `distance_km Float64` | Itinerary: mean selected-route length over successful departures. Straight-line: origin-to-destination H3-centre distance |
 | `reachable_fraction Float64` | Successful samples divided by all samples |
 | `reachable_samples UInt32` | Number of departures reaching the cell within budget |
 | `sample_count UInt32` | Total sampled departures |
@@ -221,7 +265,7 @@ The response contains cells reachable at least once plus the origin. The origin 
 zero time/distance and full coverage. Unknown itinerary distance is `NaN`, not zero.
 A window distance mean is `NaN` if any successful sample has unknown kilometres;
 unknown samples are not excluded from that mean. With walking disabled,
-`X-Router-Distance` reports `unavailable` or `connection-sum-km`.
+In transit-only itinerary mode, `X-Router-Distance` reports `unavailable` or `connection-sum-km`.
 The internal `route_window` result includes every graph node, assigning the full budget
 to never-reachable nodes; the HTTP output omits those nodes as before.
 
@@ -307,7 +351,7 @@ new downstream-cache and batched-iGPU measurements. Catchup improves the measure
 windows; short or sparse sweeps may favor `origin`, which remains an explicit override.
 
 **Selected-Route Kilometres**
-Distance is attached to each retained schedule connection, not to an H3 edge group.
+In the default itinerary mode, distance is attached to each retained schedule connection, not to an H3 edge group.
 It follows the actual connection selected during Dijkstra relaxation, including when
 a later departure overtakes an earlier one. Equal-arrival connections prefer the later
 departure during profile construction; identical departure/arrival pairs prefer the
@@ -328,14 +372,15 @@ and `ORDER BY`, and retain the transport filter and resolution appropriate to yo
 
 **Distance Minus Time Quantile**
 Add `metric=distance_time_quantile` to a point or window request. The default remains
-`metric=time`. This mode requires an input `distance_km` column; otherwise it returns
-HTTP 400 rather than ranking unavailable distances.
+`metric=time`. With the default `distance_mode=itinerary`, quantiles require an input
+`distance_km` column; otherwise HTTP 400 is returned rather than ranking unavailable
+distances. `distance_mode=straight_line` requires no input kilometres.
 
 ```text
 /reachable?index=851fb467fffffff&departure=00:00:00&window_s=86400&step_s=60&budget_s=10800&metric=distance_time_quantile
 ```
 
-For windows, averaging happens first. The router ranks the returned mean `distance_km`
+For windows, time aggregation happens first. The router ranks the selected `distance_km`
 and budget-capped mean `elapsed_ms`, then returns:
 
 ```text
