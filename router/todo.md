@@ -10,10 +10,12 @@ Walking-aware catch-up remains pending; walking requests use independent CPU sea
 with shared geometry, not the transit-only cache. Multi-origin work and GPU changes
 remain deferred.
 
-Verification: **16,035 checks passed with both one and four Julia threads**, including
+Verification after resource-cap removal: **15,896 checks passed with both one and four
+Julia threads**, including
 independent raw-schedule walking oracles, geographic coverage, window means, HTTP
-limits and unchanged transit-only behavior. Live concurrent walking HTTP/Arrow checks
-also passed. Real res7 validation independently matched all 68,783 graph labels and
+validation, removed-keyword rejection, cache correctness and unchanged transit-only
+behavior. Historical live concurrent walking HTTP/Arrow checks also passed.
+Real res7 validation independently matched all 68,783 graph labels and
 62 geographic destinations; see the linked benchmark report for scope and caveats.
 
 ### Agreed Behavior
@@ -84,17 +86,18 @@ also passed. Real res7 validation independently matched all 68,783 graph labels 
   prove equivalence to deliverable 3 before restoring parallel catch-up performance.
 - [x] **5. Service configuration.** Expose and document the maximum hop duration, with
   `max_walk_s=3600` by default and `0` disabling walking. Reuse the spatial index and
-  cached/precomputed connectivity across limits where valid. Bound excessive requests
-  and geographic output explicitly; reject rather than silently truncate results.
+  cached/precomputed connectivity across limits where valid. By user choice, impose
+  no resource caps on walking output, candidates, work or request-local geometry caches.
   Do not silently use a transit-only backend when walking is requested.
 - [x] **6. Real-data validation.** Recorded walking-edge counts, memory and timings at
   res5/res6/res7, exact disabled-mode parity, and independent res7 arrival/egress checks.
   Sample time/km labels are recorded, not full itineraries: this API has no path output.
   Keep benchmarks and unsupported backend combinations explicit.
 
-HTTP limits: 0..604800 seconds per hop; 250,000 output cells; 2,000,000 geographic
-candidate slots per enumeration; 500,000,000 cumulative work visits. Excessive walking
-requests return 422, never truncated Arrow. Geometry cache storage is also bounded.
+Input limits remain: 0..604800 seconds per hop, seven-day journey budget, one-day
+window and existing sample limits. Provisional resource caps and their HTTP 422
+handling have been removed; large valid requests may use substantial memory and CPU.
+Walking-aware catch-up remains the next routing optimization, with baseline parity required.
 With centre-based estimates,
 the default 5 km hop may reach no neighbouring res5 centre; verify useful walking
 coverage on finer graphs rather than silently changing the distance model.

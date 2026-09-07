@@ -2,7 +2,6 @@ const DEFAULT_MAX_WALK_MS = UInt32(3_600_000)
 const WALK_MS_PER_KM = 720_000.0 # 5 km/h
 const WALK_EARTH_RADIUS_KM = 6371.007180918475 # H3's WGS84 authalic radius
 const WALK_BIN_WIDTH = 2sin(5 / (2WALK_EARTH_RADIUS_KM))
-const WALK_MAX_CANDIDATES = 2_000_000
 const WalkingNeighbor = @NamedTuple{cell::UInt64, duration_ms::UInt32, distance_km::Float64}
 
 """
@@ -63,7 +62,7 @@ milliseconds, with an inclusive cutoff in `0:MAX_BUDGET_MS`. Zero disables walks
 and self is always excluded. Large radii scan vertices instead of a huge bin cube.
 """
 function walking_neighbors(index::WalkingIndex, origin::UInt64,
-                           max_walk_ms::Integer=DEFAULT_MAX_WALK_MS; work=nothing)
+                           max_walk_ms::Integer=DEFAULT_MAX_WALK_MS)
     _walking_validate(index, origin, max_walk_ms)
     result = WalkingNeighbor[]
     (iszero(max_walk_ms) || isempty(index.cells)) && return result
@@ -79,7 +78,6 @@ function walking_neighbors(index::WalkingIndex, origin::UInt64,
         Iterators.flatten(get(index.bins, bin, ()) for bin in Iterators.product(ranges...))
     end
     for i in candidates
-        isnothing(work) || _walking_work!(work, 1)
         hop = _walking_neighbor(origin, index.cells[i], centre, index.centres[i], max_walk_ms)
         isnothing(hop) || push!(result, hop)
     end
@@ -117,42 +115,27 @@ function _walking_check_h3(code)
 end
 
 """
-    walking_cells(index, origin::UInt64, max_walk_ms::Integer=DEFAULT_MAX_WALK_MS;
-                        max_cells::Integer=250_000)
+    walking_cells(index, origin::UInt64, max_walk_ms::Integer=DEFAULT_MAX_WALK_MS)
 
 Return all geographic destinations, including nonnetwork cells, in the same
 format and with the same exact cutoff as `walking_neighbors`. Self is excluded.
 Conservative spherical-cap rectangles are filled by H3, then distance-filtered.
-Reject rather than truncate if output exceeds `max_cells` or cumulative H3
-candidate capacity exceeds 2,000,000 slots. The latter is checked before any fill
-allocation and can reject a request whose exact output would fit `max_cells`.
 """
 function walking_cells(index::WalkingIndex, origin::UInt64,
-                        max_walk_ms::Integer=DEFAULT_MAX_WALK_MS;
-                        max_cells::Integer=250_000, work=nothing)
+                        max_walk_ms::Integer=DEFAULT_MAX_WALK_MS)
     _walking_validate(index, origin, max_walk_ms)
-    0 <= max_cells <= typemax(Int) || throw(ArgumentError("invalid max_cells"))
     result = WalkingNeighbor[]
     iszero(max_walk_ms) && return result
     centre = H3.API.cellToLatLng(origin)::H3.API.LatLng
     rectangles = _walking_rectangles(centre, max_walk_ms)
-    sizes = Int[]
-    total = 0
+    seen = Set{UInt64}()
     for vertices in rectangles
+        size = Ref{Int64}(0)
         GC.@preserve vertices begin
             polygon = Ref(H3.Lib.GeoPolygon(H3.Lib.GeoLoop(length(vertices), pointer(vertices)), 0, C_NULL))
-            size = Ref{Int64}(0)
             _walking_check_h3(H3.Lib.maxPolygonToCellsSize(polygon, index.resolution, UInt32(0), size))
-            0 <= size[] <= WALK_MAX_CANDIDATES - total ||
-                throw(WalkingLimitError("walking geographic candidate capacity exceeds $WALK_MAX_CANDIDATES"))
-            push!(sizes, size[])
-            total += size[]
         end
-    end
-    isnothing(work) || _walking_work!(work, total)
-    seen = Set{UInt64}()
-    for (vertices, size) in zip(rectangles, sizes)
-        candidates = zeros(UInt64, size)
+        candidates = zeros(UInt64, size[])
         GC.@preserve vertices begin
             polygon = Ref(H3.Lib.GeoPolygon(H3.Lib.GeoLoop(length(vertices), pointer(vertices)), 0, C_NULL))
             _walking_check_h3(H3.Lib.polygonToCells(polygon, index.resolution, UInt32(0), candidates))
@@ -161,7 +144,6 @@ function walking_cells(index::WalkingIndex, origin::UInt64,
             (iszero(cell) || cell == origin || cell in seen) && continue
             hop = _walking_neighbor(origin, cell, centre, H3.API.cellToLatLng(cell)::H3.API.LatLng, max_walk_ms)
             isnothing(hop) && continue
-            length(result) < max_cells || throw(WalkingLimitError("walking geographic output exceeds max_cells=$max_cells"))
             push!(seen, cell)
             push!(result, hop)
         end

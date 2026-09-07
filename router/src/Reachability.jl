@@ -335,10 +335,7 @@ end
 
 """An in-process HTTP handler with a resident walking index and locked routing workspaces."""
 function make_handler(graph::Graph; route=(h, t, b) -> route_cpu(graph, h, t, b),
-                      window_route=(h, t, b, w, s) -> route_window_cached(graph, h, t, b, w; step_ms=s),
-                      max_cells=250_000)
-    max_cells isa Integer && 0 <= max_cells <= typemax(Int) ||
-        throw(ArgumentError("max_cells must be an integer from 0 to $(typemax(Int))"))
+                      window_route=(h, t, b, w, s) -> route_window_cached(graph, h, t, b, w; step_ms=s))
     walking_index = WalkingIndex(graph)
     request_lock = ReentrantLock()
     return function (request)
@@ -361,10 +358,10 @@ function make_handler(graph::Graph; route=(h, t, b) -> route_cpu(graph, h, t, b)
         origin, ready, budget, encoding, window, step, metric, max_walk_s = query
         push!(headers, "X-Router-Max-Walk-S" => string(max_walk_s))
         return lock(request_lock) do
-            body = try
+            body = begin
                 if window > 0
                     result = max_walk_s > 0 ? route_window_walking(graph, origin, ready, budget, window;
-                        step_ms=step, max_walk_s, walking_index, max_cells) : window_route(origin, ready, budget, window, step)
+                        step_ms=step, max_walk_s, walking_index) : window_route(origin, ready, budget, window, step)
                     strategy = hasproperty(result, :backend) ? result.backend : "origin"
                     backend = strategy in ("origin", "catchup", "walking_reference") ? "reference" : strategy
                     append!(headers, ["X-Router-Backend" => backend,
@@ -377,7 +374,7 @@ function make_handler(graph::Graph; route=(h, t, b) -> route_cpu(graph, h, t, b)
                     end
                     window_arrow(graph, result, origin, encoding; metric)
                 elseif max_walk_s > 0 || !isnothing(graph.distance_km)
-                    result = max_walk_s > 0 ? route_walking(graph, origin, ready, budget; max_walk_s, walking_index, max_cells) :
+                    result = max_walk_s > 0 ? route_walking(graph, origin, ready, budget; max_walk_s, walking_index) :
                         route_details(graph, origin, ready, budget)
                     push!(headers, "X-Router-Backend" => "reference")
                     arrow_result(graph, result.arrival, origin, ready, encoding;
@@ -386,9 +383,6 @@ function make_handler(graph::Graph; route=(h, t, b) -> route_cpu(graph, h, t, b)
                     labels = route(origin, ready, budget)
                     arrow_result(graph, labels, origin, ready, encoding)
                 end
-            catch error
-                error isa WalkingLimitError || rethrow()
-                return HTTP.Response(422, [headers; "Content-Type" => "text/plain"], sprint(showerror, error))
             end
             distance = if max_walk_s > 0
                 isnothing(graph.distance_km) ? "partial-estimated-walk-km" : "connection-sum+estimated-walk-km"

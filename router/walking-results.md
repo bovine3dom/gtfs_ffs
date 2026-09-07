@@ -4,8 +4,10 @@ Measured 2026-09-07 on the working-tree walking implementation based on commit
 `3330ddf2daac38e5477e71b9ba613dd4f7ec4cb9`. No router implementation or data was
 changed for this benchmark. All assertions passed; all three graphs completed
 within the 300-second process limit on both sequential runs.
-The main tables precede the cumulative work guard; the res7 rerun below verifies
-the final guarded implementation with unchanged reachability.
+These are historical measurements: the main tables precede the cumulative work
+guard, and the res7 rerun measured that guarded baseline with unchanged reachability.
+All provisional output, candidate, work and geometry-cache resource caps have since
+been removed by user choice. These timings are not a benchmark of the uncapped version.
 
 ## Reproduction
 
@@ -164,9 +166,9 @@ query with walking enabled took **98.058 ms** median, allocating **8.254 MiB**.
 - Full itineraries are not available from this API. No boarding stops, services, transfer sequence or chosen access/egress chain is inferred from the returned labels. Stored transit km can be less than straight-line distance between H3 centres because the stored segments and quantized cell centres describe different geometry; these data were not physically audited.
 - Walking is spherical cell-centre geometry, not a pedestrian street network: no roads, barriers or within-cell access costs are modeled. Final off-network cells are terminal destinations, not extra transfer vertices.
 - The first complete run gave point walk3600 medians of 19.137 / 32.310 / 135.551 ms and 60-minute walking medians of 117.864 / 229.129 / 760.174 ms, with identical reach counts. Smaller baseline timings were less stable, e.g. res7 point walk0 was 1.254 ms first run versus 4.878 ms final run. Do not interpret tiny baseline differences as performance improvements.
-- No HTTP/Arrow serialization, server latency, GPU execution, 24-hour windows, week-long budgets, or cap-exceeding requests were benchmarked. Default `max_cells=250_000` was never approached. Existing unit tests were not launched or modified by this work.
+- No HTTP/Arrow serialization, server latency, GPU execution, 24-hour windows, week-long budgets, or requests exceeding the then-active caps were benchmarked. The former 250,000-output-cell cap was never approached. Existing unit tests were not launched or modified by this benchmark work.
 
-## Final Guarded Rerun
+## Historical Guarded Rerun
 
 After adding the 500,000,000-visit cumulative request guard:
 
@@ -181,9 +183,15 @@ These queries did not exhaust the guard. The 68,783-label/62-destination indepen
 oracle passed again. This rerun overlapped a small live HTTP smoke test on a separate
 synthetic graph, not production HTTP latency measurement.
 
-Final validation outside the benchmark: **16,035 tests passed with both one and four
+Historical validation outside the benchmark: **16,035 tests passed with both one and four
 Julia threads**, including candidate/output/work-limit rejection and cache reuse /
 saturation checks. Four concurrent live HTTP requests also passed, returning 21 / 1 /
 21 / 7 cells for default walking, disabled walking, a three-sample window, and a shorter
 walking limit on the res9 smoke fixture. Walking-aware catch-up and GPU work remain
-unimplemented; the guarded serial baseline is the current walking window backend.
+unimplemented; the current walking window backend is the serial baseline without
+resource caps. The obsolete rejection/saturation tests above have been replaced.
+
+After resource-cap removal, the full CPU suite passed **15,896 checks each with one
+and four Julia threads**, including cache correctness, removed-keyword rejection,
+invalid walking parameters and HTTP exception propagation. Real-data benchmarks
+and live HTTP measurements were not rerun for this change.

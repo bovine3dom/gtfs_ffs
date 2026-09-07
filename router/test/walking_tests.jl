@@ -211,6 +211,7 @@ end
         graph = pack_graph(cycle)
         for bad in (-1, 604801, typemax(UInt64))
             @test_throws ArgumentError route_walking(graph, a, 0, 0; max_walk_s=bad)
+            @test_throws ArgumentError route_window_walking(graph, a, 0, 0, 1; max_walk_s=bad)
         end
         for (ready, budget) in ((-1, 0), (DAY, 0), (0, -1), (0, typemax(UInt64)))
             @test_throws ArgumentError route_walking(graph, a, ready, budget; max_walk_s=0)
@@ -218,8 +219,9 @@ end
         @test_throws ArgumentError route_walking(graph, UInt64(0), 0, 0)
         @test_throws ArgumentError route_walking(graph, H3.API.cellToParent(a, 7), 0, 0)
         @test_throws ArgumentError route_walking(graph, a, 0, 0; walking_index=WalkingIndex(pack_graph(raw_table([a], [(1, 1, 0, 0, 0.0)]))))
-        @test_throws Reachability.WalkingLimitError route_walking(graph, a, 0, 0; max_cells=2)
-        @test length(route_walking(graph, a, 0, 0; max_cells=3).h3) == 3
+        @test_throws MethodError route_walking(graph, a, 0, 0; max_cells=2)
+        @test_throws MethodError route_window_walking(graph, a, 0, 0, 1; max_cells=2)
+        @test length(route_walking(graph, a, 0, 0).h3) == 3
         # A valid maximum budget must not wrap; impossible long connections stay absent.
         long = pack_graph(raw_table(cells, [(1, 2, DAY - 1, 7DAY, 1.0), (2, 3, DAY - 1, 7DAY, 1.0)]))
         result = route_walking(long, a, DAY - 1, 7DAY; max_walk_s=0)
@@ -227,25 +229,24 @@ end
         @test !(c in result.h3)
     end
 
-    @testset "Geometry cache and work limits" begin
+    @testset "Geometry cache" begin
         a, b, c, seconds = chain(9)
         graph = pack_graph(raw_table([a, b, c], [(1, 2, 0, 0, 1.0), (2, 3, 0, 0, 1.0)]))
         index = WalkingIndex(graph)
         topology = Reachability.WalkingTopology(index, 1000seconds)
-        full = Reachability._walking_route_at(graph, topology, a, UInt32(0), UInt32(2000seconds))
+        Reachability._walking_route_at(graph, topology, a, UInt32(0), UInt32(2000seconds))
         for budget in (0, 1000seconds, 2000seconds)
             cached = Reachability._walking_route_at(graph, topology, a, UInt32(0), UInt32(budget))
             @test isequal(cached, route_walking(graph, a, 0, budget; max_walk_s=seconds))
         end
-        saturated = Reachability.WalkingTopology(index, 1000seconds)
-        saturated.cached_hops = Reachability.WALK_MAX_CANDIDATES
-        @test isequal(full, Reachability._walking_route_at(graph, saturated, a, UInt32(0), UInt32(2000seconds)))
-        @test isempty(saturated.neighbors) && isempty(saturated.coverage)
-        topology.remaining_work = 0
-        @test_throws Reachability.WalkingLimitError Reachability._walking_route_at(graph, topology, a, UInt32(0), UInt32(0))
-        @test_throws Reachability.WalkingLimitError Reachability._walking_hops(topology, a; geographic=true)
-        @test_throws Reachability.WalkingLimitError walking_neighbors(index, a; work=topology)
-        @test_throws Reachability.WalkingLimitError walking_cells(index, a; work=topology)
+        for cell in graph.h3, geographic in (false, true)
+            cache = geographic ? topology.coverage : topology.neighbors
+            @test Reachability._walking_hops(topology, cell; geographic) === cache[cell]
+        end
+        fresh = Reachability.WalkingTopology(index, 1000seconds)
+        Reachability._walking_hops(fresh, a; geographic=true, limit=500seconds)
+        @test isempty(fresh.coverage)
+        @test Reachability._walking_hops(fresh, a; geographic=true) == topology.coverage[a]
     end
 
     @testset "Window union and independent chronological means" begin

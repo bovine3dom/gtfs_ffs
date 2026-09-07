@@ -120,8 +120,6 @@ end
             boundary = first(hops)
             @test boundary in walking_cells(index, origin, boundary.duration_ms)
             @test !(boundary.cell in getproperty.(walking_cells(index, origin, Int(boundary.duration_ms) - 1), :cell))
-            @test walking_cells(index, origin; max_cells=length(hops)) == hops
-            @test_throws r"output exceeds max_cells" walking_cells(index, origin; max_cells=length(hops) - 1)
         end
     end
 end
@@ -139,27 +137,16 @@ end
     end
 end
 
-@testset "Geographic allocation and output caps" begin
+@testset "Geographic API validation" begin
     origin = cell_at(0, 0, 9)
     index = WalkingIndex(graph_of([origin]))
-    @test isempty(walking_cells(index, origin, 0; max_cells=0))
-    @test isempty(walking_cells(index, origin, 1; max_cells=0))
-    @test_throws ArgumentError walking_cells(index, origin, 0; max_cells=-1)
-    @test_throws ArgumentError walking_cells(index, origin, 0; max_cells=typemax(UInt64))
-    @test_throws r"output exceeds max_cells" walking_cells(index, origin; max_cells=0)
-    # Each rectangle fits the candidate cap, but their sum does not. Preflight
-    # must reject before allocating either million-slot polygon output.
-    @test_throws r"candidate capacity exceeds" walking_cells(index, origin, 108_000_000)
-    bytes = @allocated try
-        walking_cells(index, origin, 108_000_000)
-    catch error
-        error isa Reachability.WalkingLimitError || rethrow()
-    end
-    @test bytes < 100_000
-    for resolution in (9, 15), latitude in (0, 90, -90)
-        origin = cell_at(latitude, 179.999, resolution)
-        index = WalkingIndex(graph_of([origin]))
-        @test_throws r"candidate capacity exceeds" walking_cells(index, origin, Reachability.MAX_BUDGET_MS)
+    @test isempty(walking_cells(index, origin, 0))
+    @test isempty(walking_cells(index, origin, 1))
+    @test_throws MethodError walking_cells(index, origin; max_cells=0)
+    @test_throws MethodError walking_cells(index, origin; work=nothing)
+    @test_throws MethodError walking_neighbors(index, origin; work=nothing)
+    for bad in (-1, Int(Reachability.MAX_BUDGET_MS) + 1, typemax(UInt64))
+        @test_throws ArgumentError walking_cells(index, origin, bad)
     end
     origin = cell_at(0, 0, 5)
     @test isempty(walking_cells(WalkingIndex(graph_of(UInt64[])), origin))

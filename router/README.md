@@ -140,27 +140,17 @@ destinations, not stepping stones for chained walking.
 
 The service retains one spatial index. Request-local caches share geometry between
 window samples; no walking arrival-label reuse or GPU routing is enabled yet.
-The following walking-only resource guards return **HTTP 422**, never partial Arrow
-or silently clipped reachability:
-
-- At most **250,000 unique output cells**, including the origin and the entire window
-  union. Embedders can change this with `make_handler(...; max_cells=...)`.
-- At most **2,000,000 candidate slots per geographic enumeration**, checked before
-  allocating H3 polygon output. This conservative bound may reject a query whose
-  exact filtered output would fit.
-- At most **500,000,000 work visits per request**, counting per-sample graph vertices,
-  transit edges, spatial candidates, walking hops and window aggregation. This is a
-  work bound, not a wall-clock timeout. Reduce the window, journey budget or hop limit,
-  or increase `step_s` when it is exceeded.
-
-Geometry caches retain at most 2,000,000 hops; once full, queries recompute uncached
-geometry without dropping destinations. `X-Router-Max-Walk-S` exposes the requested
+By user choice, walking has no resource caps on output cells, geographic candidates,
+work or request-local geometry caches. Large valid requests may consume substantial
+memory and CPU; results are not silently truncated. The existing seven-day journey
+budget, one-day window, sample limits and `max_walk_s=0..604800` validation remain.
+`X-Router-Max-Walk-S` exposes the requested
 limit. `X-Router-Distance` is `connection-sum+estimated-walk-km` with transit distance
 data, or `partial-estimated-walk-km` without it. Pure walks still have known km;
 itineraries using transit without distance data have `NaN`, including later egress.
 
-Direct Julia APIs are `route_walking` and `route_window_walking`, with `max_walk_s`,
-optional resident `walking_index=WalkingIndex(graph)`, and `max_cells` keywords.
+Direct Julia APIs are `route_walking` and `route_window_walking`, with `max_walk_s`
+and optional resident `walking_index=WalkingIndex(graph)` keywords.
 They return a sorted `h3` vector alongside aligned result columns. Existing
 `route_cpu`, `route_details`, `route_window` and kernel APIs remain transit-only.
 See [walking results](walking-results.md) for real res5/res6/res7 validation and timings.

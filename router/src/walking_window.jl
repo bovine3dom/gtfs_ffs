@@ -2,33 +2,25 @@
 function route_window_walking(graph::Graph, origin::UInt64, departure_ms::Integer,
                               budget_ms::Integer, window_ms::Integer;
                               step_ms::Integer=60_000, max_walk_s::Integer=3600,
-                              walking_index::Union{Nothing,WalkingIndex}=nothing, max_cells::Integer=250_000)
+                              walking_index::Union{Nothing,WalkingIndex}=nothing)
     ready, _ = query_times(graph, origin, departure_ms, budget_ms)
     1 <= window_ms <= PERIOD || throw(ArgumentError("window must be between one millisecond and one day"))
     step_ms >= 1 || throw(ArgumentError("sample step must be at least one millisecond"))
     step = Int64(min(step_ms, window_ms))
     samples = Int(cld(Int64(window_ms), step))
     samples <= 86_400 || throw(ArgumentError("window must contain at most 86400 samples"))
-    0 <= max_cells <= typemax(Int) || throw(ArgumentError("invalid max_cells"))
     budget = UInt32(budget_ms)
     limit = min(_walking_limit(max_walk_s), budget)
     index = isnothing(walking_index) ? WalkingIndex(graph) : walking_index
     topology = WalkingTopology(index, limit)
-    length(graph.h3) * samples <= WALK_MAX_WORK ||
-        throw(WalkingLimitError("walking window work exceeds $WALK_MAX_WORK vertex visits; increase step_s or reduce window_s"))
     penalty = UInt64(samples) * UInt64(budget)
     acc = Dict{UInt64,Tuple{UInt64,UInt32,Float64}}()
     for sample in 0:(samples - 1)
         time = UInt32(Int64(ready) + sample * step)
-        point = _walking_route_at(graph, topology, origin, time, time + budget; max_cells)
-        _walking_work!(topology, length(point.h3))
+        point = _walking_route_at(graph, topology, origin, time, time + budget)
         for i in eachindex(point.h3)
             cell = point.h3[i]
             total, reached, km = get(acc, cell, (penalty, UInt32(0), NaN))
-            if reached == 0
-                length(acc) < max_cells ||
-                    throw(WalkingLimitError("walking window output exceeds max_cells=$max_cells"))
-            end
             total -= UInt64(budget - (point.arrival[i] - time))
             reached += UInt32(1)
             km = reached == 1 ? point.distance_km[i] :

@@ -155,7 +155,7 @@ end
         @test HTTP.header(response, "X-Router-Distance") == "unavailable"
     end
 
-    @testset "Validation, caps, atomic errors and recovery" begin
+    @testset "Validation and window union" begin
         graph, a, b, remote = fixture()
         handler = make_handler(graph; route=error, window_route=error)
         base = "index=$(H3.API.h3ToString(a))&departure=00:00:00&budget_s=600"
@@ -176,59 +176,27 @@ end
         @test HTTP.header(options, "Access-Control-Allow-Methods") == "GET, OPTIONS"
         @test occursin("X-Router-Max-Walk-S", HTTP.header(options, "Access-Control-Expose-Headers"))
 
-        point = route_walking(graph, a, 0, 600_000; max_walk_s=300)
-        # Exercise geographic output, total output (including origin), and preflight candidate caps.
-        for (cap, query) in ((1, "$base&max_walk_s=300"),
-                             (length(point.h3) - 1, "$base&max_walk_s=300"),
-                             (1, "$base&max_walk_s=300&window_s=121&step_s=30"),
-                             (250_000, "index=$(H3.API.h3ToString(a))&departure=00:00:00&budget_s=604800&max_walk_s=604800"))
-            limited = make_handler(graph; route=error, window_route=error, max_cells=cap)
-            response = request(limited, query)
-            @test response.status == 422
-            @test HTTP.header(response, "Content-Type") == "text/plain"
-            @test HTTP.header(response, "Access-Control-Allow-Origin") == "*"
-            @test HTTP.header(response, "Cache-Control") == "no-store"
-            @test !occursin("ARROW1", String(copy(response.body)))
-            @test occursin("exceeds", String(copy(response.body)))
-            recovery = request(limited, "index=$(H3.API.h3ToString(a))&departure=00:00:00&budget_s=0")
-            @test recovery.status == 200
-            @test ids(Arrow.Table(recovery.body)) == [a]
-            @test Arrow.Table(recovery.body).elapsed_ms == UInt32[0]
-        end
-        exact = make_handler(graph; max_cells=length(point.h3))
-        @test request(exact, "$base&max_walk_s=300").status == 200
+        @test_throws MethodError make_handler(graph; max_cells=0)
+        @test request(handler, "$base&max_walk_s=300").status == 200
         @test request(handler, "index=$(H3.API.h3ToString(a))&departure=00:00:00&budget_s=0&max_walk_s=604800").status == 200
 
-        # Each point fits, but different transit destinations make the window union exceed the cap.
+        # The window includes different transit destinations from each point.
         other = cell_at(51.9, 0.6, 9)
         union_graph = pack_graph((from_h3=[b, b], to_h3=[remote, other],
                                   departure_ms=UInt32[0, 2000], duration_ms=Int64[0, 0]))
-        union_handler = make_handler(union_graph; max_cells=2, route=error, window_route=error)
+        union_handler = make_handler(union_graph; route=error, window_route=error)
         union_query = "index=$(H3.API.h3ToString(b))&budget_s=1&max_walk_s=1"
         for clock in ("00:00:00", "00:00:02")
             @test request(union_handler, "$union_query&departure=$clock").status == 200
         end
         response = request(union_handler, "$union_query&departure=00:00:00&window_s=3&step_s=2")
-        @test response.status == 422
-        @test HTTP.header(response, "Content-Type") == "text/plain"
-        @test occursin("window output exceeds", String(copy(response.body)))
-        @test !occursin("ARROW1", String(copy(response.body)))
+        @test response.status == 200
+        @test ids(Arrow.Table(response.body)) == sort([b, remote, other])
         @test request(union_handler, "$union_query&departure=00:00:02").status == 200
 
-        # Zero is accepted by make_handler; even the mandatory origin exceeds this cap.
-        zero_cap = make_handler(graph; max_cells=0)
-        for suffix in ("", "&window_s=1")
-            @test request(zero_cap, "$base&max_walk_s=300$suffix").status == 422
-        end
-        cells = disk(a, 45)
-        large = pack_graph((from_h3=cells, to_h3=cells, departure_ms=zeros(UInt32, length(cells)),
-                            duration_ms=zeros(Int64, length(cells))))
-        bounded = make_handler(large)
-        oversized = "$base&window_s=86400&step_s=1"
-        response = request(bounded, oversized)
-        @test response.status == 422
-        @test occursin("walking window work exceeds", String(copy(response.body)))
-        @test request(bounded, "$base&window_s=1").status == 200
+        failing = make_handler(union_graph; route=(args...) -> error("routing failure"))
+        @test_throws r"routing failure" request(failing, "$base&max_walk_s=0")
+        @test request(failing, "$base&max_walk_s=1").status == 200
     end
 end
 
