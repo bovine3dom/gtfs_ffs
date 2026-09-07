@@ -4,11 +4,13 @@ repeating fantasy daily timetable. Run the commands below from the repository ro
 
 **Model**
 - All stops within one cell are freely interchangeable, with zero transfer cost.
-- There is no intercell walking, access or egress, or generated shuttle service.
+- Estimated walking provides access, transfers, direct walking and geographic egress.
+  Walks are available at any time, but consecutive walks are forbidden.
 - Departures repeat every 24 hours; waiting, including overnight waiting, counts.
 - Real dates, service calendars and trip continuity are not represented.
-- Only cells present in the input form the graph. Results are an approximation,
-  not a guarantee of reachability for every geographic cell or point in a cell.
+- Transit vertices come from the input; walking also returns reachable geographic
+  cells at the graph resolution. Cell-centre estimates are not street routing or a
+  guarantee of reachability for every point in a cell.
 - `--demo` uses a small synthetic fixture, not the real rail export.
 
 **Input And Export**
@@ -69,11 +71,13 @@ julia --project=router router/serve.jl --demo
 julia --project=router router/serve.jl data/rail_res5.arrow
 ```
 
-`ROUTER_BACKEND=cpu` is the default and runs the kernels on `KA.CPU()`.
+With walking disabled (`max_walk_s=0`), `ROUTER_BACKEND=cpu` is the default and runs the kernels on `KA.CPU()`.
 `ROUTER_BACKEND=reference` selects the CPU Dijkstra reference instead.
 `ROUTER_BACKEND=oneapi` selects Intel GPU kernels for arrival-only point queries.
 oneAPI is imported only when the point or window backend explicitly requests it;
 CPU-only launch does not initialize it. The environment pins oneAPI.jl to `2.7.2`.
+Walking requests always use the two-state CPU reference, regardless of configured
+point/window backends. They never silently run a transit-only kernel.
 On this machine, launch with the required legacy-driver prefix:
 
 ```sh
@@ -93,6 +97,8 @@ curl --fail --show-error 'http://127.0.0.1:1988/reachable?index=85075dd7fffffff&
 hexadecimal H3 string without `0x`, OR both `index_lower` and `index_upper`, unsigned
 32-bit decimal words with `index = lower | (upper << 32)`. The cell must match the graph resolution.
 `departure` is `HH:MM:SS`; `budget_s` is an integer in `0..604800` (seven days).
+`max_walk_s` is an integer in `0..604800`, default **3600 seconds per walking hop**;
+`0` disables walking and preserves the previous transit-only output and backend paths.
 Malformed, duplicate or unknown parameters return HTTP 400.
 
 Output `encoding` is independent of the input representation and defaults to `split`:
@@ -105,13 +111,59 @@ Output `encoding` is independent of the input representation and defaults to `sp
 Both include `value Float64`, elapsed **minutes including waiting**, and
 `elapsed_ms UInt32`, the exact elapsed milliseconds. `value` is required by H3-MON.
 Rows are unique and sorted by H3, include arrivals exactly at the budget cutoff,
-and always include the origin at elapsed zero. A valid off-graph origin returns only itself.
-When `distance_km` is available in the graph, single-departure responses also include
-that column for the selected earliest-arrival itinerary.
+and always include the origin at elapsed zero. An off-graph origin can walk to transit
+or directly to surrounding cells; with walking disabled it returns only itself.
+Single-departure responses include `distance_km` when walking is enabled or transit
+distances are available, following the selected earliest-arrival itinerary.
 
 Responses use `Content-Type: application/vnd.apache.arrow.file` and
 `Arrow.write(io, table; file=true, compress=nothing, dictencode=false)`:
 true IPC files with `ARROW1` at the head and footer, no IPC compression or dictionaries.
+
+**Estimated Walking**
+Walk duration is the great-circle distance between H3 centres at **5 km/h**, rounded
+up to integer milliseconds. Both the per-hop limit and remaining journey budget are
+inclusive. Walking kilometres are added to the selected transit itinerary, not used
+as a secondary shortest-path objective. No roads, terrain, water barriers or stop
+coordinates are used. At res5 a default 5 km walk may reach no other cell centre;
+nearby stops within one coarse cell still transfer freely.
+
+Every origin can start a walk. Transit, including a scheduled within-cell self-edge,
+restores walking eligibility. A walked arrival alone cannot start another walk.
+Separate earliest-arrival and walk-eligible labels preserve later transit arrivals
+that permit useful onward walks. Final geographic cells without transit are terminal
+destinations, not stepping stones for chained walking.
+
+```text
+/reachable?index=871fb4662ffffff&departure=08:00:00&budget_s=10800&max_walk_s=3600
+```
+
+The service retains one spatial index. Request-local caches share geometry between
+window samples; no walking arrival-label reuse or GPU routing is enabled yet.
+The following walking-only resource guards return **HTTP 422**, never partial Arrow
+or silently clipped reachability:
+
+- At most **250,000 unique output cells**, including the origin and the entire window
+  union. Embedders can change this with `make_handler(...; max_cells=...)`.
+- At most **2,000,000 candidate slots per geographic enumeration**, checked before
+  allocating H3 polygon output. This conservative bound may reject a query whose
+  exact filtered output would fit.
+- At most **500,000,000 work visits per request**, counting per-sample graph vertices,
+  transit edges, spatial candidates, walking hops and window aggregation. This is a
+  work bound, not a wall-clock timeout. Reduce the window, journey budget or hop limit,
+  or increase `step_s` when it is exceeded.
+
+Geometry caches retain at most 2,000,000 hops; once full, queries recompute uncached
+geometry without dropping destinations. `X-Router-Max-Walk-S` exposes the requested
+limit. `X-Router-Distance` is `connection-sum+estimated-walk-km` with transit distance
+data, or `partial-estimated-walk-km` without it. Pure walks still have known km;
+itineraries using transit without distance data have `NaN`, including later egress.
+
+Direct Julia APIs are `route_walking` and `route_window_walking`, with `max_walk_s`,
+optional resident `walking_index=WalkingIndex(graph)`, and `max_cells` keywords.
+They return a sorted `h3` vector alongside aligned result columns. Existing
+`route_cpu`, `route_details`, `route_window` and kernel APIs remain transit-only.
+See [walking results](walking-results.md) for real res5/res6/res7 validation and timings.
 
 **Departure Windows**
 Add `window_s` to average departures in `[departure, departure + window_s)`.
@@ -138,12 +190,20 @@ Window output retains `value` in minutes for H3-MON and adds these statistics:
 | `sample_count UInt32` | Total sampled departures |
 
 The response contains cells reachable at least once plus the origin. The origin has
-zero time/distance and full coverage. Missing distance data is `NaN`, not zero (except
-the zero-leg origin). `X-Router-Distance` reports `unavailable` or `connection-sum-km`.
+zero time/distance and full coverage. Unknown itinerary distance is `NaN`, not zero.
+A window distance mean is `NaN` if any successful sample has unknown kilometres;
+unknown samples are not excluded from that mean. With walking disabled,
+`X-Router-Distance` reports `unavailable` or `connection-sum-km`.
 The internal `route_window` result includes every graph node, assigning the full budget
 to never-reachable nodes; the HTTP output omits those nodes as before.
 
-Window routing is selected independently of the unchanged point-query `ROUTER_BACKEND`:
+Walking windows run independent two-state searches per departure, including geographic
+egress, then average the collapsed per-cell results chronologically. They report
+`X-Router-Backend: reference`, `X-Router-Window-Strategy: walking_reference`, one worker,
+one search per sample and zero reused samples. This correctness baseline is slower
+than transit-only catch-up; walking-aware catch-up remains pending.
+
+With `max_walk_s=0`, window routing is selected independently of `ROUTER_BACKEND`:
 
 | `ROUTER_WINDOW_BACKEND` | Implementation |
 | --- | --- |
@@ -180,14 +240,16 @@ CPU `origin` and `catchup` windows retain `X-Router-Backend: reference`;
 `ka_cpu_batched`. `X-Router-Searches` and `X-Router-Reused-Samples` retain their
 grouping meanings. When present, `X-Router-Full-Searches`, `X-Router-Repair-Searches`,
 `X-Router-Profile-Lookups`, `X-Router-Batches`, and `X-Router-Rounds` expose engine work.
-Existing query parameters, metrics, output fields and bitwise-identical means are preserved.
+Transit-only query metrics, output fields and bitwise-identical means are preserved
+when `max_walk_s=0`.
 
 Reuse compares absolute first-hop arrival/distance labels, ignoring useless self-edges,
 across adjacent samples. When they are unchanged, all non-origin routing results are
 unchanged. One search covers that group, using the last sample's cutoff so newly
 admitted destinations are not lost. Integer arithmetic sums the group's changing
 elapsed times and capped penalties without expanding one result per sample. There is
-no cache across requests. All window engines retain this source first-hop grouping.
+no cache across requests. These transit-only engines retain source first-hop grouping;
+it is deliberately not applied to walking requests.
 Catchup additionally processes groups backward inside bounded chunks, repairing only
 decreased arrival labels and caching profile indices for processed tails. It replays
 canonical kilometres per group, then aggregates chronologically to preserve exact means;

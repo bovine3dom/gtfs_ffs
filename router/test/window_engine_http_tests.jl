@@ -13,7 +13,7 @@
     for (name, engine) in engines
         handler = make_handler(graph; window_route=engine)
         for origin in DEMO_CELLS[[1, 2, 7]], encoding in ("string", "split"), metric in ("time", "distance_time_quantile")
-            target = "/reachable?index=$(H3.API.h3ToString(origin))&departure=00:00:00&budget_s=120&window_s=61&step_s=30&encoding=$encoding&metric=$metric"
+            target = "/reachable?index=$(H3.API.h3ToString(origin))&departure=00:00:00&budget_s=120&window_s=61&step_s=30&encoding=$encoding&metric=$metric&max_walk_s=0"
             response = handler(HTTP.Request("GET", target))
             @test response.status == 200
             @test response.body == expected_handler(HTTP.Request("GET", target)).body
@@ -32,7 +32,7 @@ end
     server = HTTP.serve!(parallel, "127.0.0.1", 0; listenany=true, verbose=-1)
     try
         for encoding in ("string", "split"), metric in ("time", "distance_time_quantile")
-            target = "/reachable?index=$(H3.API.h3ToString(DEMO_CELLS[1]))&departure=00:00:00&budget_s=200&window_s=129&step_s=1&encoding=$encoding&metric=$metric"
+            target = "/reachable?index=$(H3.API.h3ToString(DEMO_CELLS[1]))&departure=00:00:00&budget_s=200&window_s=129&step_s=1&encoding=$encoding&metric=$metric&max_walk_s=0"
             response = HTTP.get("http://127.0.0.1:$(HTTP.port(server))$target")
             @test response.body == serial(HTTP.Request("GET", target)).body
             @test HTTP.header(response, "X-Router-Workers") == string(min(4, Threads.nthreads(:default)))

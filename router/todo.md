@@ -2,9 +2,108 @@
 
 Frontend tasks are tracked in [H3-MON/todo.md](../../H3-MON/todo.md).
 
+## Estimated Walking: Findings and Next Deliverables
+
+Status: geometry, CPU point/window baseline and HTTP walking are implemented. Real
+res5/res6/res7 validation and timings are in [walking results](walking-results.md).
+Walking-aware catch-up remains pending; walking requests use independent CPU searches
+with shared geometry, not the transit-only cache. Multi-origin work and GPU changes
+remain deferred.
+
+Verification: **16,035 checks passed with both one and four Julia threads**, including
+independent raw-schedule walking oracles, geographic coverage, window means, HTTP
+limits and unchanged transit-only behavior. Live concurrent walking HTTP/Arrow checks
+also passed. Real res7 validation independently matched all 68,783 graph labels and
+62 geographic destinations; see the linked benchmark report for scope and caveats.
+
+### Agreed Behavior
+
+- Restore estimated walking with a configurable maximum duration per hop, default
+  **60 minutes at 5 km/h** (5 km per hop). Zero disables walking.
+- Expose the limit per request as `max_walk_s`, default `3600`.
+- Every origin, including an off-graph origin, may start with a walk. Walking is
+  available at any departure instant; it is not represented as scheduled services.
+- Return all geographic H3 destinations reachable by a final walk, including cells
+  with no transit stop and direct walk-only destinations. Include every graph vertex
+  as a possible walking target, not just source-side transit cells.
+- Initially use the loaded graph's H3 resolution for returned geographic cells.
+- Keep the original no-consecutive-walk rule: start/train -> walk is allowed,
+  walk -> train is allowed, and walk -> walk is forbidden.
+- Walking consumes the overall journey budget and contributes estimated kilometres
+  to the selected itinerary and conditional window-distance mean.
+
+### Findings
+
+- Before this work, the router followed scheduled connections only; an off-graph
+  origin returned only itself. The original transit-only APIs remain available.
+- The original res10 sketch used four H3 grid steps, distance
+  `steps * 2 * sqrt(source_cell_area_km2 / 3)`, and 5 km/h. This was an area-based
+  approximation, not pedestrian routing. Walking targets were source-side transit
+  cells, and no general surrounding-cell egress surface was generated.
+- Current Arrow inputs retain H3 endpoints and optional transit-segment kilometres,
+  not original stop coordinates. Those kilometres cannot determine arbitrary
+  transfer distances. Coordinates exist upstream but need an additional export.
+- Graph-only estimate: symmetric great-circle distance between H3 cell
+  centres, converted to duration at 5 km/h. This restores estimated walking, but
+  does not reproduce the old grid-distance numbers exactly.
+- Build neighbours with a 3D spatial hash of unit-sphere cell centres. Search the
+  cell's bin and its 26 neighbours, then apply the distance/time cutoff. This handles
+  the antimeridian and poles without enumerating large H3 disks or all vertex pairs.
+  `H3.API.cellToLatLng` supplies latitude/longitude in radians.
+- That spatial index covers existing graph vertices only. Geographic destinations
+  additionally require H3-cell enumeration and exact distance filtering; do not
+  mistake graph-neighbour lookup for complete egress coverage.
+- Round walking duration upward to integer milliseconds; admit a hop only when its
+  duration is within the configured limit. Validate limits before allocating topology.
+- Coarse cells remain problematic: nearby stops across a boundary may have centres
+  more than 5 km apart, while distant stops inside one cell remain freely connected.
+  Do not silently subtract a cell radius or force adjacent cells to connect.
+- Restore two labels/states per vertex: earliest arrival of any kind, and earliest
+  arrival eligible to start a walk. An earlier walked arrival must not erase a later
+  train arrival that can enable another walk.
+- Transit self-edges may reset walking eligibility. Existing physical-cell self-edge
+  skipping in catch-up, replay and GPU kernels is valid only for transit-only routing.
+- Existing first-hop grouping is not safe unchanged: walking arrivals move with the
+  departure time even when origin train choices do not. Downstream catch-up can still
+  help after those walks catch the same service, but requires walking-aware states.
+
+### Small Deliverables
+
+- [x] **1. Walking topology only.** Add time-limited, estimated walking adjacency,
+  defaulting to one hour, including lookup from arbitrary origins. Test against brute
+  force, covering exact limits, zero, self-exclusion, poles and longitude wrapping.
+  Do not change routing behavior in this deliverable.
+- [x] **2. Walking-aware CPU point routing.** Add the two-state reference and selected
+  distance accounting, direct walk-only coverage and geographic egress. Test train/walk
+  combinations, rejected chained walks, later walk-eligible arrivals, off-graph origins
+  and destinations, self-edge resets and overall cutoff equality.
+- [x] **3. Window correctness baseline.** Run independent walking-aware point searches
+  per sampled departure; preserve capped times, coverage, kilometres and rank-of-means
+  output. Do not apply the transit-only grouping/cache until validated for walks.
+- [ ] **4. Walking-aware reuse.** Adapt state, connection caches and canonical replay;
+  prove equivalence to deliverable 3 before restoring parallel catch-up performance.
+- [x] **5. Service configuration.** Expose and document the maximum hop duration, with
+  `max_walk_s=3600` by default and `0` disabling walking. Reuse the spatial index and
+  cached/precomputed connectivity across limits where valid. Bound excessive requests
+  and geographic output explicitly; reject rather than silently truncate results.
+  Do not silently use a transit-only backend when walking is requested.
+- [x] **6. Real-data validation.** Recorded walking-edge counts, memory and timings at
+  res5/res6/res7, exact disabled-mode parity, and independent res7 arrival/egress checks.
+  Sample time/km labels are recorded, not full itineraries: this API has no path output.
+  Keep benchmarks and unsupported backend combinations explicit.
+
+HTTP limits: 0..604800 seconds per hop; 250,000 output cells; 2,000,000 geographic
+candidate slots per enumeration; 500,000,000 cumulative work visits. Excessive walking
+requests return 422, never truncated Arrow. Geometry cache storage is also bounded.
+With centre-based estimates,
+the default 5 km hop may reach no neighbouring res5 centre; verify useful walking
+coverage on finer graphs rather than silently changing the distance model.
+
 ## Current Implementation Contract
 
-Implemented: departure-window averaging and selected-itinerary kilometres.
+Implemented: departure-window averaging, selected-itinerary kilometres and estimated
+walking access/transfers/geographic egress. The reuse/backend details below describe
+transit-only requests (`max_walk_s=0`); walking uses the baseline documented above.
 Code, contract and measurements: [README](README.md), [window results](window-results.md).
 
 - Sample a half-open departure window, every minute by default; expose the interval.
@@ -82,6 +181,24 @@ Implemented; measurements and caveats are in [window optimization results](windo
 - Differential-test arrivals, chosen-route kilometres and capped averages against
   independent searches, including midnight, exact departures and equal-time alternatives.
 - Benchmark busy origins where first-hop changes currently prevent much reuse.
+
+## Further CPU Optimizations
+
+Compute work only; interactive request caching, coalescing and cancellation are not
+priorities here. Profile the parallel path before choosing the next change.
+
+- [ ] Reuse the kilometre-replay heap instead of constructing one for every group.
+  Reuse workspace-owned storage only after the preceding operation has drained it;
+  preserve canonical discovery order and safe exception handling.
+- [ ] Parallelize aggregation across disjoint destination ranges.
+  Process groups chronologically within each destination, preserving exact means;
+  do not combine independently computed partial averages.
+- [ ] Replace compute/aggregate wave barriers with a bounded pipeline.
+  Overlap future chunk computation with ordered consumption, retain ownership until
+  snapshots are consumed, and join workers safely on failure.
+- [ ] Reduce full-graph clearing and snapshots for sparse queries.
+  Investigate touched-vertex tracking or sparse/delta snapshots, with a dense fallback
+  for broad coverage. Preserve cutoff filtering, capped penalties and route kilometres.
 
 ## Stop-to-Stop Distances
 

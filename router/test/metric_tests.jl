@@ -24,7 +24,7 @@ end
     metric = "metric=distance_time_quantile"
     origin = DEMO_CELLS[1]
     index = "index=$(H3.API.h3ToString(origin))"
-    times = "departure=00:00:00&budget_s=100"
+    times = "departure=00:00:00&budget_s=100&max_walk_s=0"
     graph = pack_graph(distance_table([(1, 2, 0, 30, 10.0), (1, 2, 60, 0, 1.0),
                                       (1, 3, 0, 40, 2.0), (1, 3, 60, 20, 2.0), (3, 4, 1000, 0, 50.0)]))
     handler = make_handler(graph; route=error)

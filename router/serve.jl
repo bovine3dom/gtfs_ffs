@@ -58,7 +58,8 @@ end
 
 host = get(ENV, "ROUTER_HOST", "127.0.0.1")
 port = parse(Int, get(ENV, "ROUTER_PORT", "1988"))
-@info "Starting transit-only router" host port backend=backend_name resolution=graph.resolution distance_available=!isnothing(graph.distance_km) nodes=length(graph.h3) edges=length(graph.edge_to) profiles=length(graph.departure)
+@info "Starting router" host port backend=backend_name resolution=graph.resolution distance_available=!isnothing(graph.distance_km) nodes=length(graph.h3) edges=length(graph.edge_to) profiles=length(graph.departure)
 @info "Window routing" window_backend
 @info "Single-departure route distances use CPU Dijkstra"
+@info "Walking point/window queries use CPU reference routing; max_walk_s=0 selects transit-only backends" default_max_walk_s=3600
 HTTP.serve(make_handler(graph; route, window_route), host, port)

@@ -66,7 +66,7 @@ end
     words = "index_lower=$(origin % UInt32)&index_upper=$((origin >> 32) % UInt32)"
     times = "departure=00:00:00&budget_s=120"
     window = "window_s=121&step_s=30"
-    request(query) = handler(HTTP.Request("GET", "/reachable?$query"))
+    request(query) = handler(HTTP.Request("GET", "/reachable?$query&max_walk_s=0"))
     for encoding in ("string", "split")
         response = request("$index&$times&$window&encoding=$encoding")
         @test response.status == 200
@@ -108,11 +108,11 @@ end
         legacy = pack_graph(distance_table(rows; distances=false))
         old = make_handler(legacy; route=(h, t, b) -> (calls[] += 1; route_cpu(legacy, h, t, b)))
         for suffix in ("", "&window_s=0")
-            result = old(HTTP.Request("GET", "/reachable?$index&$times&encoding=$encoding$suffix"))
+            result = old(HTTP.Request("GET", "/reachable?$index&$times&encoding=$encoding$suffix&max_walk_s=0"))
             @test propertynames(Arrow.Table(result.body)) == [indices; :value; :elapsed_ms]
             @test eltype(Arrow.Table(result.body).elapsed_ms) == UInt32
         end
-        unknown = old(HTTP.Request("GET", "/reachable?$index&$times&$window&encoding=$encoding"))
+        unknown = old(HTTP.Request("GET", "/reachable?$index&$times&$window&encoding=$encoding&max_walk_s=0"))
         @test calls[] == 2
         @test HTTP.header(unknown, "X-Router-Distance") == "unavailable"
         @test count(isnan, Arrow.Table(unknown.body).distance_km) == 2
@@ -137,7 +137,7 @@ end
     server = HTTP.serve!(handler, "127.0.0.1", 0; listenany=true, verbose=-1)
     try
         tasks = map(cases) do (query, elapsed, samples)
-            @async HTTP.get("http://127.0.0.1:$(HTTP.port(server))/reachable?$query&encoding=string")
+            @async HTTP.get("http://127.0.0.1:$(HTTP.port(server))/reachable?$query&encoding=string&max_walk_s=0")
         end
         for ((query, elapsed, samples), task) in zip(cases, tasks)
             response = fetch(task)
@@ -166,7 +166,7 @@ end
     @test route_window(graph, cells[1], 0, 1000, 1).reachable_samples == UInt32[1, 1]
     handler = make_handler(graph; route=error)
     for cell in (cells[1], cells[3], DEMO_ORIGIN, UInt64(0))
-        response = handler(HTTP.Request("GET", "/reachable?index=$(H3.API.h3ToString(cell))&departure=00:00:00&budget_s=1&window_s=1"))
+        response = handler(HTTP.Request("GET", "/reachable?index=$(H3.API.h3ToString(cell))&departure=00:00:00&budget_s=1&window_s=1&max_walk_s=0"))
         @test response.status == (cell in cells ? 200 : 400)
         if !(cell in cells)
             @test_throws ArgumentError route_cpu(graph, cell, 0, 1000)

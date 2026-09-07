@@ -147,7 +147,7 @@ include("kernel_tests.jl")
     times = "departure=08:00:00&budget_s=3600"
     lower, upper = DEMO_ORIGIN % UInt32, (DEMO_ORIGIN >> 32) % UInt32
     words = "index_lower=$lower&index_upper=$upper"
-    request(query) = handler(HTTP.Request("GET", "/reachable?$query"))
+    request(query) = handler(HTTP.Request("GET", "/reachable?$query&max_walk_s=0"))
     high_cell = first(filter(h -> h % UInt32 > typemax(Int32), DEMO_CELLS))
     high_words = "index_lower=$(high_cell % UInt32)&index_upper=$((high_cell >> 32) % UInt32)"
     high_split = Arrow.Table(request("$high_words&$times&encoding=string").body)
@@ -215,7 +215,7 @@ include("kernel_tests.jl")
         url = "http://127.0.0.1:$(HTTP.port(server))/reachable"
         tasks = map(1:8) do i
             query = isodd(i) ? "$origin&$times" : "index=$(H3.API.h3ToString(DEMO_CELLS[5]))&$times"
-            @async HTTP.get("$url?$query")
+            @async HTTP.get("$url?$query&max_walk_s=0")
         end
         for (i, task) in enumerate(tasks)
             result = fetch(task)
@@ -234,3 +234,7 @@ include("kernel_tests.jl")
         end
     end
 end
+
+include("walking_geometry_tests.jl")
+include("walking_tests.jl")
+include("walking_http_tests.jl")

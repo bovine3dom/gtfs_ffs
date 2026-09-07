@@ -5,7 +5,8 @@ import KernelAbstractions as KA
 import Atomix
 
 export Graph, pack_graph, route_cpu, route_details, route_window, route_window_cached,
-       KernelRouter, route_kernel!, WindowKernelRouter, route_window_kernel!, make_handler
+       KernelRouter, route_kernel!, WindowKernelRouter, route_window_kernel!, make_handler,
+       WalkingIndex, walking_neighbors, walking_cells, route_walking, route_window_walking
 
 const RESOLUTION = 5
 const PERIOD = UInt32(86_400_000)
@@ -209,12 +210,15 @@ include("kernels.jl")
 include("window.jl")
 include("catchup.jl")
 include("window_gpu.jl")
+include("walking_geometry.jl")
+include("walking.jl")
+include("walking_window.jl")
 
 function parse_query(uri, graph)
     pairs = HTTP.queryparampairs(uri.query)
     params = Dict(pairs)
     length(params) == length(pairs) || throw(ArgumentError("duplicate query parameter"))
-    allowed = ("index", "index_lower", "index_upper", "departure", "budget_s", "encoding", "window_s", "step_s", "metric")
+    allowed = ("index", "index_lower", "index_upper", "departure", "budget_s", "encoding", "window_s", "step_s", "metric", "max_walk_s")
     all(k -> k in allowed, keys(params)) || throw(ArgumentError("unknown query parameter"))
     has_string = haskey(params, "index")
     has_split = haskey(params, "index_lower") || haskey(params, "index_upper")
@@ -241,6 +245,10 @@ function parse_query(uri, graph)
     seconds = occursin(r"^[0-9]+\z", budget) ? tryparse(Int, budget) : nothing
     (!isnothing(seconds) && seconds <= MAX_BUDGET_MS ÷ 1000) ||
         throw(ArgumentError("budget_s must be an integer from 0 to 604800"))
+    walk = get(params, "max_walk_s", "3600")
+    max_walk_s = occursin(r"^[0-9]+\z", walk) ? tryparse(Int, walk) : nothing
+    (!isnothing(max_walk_s) && max_walk_s <= MAX_BUDGET_MS ÷ 1000) ||
+        throw(ArgumentError("max_walk_s must be an integer from 0 to 604800"))
     encoding = get(params, "encoding", "split")
     encoding in ("string", "split") || throw(ArgumentError("encoding must be string or split"))
     metric = get(params, "metric", "time")
@@ -255,7 +263,7 @@ function parse_query(uri, graph)
     step_s = occursin(r"^[0-9]+\z", step) ? tryparse(Int, step) : nothing
     (!isnothing(step_s) && 1 <= step_s <= 86400) || throw(ArgumentError("step_s must be an integer from 1 to 86400"))
     haskey(params, "step_s") && window_s == 0 && throw(ArgumentError("step_s requires a positive window_s"))
-    return origin, ready, seconds * 1000, encoding, window_s * 1000, step_s * 1000, metric
+    return origin, ready, seconds * 1000, encoding, window_s * 1000, step_s * 1000, metric, max_walk_s
 end
 
 function normalized_ranks(values)
@@ -289,12 +297,12 @@ function arrow_table(cells, columns, encoding; metric="time")
     return take!(io)
 end
 
-function arrow_result(graph, labels, origin, ready, encoding; distance_km=nothing, metric="time")
+function arrow_result(graph, labels, origin, ready, encoding; distance_km=nothing, metric="time", h3=graph.h3)
     reached = findall(!=(INF), labels)
-    cells = graph.h3[reached]
+    cells = h3[reached]
     elapsed = labels[reached] .- ready
     distances = isnothing(distance_km) ? nothing : distance_km[reached]
-    if !haskey(graph.node_id, origin)
+    if !haskey(graph.node_id, origin) && !(origin in cells)
         isnothing(distances) || insert!(distances, searchsortedfirst(cells, origin), 0.0)
         insert!(elapsed, searchsortedfirst(cells, origin), UInt32(0))
         insert!(cells, searchsortedfirst(cells, origin), origin)
@@ -306,12 +314,12 @@ end
 
 function window_arrow(graph, result, origin, encoding; metric="time")
     reached = findall(>(0), result.reachable_samples)
-    cells = graph.h3[reached]
+    cells = (hasproperty(result, :h3) ? result.h3 : graph.h3)[reached]
     elapsed = result.elapsed_ms[reached]
     conditional = result.reachable_elapsed_ms[reached]
     distances = result.distance_km[reached]
     counts = result.reachable_samples[reached]
-    if !haskey(graph.node_id, origin)
+    if !haskey(graph.node_id, origin) && !(origin in cells)
         at = searchsortedfirst(cells, origin)
         insert!(cells, at, origin)
         for values in (elapsed, conditional, distances)
@@ -325,13 +333,17 @@ function window_arrow(graph, result, origin, encoding; metric="time")
         reachable_samples=counts, sample_count=fill(result.sample_count, length(cells))), encoding; metric)
 end
 
-"""An in-process HTTP handler; the lock protects a reusable kernel workspace."""
+"""An in-process HTTP handler with a resident walking index and locked routing workspaces."""
 function make_handler(graph::Graph; route=(h, t, b) -> route_cpu(graph, h, t, b),
-                      window_route=(h, t, b, w, s) -> route_window_cached(graph, h, t, b, w; step_ms=s))
+                      window_route=(h, t, b, w, s) -> route_window_cached(graph, h, t, b, w; step_ms=s),
+                      max_cells=250_000)
+    max_cells isa Integer && 0 <= max_cells <= typemax(Int) ||
+        throw(ArgumentError("max_cells must be an integer from 0 to $(typemax(Int))"))
+    walking_index = WalkingIndex(graph)
     request_lock = ReentrantLock()
     return function (request)
         headers = ["Access-Control-Allow-Origin" => "*", "Cache-Control" => "no-store",
-                   "Access-Control-Expose-Headers" => "X-Router-Backend, X-Router-Distance, X-Router-Searches, X-Router-Reused-Samples, X-Router-Metric, X-Router-Window-Strategy, X-Router-Full-Searches, X-Router-Repair-Searches, X-Router-Profile-Lookups, X-Router-Batches, X-Router-Rounds, X-Router-Workers"]
+                   "Access-Control-Expose-Headers" => "X-Router-Backend, X-Router-Distance, X-Router-Searches, X-Router-Reused-Samples, X-Router-Metric, X-Router-Window-Strategy, X-Router-Full-Searches, X-Router-Repair-Searches, X-Router-Profile-Lookups, X-Router-Batches, X-Router-Rounds, X-Router-Workers, X-Router-Max-Walk-S"]
         query = try
             uri = HTTP.URI(request.target)
             uri.path == "/reachable" || return HTTP.Response(404, headers, "not found")
@@ -346,34 +358,48 @@ function make_handler(graph::Graph; route=(h, t, b) -> route_cpu(graph, h, t, b)
             error isa Union{ArgumentError,EOFError} || rethrow()
             return HTTP.Response(400, [headers; "Content-Type" => "text/plain"], sprint(showerror, error))
         end
-        origin, ready, budget, encoding, window, step, metric = query
-        body = lock(request_lock) do
-            if window > 0
-                result = window_route(origin, ready, budget, window, step)
-                strategy = hasproperty(result, :backend) ? result.backend : "origin"
-                backend = strategy in ("origin", "catchup") ? "reference" : strategy
-                append!(headers, ["X-Router-Backend" => backend,
-                    "X-Router-Window-Strategy" => strategy,
-                    "X-Router-Searches" => string(result.searches),
-                    "X-Router-Reused-Samples" => string(result.reused_samples)])
-                for (field, header) in ((:full_searches, "Full-Searches"), (:repair_searches, "Repair-Searches"),
-                                        (:profile_lookups, "Profile-Lookups"), (:batches, "Batches"), (:rounds, "Rounds"), (:workers, "Workers"))
-                    hasproperty(result, field) && push!(headers, "X-Router-$header" => string(getproperty(result, field)))
+        origin, ready, budget, encoding, window, step, metric, max_walk_s = query
+        push!(headers, "X-Router-Max-Walk-S" => string(max_walk_s))
+        return lock(request_lock) do
+            body = try
+                if window > 0
+                    result = max_walk_s > 0 ? route_window_walking(graph, origin, ready, budget, window;
+                        step_ms=step, max_walk_s, walking_index, max_cells) : window_route(origin, ready, budget, window, step)
+                    strategy = hasproperty(result, :backend) ? result.backend : "origin"
+                    backend = strategy in ("origin", "catchup", "walking_reference") ? "reference" : strategy
+                    append!(headers, ["X-Router-Backend" => backend,
+                        "X-Router-Window-Strategy" => strategy,
+                        "X-Router-Searches" => string(result.searches),
+                        "X-Router-Reused-Samples" => string(result.reused_samples)])
+                    for (field, header) in ((:full_searches, "Full-Searches"), (:repair_searches, "Repair-Searches"),
+                                            (:profile_lookups, "Profile-Lookups"), (:batches, "Batches"), (:rounds, "Rounds"), (:workers, "Workers"))
+                        hasproperty(result, field) && push!(headers, "X-Router-$header" => string(getproperty(result, field)))
+                    end
+                    window_arrow(graph, result, origin, encoding; metric)
+                elseif max_walk_s > 0 || !isnothing(graph.distance_km)
+                    result = max_walk_s > 0 ? route_walking(graph, origin, ready, budget; max_walk_s, walking_index, max_cells) :
+                        route_details(graph, origin, ready, budget)
+                    push!(headers, "X-Router-Backend" => "reference")
+                    arrow_result(graph, result.arrival, origin, ready, encoding;
+                        distance_km=result.distance_km, metric, h3=hasproperty(result, :h3) ? result.h3 : graph.h3)
+                else
+                    labels = route(origin, ready, budget)
+                    arrow_result(graph, labels, origin, ready, encoding)
                 end
-                window_arrow(graph, result, origin, encoding; metric)
-            elseif !isnothing(graph.distance_km)
-                result = route_details(graph, origin, ready, budget)
-                push!(headers, "X-Router-Backend" => "reference")
-                arrow_result(graph, result.arrival, origin, ready, encoding; distance_km=result.distance_km, metric)
-            else
-                labels = route(origin, ready, budget)
-                arrow_result(graph, labels, origin, ready, encoding)
+            catch error
+                error isa WalkingLimitError || rethrow()
+                return HTTP.Response(422, [headers; "Content-Type" => "text/plain"], sprint(showerror, error))
             end
+            distance = if max_walk_s > 0
+                isnothing(graph.distance_km) ? "partial-estimated-walk-km" : "connection-sum+estimated-walk-km"
+            else
+                isnothing(graph.distance_km) ? "unavailable" : "connection-sum-km"
+            end
+            push!(headers, "X-Router-Distance" => distance)
+            push!(headers, "X-Router-Metric" => metric)
+            push!(headers, "Content-Type" => "application/vnd.apache.arrow.file")
+            return HTTP.Response(200, headers, body)
         end
-        push!(headers, "X-Router-Distance" => isnothing(graph.distance_km) ? "unavailable" : "connection-sum-km")
-        push!(headers, "X-Router-Metric" => metric)
-        push!(headers, "Content-Type" => "application/vnd.apache.arrow.file")
-        return HTTP.Response(200, headers, body)
     end
 end
 
