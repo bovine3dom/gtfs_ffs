@@ -7,7 +7,7 @@ import Atomix
 export Graph, pack_graph, route_cpu, route_details, route_window, route_window_cached,
        KernelRouter, route_kernel!, WindowKernelRouter, route_window_kernel!, make_handler,
        WalkingIndex, prepare_walking, walking_neighbors, walking_cells, route_walking, route_window_walking,
-       route_window_walking_cached
+       route_window_walking_cached, make_resolution_handler
 
 const RESOLUTION = 5
 const PERIOD = UInt32(86_400_000)
@@ -257,12 +257,14 @@ function _hours_ms(value, name, maximum; positive=false, nonzero=false, clock=fa
     return ms
 end
 
-function parse_query(uri, graph)
+function _query_params(uri)
     pairs = HTTP.queryparampairs(uri.query)
     params = Dict(pairs)
     length(params) == length(pairs) || throw(ArgumentError("duplicate query parameter"))
-    allowed = ("index", "index_lower", "index_upper", "departure_h", "budget_h", "encoding", "window_h", "step_h", "metric", "max_walk_h", "distance_mode")
-    all(k -> k in allowed, keys(params)) || throw(ArgumentError("unknown query parameter"))
+    return params
+end
+
+function _query_origin(params)
     has_string = haskey(params, "index")
     has_split = haskey(params, "index_lower") || haskey(params, "index_upper")
     has_string != has_split || throw(ArgumentError("provide index OR index_lower and index_upper"))
@@ -279,6 +281,15 @@ function parse_query(uri, graph)
         end
         words[1] | (words[2] << 32)
     end
+    validate_cell(origin)
+    return origin
+end
+
+function parse_query(uri, graph)
+    params = _query_params(uri)
+    allowed = ("index", "index_lower", "index_upper", "departure_h", "budget_h", "encoding", "window_h", "step_h", "metric", "max_walk_h", "distance_mode")
+    all(k -> k in allowed, keys(params)) || throw(ArgumentError("unknown query parameter"))
+    origin = _query_origin(params)
     departure_ms = _hours_ms(get(params, "departure_h", ""), "departure_h", 24; clock=true)
     budget_ms = _hours_ms(get(params, "budget_h", ""), "budget_h", 168)
     max_walk_ms = _hours_ms(get(params, "max_walk_h", "1"), "max_walk_h", 168)
@@ -374,12 +385,11 @@ function make_handler(graph::Graph; route=(h, t, b) -> route_cpu(graph, h, t, b)
                       straight_window_route=(h, t, b, w, s, m, index) -> m > 0 ?
                           route_window_walking_cached(graph, h, t, b, w; step_ms=s, max_walk_ms=m,
                               walking_index=index, distance_mode=:straight_line) :
-                          route_window_cached(graph, h, t, b, w; step_ms=s, distance_mode=:straight_line))
+                          route_window_cached(graph, h, t, b, w; step_ms=s, distance_mode=:straight_line),
+                      request_lock=ReentrantLock())
     walking_index = prepare_walking(WalkingIndex(graph))
-    request_lock = ReentrantLock()
     return function (request)
-        headers = ["Access-Control-Allow-Origin" => "*", "Cache-Control" => "no-store",
-                   "Access-Control-Expose-Headers" => "X-Router-Backend, X-Router-Distance, X-Router-Distance-Mode, X-Router-Searches, X-Router-Reused-Samples, X-Router-Metric, X-Router-Window-Strategy, X-Router-Full-Searches, X-Router-Repair-Searches, X-Router-Profile-Lookups, X-Router-Batches, X-Router-Rounds, X-Router-Workers, X-Router-Max-Walk-H"]
+        headers = _response_headers()
         query = try
             uri = HTTP.URI(request.target)
             uri.path == "/reachable" || return HTTP.Response(404, headers, "not found")
@@ -444,6 +454,32 @@ function make_handler(graph::Graph; route=(h, t, b) -> route_cpu(graph, h, t, b)
             push!(headers, "Content-Type" => "application/vnd.apache.arrow.file")
             return HTTP.Response(200, headers, body)
         end
+    end
+end
+
+_response_headers() = ["Access-Control-Allow-Origin" => "*", "Cache-Control" => "no-store",
+    "Access-Control-Expose-Headers" => "X-Router-Backend, X-Router-Distance, X-Router-Distance-Mode, X-Router-Searches, X-Router-Reused-Samples, X-Router-Metric, X-Router-Window-Strategy, X-Router-Full-Searches, X-Router-Repair-Searches, X-Router-Profile-Lookups, X-Router-Batches, X-Router-Rounds, X-Router-Workers, X-Router-Max-Walk-H"]
+
+"""Dispatch unchanged reachable requests by origin H3 resolution to resident handlers."""
+function make_resolution_handler(handlers::AbstractDict{Int})
+    isempty(handlers) && throw(ArgumentError("at least one graph handler is required"))
+    handlers = copy(handlers)
+    fallback = first(values(handlers))
+    return function (request)
+        handler = try
+            uri = HTTP.URI(request.target)
+            if uri.path != "/reachable" || request.method != "GET"
+                return fallback(request)
+            end
+            origin = _query_origin(_query_params(uri))
+            resolution = Int(H3.API.getResolution(origin))
+            haskey(handlers, resolution) || throw(ArgumentError("no graph loaded for H3 resolution $resolution"))
+            handlers[resolution]
+        catch error
+            error isa Union{ArgumentError,EOFError} || rethrow()
+            return HTTP.Response(400, [_response_headers(); "Content-Type" => "text/plain"], sprint(showerror, error))
+        end
+        return handler(request)
     end
 end
 

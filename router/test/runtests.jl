@@ -1,7 +1,7 @@
 using Test, Random, Arrow, HTTP
 import H3
 import KernelAbstractions as KA
-include("../src/Reachability.jl")
+include("../serve.jl")
 using .Reachability
 include("../fixture.jl")
 
@@ -242,3 +242,4 @@ include("walking_tests.jl")
 include("walking_catchup_tests.jl")
 include("walking_http_tests.jl")
 include("websocket_tests.jl")
+include("resolution_tests.jl")

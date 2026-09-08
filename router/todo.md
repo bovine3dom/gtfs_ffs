@@ -330,16 +330,24 @@ formula on a 1,067-cell full-day query; visual comparison with the old plot rema
 
 ## Resolution and Transport Selection
 
-- [ ] Let requests select H3 resolution and transport types.
+- [x] Load multiple Arrow files sequentially and dispatch HTTP/WebSocket requests by
+  origin H3 resolution. One resident graph/index/backend workspace per resolution;
+  reject duplicates and mixed demo/file arguments. Preserve one shared routing lock,
+  hours fields, strict coverage, distance modes and all-default-pool window workers.
+- [x] Full one/four-thread suites each pass 66,511 checks, including 165 resolution
+  checks and an isolated four-thread, three-file HTTP/WebSocket launcher test.
+  Reference and CPU kernels verified; GPU hardware and full-size memory not retested.
+- [ ] Select transport types independently of H3 resolution.
 
 - Start with named Arrow snapshots for supported resolution/mode combinations, such
   as rail-only or combined rail/bus graphs, rather than rebuilding graphs per request.
-- Select snapshots through an allowlisted dataset identifier, not an arbitrary file
+- Future transport selection: use an allowlisted dataset identifier, not an arbitrary file
   path. Record each dataset's resolution, transport types and source snapshot.
 - Validate origin resolution against the selected graph. Document that changing
   routing resolution changes the within-cell transfer approximation, not just display.
-- Load and cache packed graphs/device data with a memory limit; avoid repeated packing
-  and uploads when switching between already-loaded datasets.
+- Current resolution snapshots all stay resident without a memory cap; startup RAM
+  and device memory must accommodate their sum. Consider bounded caching only for
+  future transport selection; switching resolutions does not repack or upload.
 - Connect dataset selection to H3-MON's metadata-defined controls. Revisit runtime
   filtering or resolution conversion only if separate snapshots become limiting.
 

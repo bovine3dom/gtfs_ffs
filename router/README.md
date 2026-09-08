@@ -130,6 +130,35 @@ julia --project=router router/serve.jl --demo
 julia --project=router router/serve.jl data/rail_res5.arrow
 ```
 
+To keep several resolutions resident in one server:
+
+```sh
+julia --threads=8 --project=router router/serve.jl data/rail_res5.arrow data/rail_res6.arrow data/rail_res7.arrow
+```
+
+Files load and prepare sequentially before listening, including the Elvas-Badajoz
+repair and one resident walking index per file. Each graph's resolution is inferred
+from its H3 cells, not its filename. Only one graph per resolution is allowed;
+duplicates fail startup with both filenames and the resolution. `--demo` remains
+valid alone and cannot be mixed with files.
+
+HTTP `/reachable` and queries on the same `/query` WebSocket select the graph by
+the origin H3 cell's encoded resolution, with either hexadecimal or split-word
+input. No dataset/resolution parameter, coordinate conversion, or resampling is
+introduced. An unloaded resolution returns HTTP 400 (`no graph loaded for H3
+resolution N`); WebSocket validation keeps its generic safe error and permits the
+next valid query. Latest-pending scheduling remains per connection, even when
+switching resolutions. Changing routing resolution changes the within-cell
+transfer approximation, not just display detail.
+
+All graphs, walking indexes and configured CPU/GPU workspaces stay resident;
+budget RAM and device memory for their **sum**, plus startup/query scratch space.
+Sequential preparation avoids concurrent large graph builds, not the summed
+resident cost. Backend callbacks and device caches belong to each graph, while
+one shared routing lock preserves serialized HTTP/WebSocket workspace use across
+all resolutions. CPU window workers still use all Julia default-pool threads.
+Changing files requires a restart; transport-type selection remains deferred.
+
 With walking disabled (`max_walk_h=0`), `ROUTER_BACKEND=cpu` is the default and runs the kernels on `KA.CPU()`.
 `ROUTER_BACKEND=reference` selects the CPU Dijkstra reference instead.
 `ROUTER_BACKEND=oneapi` selects Intel GPU kernels for arrival-only point queries.
