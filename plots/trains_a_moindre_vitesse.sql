@@ -32,14 +32,13 @@ SELECT
     quantile(0.99)( 
         geoDistance(stop_lon, stop_lat, next_lon, next_lat) / 
         NULLIF(dateDiff('second', toDateTime(departure_time), toDateTime(next_arrival)), 0)
-    ) * 3.6 AS 99th_percentile_speed_kmh,
+    ) * 3.6 AS speed,
     count() as count
-FROM transitous_everything_20260117_edgelist_fahrtle
+FROM transitous_everything_20260218_edgelist_fahrtle2
 WHERE TRUE -- source = 'fr_horaires-sncf.gtfs'
   -- AND trip_id LIKE '%OUI%'
   AND next_arrival > departure_time 
   AND ( route_type between 100 and 199 or route_type = 2 )
 GROUP BY 
     start_lat, start_lon, finish_lat, finish_lon
-ORDER BY 99th_percentile_speed_kmh ASC
 INTO OUTFILE 'trains_a_vitesse.csv' TRUNCATE FORMAT CSVWithNames;

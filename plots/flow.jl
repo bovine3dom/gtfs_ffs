@@ -1,4 +1,4 @@
-using DataFrames, ImageFiltering, LinearAlgebra, CSV, Interpolations
+using DataFrames, ImageFiltering, LinearAlgebra, CSV, Interpolations, GeometryBasics
 
 PARIS_LAT = 48.8566
 PARIS_LON = 2.3522
