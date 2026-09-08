@@ -87,7 +87,7 @@ Scratch memory grows with active workers, not the entire window: approximately
 limit scaling; four workers are not expected to produce a fourfold speedup.
 
 ```sh
-env ROUTER_BENCH_CHUNKS=64 ROUTER_BENCH_WORKERS=1,2,4 julia --project=router --threads=4 router/benchmark-window-engines.jl data/rail_and_friends_dist_res5.arrow 851fb467fffffff 24 5
+env ROUTER_BENCH_CHUNKS=64 ROUTER_BENCH_WORKERS=1,2,4 julia --project=experiments/gpu --threads=4 experiments/gpu/benchmark-window-engines.jl data/rail_and_friends_dist_res5.arrow 851fb467fffffff 24 5
 ```
 
 Timings exclude graph loading and HTTP/Arrow serialization. They are a representative
@@ -172,37 +172,21 @@ these intermediate or pilot numbers.
 
 ## Running And Inspecting
 
-The launcher defaults to `ROUTER_WINDOW_BACKEND=catchup`, with
-`ROUTER_WINDOW_CHUNK=64` (1..256). `origin` selects the old reference;
-`oneapi` selects GPU batching and `ka_cpu` runs the same kernels for CPU verification.
-The batched launcher defaults are `ROUTER_WINDOW_BATCH=32` (1..256) and
-`ROUTER_WINDOW_CHECK_EVERY=4` (1..32). These are launcher defaults; the direct
-`WindowKernelRouter` constructor currently defaults to batch 64.
-
-`make_handler` accepts a separate `window_route` callback, defaulting to CPU catchup.
-CPU origin/catchup retain `X-Router-Backend: reference`, while
-`X-Router-Window-Strategy` reports `origin`, `catchup`, `gpu_batched` or
-`ka_cpu_batched`. Optional headers expose full searches, repairs, profile lookups,
-batches and rounds. `X-Router-Searches` still counts first-hop groups, including
-repair groups. Distance-bearing point queries still use CPU Dijkstra.
+These measurements predate the CPU-only server cleanup. The launcher now uses
+CPU Dijkstra/catch-up with internal chunk size 64, without backend callbacks or
+environment tuning. Experimental GPU batching is retained separately.
 
 From the repository root, CPU reference points plus default CPU catchup windows:
 
 ```sh
-env ROUTER_BACKEND=reference julia --project=router router/serve.jl data/rail_and_friends_dist_res5.arrow
+julia --threads=8 --project=router router/serve.jl data/rail_and_friends_dist_res5.arrow
 ```
 
-Explicit GPU windows, without switching point queries to the GPU:
-
-```sh
-env ZE_ENABLE_ALT_DRIVERS=/usr/lib/libze_intel_gpu_legacy1.so.1 ROUTER_BACKEND=reference ROUTER_WINDOW_BACKEND=oneapi julia --project=router router/serve.jl data/rail_and_friends_dist_res5.arrow
-```
-
-The `router/benchmark-window-engines.jl` harness accepts
+The `experiments/gpu/benchmark-window-engines.jl` harness accepts
 `input.arrow [origin_hex] [window_h] [repetitions] [--gpu]` (commands updated for the hour-based interface; measurements below are historical):
 
 ```sh
-env ZE_ENABLE_ALT_DRIVERS=/usr/lib/libze_intel_gpu_legacy1.so.1 julia --project=router --threads=4 router/benchmark-window-engines.jl data/rail_and_friends_dist_res5.arrow 851fb467fffffff 24 3 --gpu
+env ZE_ENABLE_ALT_DRIVERS=/usr/lib/libze_intel_gpu_legacy1.so.1 julia --project=experiments/gpu --threads=4 experiments/gpu/benchmark-window-engines.jl data/rail_and_friends_dist_res5.arrow 851fb467fffffff 24 3 --gpu
 ```
 
 Omit `--gpu` and the legacy-driver prefix for CPU-only runs. The comma-separated

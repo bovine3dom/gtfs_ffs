@@ -19,7 +19,7 @@ omitting it creates a fresh directory under `/tmp/opencode`.
 
 ```bash
 julia --startup-file=no --compiled-modules=existing --threads=4 \
-  --project=router router/benchmark-walking-reuse.jl \
+  --project=experiments/gpu experiments/benchmarks/benchmark-walking-reuse.jl \
   data/rail_and_friends_res7.arrow
 ```
 
@@ -27,7 +27,7 @@ The completed measurement used:
 
 ```bash
 time julia --startup-file=no --compiled-modules=existing --threads=4 \
-  --project=router router/benchmark-walking-reuse.jl \
+  --project=experiments/gpu experiments/benchmarks/benchmark-walking-reuse.jl \
   data/rail_and_friends_res7.arrow \
   /tmp/opencode/walking-reuse-prewarm-20260907
 ```

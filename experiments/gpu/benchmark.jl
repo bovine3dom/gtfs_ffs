@@ -1,9 +1,9 @@
 using Dates, Printf, Random, SHA, Statistics, TOML
 using Arrow, H3, HTTP, oneAPI
 import KernelAbstractions as KA
-const SOURCE_FILES = ("src/Reachability.jl", "src/kernels.jl", "src/window.jl", "Manifest.toml", "benchmark.jl")
+const SOURCE_FILES = ("../../router/src/Reachability.jl", "kernels.jl", "../../router/src/window.jl", "Manifest.toml", "benchmark.jl")
 const SOURCE_HASHES = Dict(file => bytes2hex(open(sha256, joinpath(@__DIR__, file))) for file in SOURCE_FILES)
-include("src/Reachability.jl")
+include("Reachability.jl")
 using .Reachability
 
 route(graph::Graph, origin, departure, budget) = route_cpu(graph, origin, departure, budget)
@@ -61,7 +61,7 @@ function write_csv(path, rows)
 end
 
 function main(args)
-    2 <= length(args) <= 3 || error("usage: julia --project=router --threads=4 router/benchmark.jl <input.arrow> <output-directory> [samples=20]")
+    2 <= length(args) <= 3 || error("usage: julia --project=experiments/gpu --threads=4 experiments/gpu/benchmark.jl <input.arrow> <output-directory> [samples=20]")
     input, output = args[1:2]
     repetitions = length(args) == 3 ? parse(Int, args[3]) : 20
     repetitions > 0 || error("samples must be positive")
@@ -85,9 +85,12 @@ function main(args)
         push!(routers, result.value)
     end
     handlers = map(routers) do router
-        make_handler(graph; route=(h, t, b) -> route(router, h, t, b))
+        request -> begin
+            h, t, b, encoding = Reachability.parse_query(HTTP.URI(request.target), graph)
+            HTTP.Response(200, Reachability.arrow_result(graph, route(router, h, t, b), h, t, encoding))
+        end
     end
-    requests = [HTTP.Request("GET", "/reachable?index=$(c.index)&departure_h=$(c.departure_ms / 3_600_000)&budget_h=$(c.budget_ms / 3_600_000)&encoding=split") for c in cases]
+    requests = [HTTP.Request("GET", "/reachable?index=$(c.index)&departure_h=$(c.departure_ms / 3_600_000)&budget_h=$(c.budget_ms / 3_600_000)&encoding=split&max_walk_h=0") for c in cases]
     first_calls = []
     for backend in eachindex(routers)
         start = time_ns()
@@ -163,7 +166,7 @@ function main(args)
         "package_versions" => Dict(name => manifest["deps"][name][1]["version"]
             for name in ("oneAPI", "KernelAbstractions", "Atomix", "Arrow", "H3", "HTTP")),
         "input_rows" => length(table.from_h3),
-        "skipped_rows" => count(d -> !(0 <= d <= Reachability.MAX_BUDGET_MS), table.duration_ms),
+        "skipped_rows" => count(((d, t),) -> !(0 <= d <= Int64(Reachability.MAX_TIME_MS) - Reachability.PERIOD - t), zip(table.duration_ms, table.departure_ms)),
         "nodes" => length(graph.h3), "edge_groups" => length(graph.edge_to),
         "self_edge_groups" => count(graph.edge_from .== graph.edge_to),
         "profile_entries" => length(graph.departure), "host_graph_bytes" => Base.summarysize(graph),

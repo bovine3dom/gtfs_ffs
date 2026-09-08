@@ -185,7 +185,7 @@ Whole in-process HTTP bodies match the independent engine for both metrics, incl
 julia --project=router --threads=1 router/test/runtests.jl
 julia --project=router --threads=4 router/test/runtests.jl
 julia --project=router --threads=8 router/test/walking_catchup_tests.jl
-julia --project=router --threads=8 router/benchmark-walking-output.jl data/everything_res7.arrow
+julia --project=experiments/gpu --threads=8 experiments/benchmarks/benchmark-walking-output.jl data/everything_res7.arrow
 ```
 
 The optional `--wait` mode used during implementation pauses after the immutable

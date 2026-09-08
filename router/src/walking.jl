@@ -1,6 +1,6 @@
 function _walking_limit(max_walk_ms::Integer)
-    0 <= max_walk_ms <= MAX_BUDGET_MS ||
-        throw(ArgumentError("max_walk_ms must be an integer from 0 to 604800000"))
+    0 <= max_walk_ms <= MAX_TIME_MS ||
+        throw(ArgumentError("max_walk_ms must be below UInt32 arrival INF"))
     return UInt32(max_walk_ms)
 end
 

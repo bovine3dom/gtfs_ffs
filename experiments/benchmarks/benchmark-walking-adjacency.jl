@@ -1,5 +1,5 @@
 using Statistics, Printf, SHA
-include("src/Reachability.jl")
+include("../../router/src/Reachability.jl")
 using .Reachability
 
 const WINDOW_FIELDS = (:h3, :elapsed_sum_ms, :elapsed_ms, :reachable_elapsed_ms,
@@ -20,7 +20,7 @@ function measure(f, label; expected=nothing)
 end
 
 function main()
-    length(ARGS) == 1 || error("usage: julia --project=router --threads=4 router/benchmark-walking-adjacency.jl data/rail_and_friends_res7.arrow")
+    length(ARGS) == 1 || error("usage: julia --project=router --threads=4 experiments/benchmarks/benchmark-walking-adjacency.jl data/rail_and_friends_res7.arrow")
     path = only(ARGS)
     println("Julia=$(VERSION) threads=$(Threads.nthreads(:default)) CPU=$(Sys.CPU_NAME) input=$path sha256=$(bytes2hex(open(sha256, path)))")
     packed = @timed pack_graph(path; skip_invalid_durations=true)

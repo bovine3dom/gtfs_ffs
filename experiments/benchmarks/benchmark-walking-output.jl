@@ -1,13 +1,14 @@
 using Profile
 
 const BASE_REV = "66a7a2d2a0532fb9137f80a725743676520d0ada"
-const ROOT = dirname(@__DIR__)
+const ROOT = dirname(dirname(@__DIR__))
 # Reuse the diagnostic instrumentation, but always feed it the immutable baseline.
 module Historical end
 module CurrentDiagnostic end
 source = read(`git -C $ROOT show $BASE_REV:router/benchmark-walking-reuse.jl`, String)
 files = split(read(`git -C $ROOT ls-tree --name-only $BASE_REV:router/src`, String))
 source = replace(source,
+    "const ROOT = dirname(@__DIR__)" => "const ROOT = $(repr(ROOT))",
     "const CURRENT_SOURCES = Dict(name => read(joinpath(@__DIR__, \"src\", name), String)\n    for name in readdir(joinpath(@__DIR__, \"src\")) if endswith(name, \".jl\"))" =>
     "const CURRENT_SOURCES = Dict(name => read(`git -C $ROOT show $BASE_REV:router/src/\$name`, String) for name in $(repr(files)) if endswith(name, \".jl\"))")
 ENV["WALKING_BASELINE_REV"] = BASE_REV
@@ -16,7 +17,7 @@ Base.include_string(Historical, replace(source, "Base.include_string(Main," => "
 const Old = Historical.Reachability
 
 function main(args)
-    isempty(args) && error("usage: julia --project=router --threads=8 router/benchmark-walking-output.jl input.arrow [--wait]")
+    isempty(args) && error("usage: julia --project=experiments/gpu --threads=8 experiments/benchmarks/benchmark-walking-output.jl input.arrow [--wait]")
     println("ENV baseline=$BASE_REV threads=$(Threads.nthreads()) input=$(abspath(args[1])) bytes=$(filesize(args[1]))")
     println("QUERY representative Paris=871fb4662ffffff midnight; actual browser state unknown")
     flush(stdout)
@@ -48,7 +49,7 @@ function main(args)
             sleep(2)
         end
     end
-    Base.include(Main, joinpath(@__DIR__, "src", "Reachability.jl"))
+    Base.include(Main, joinpath(@__DIR__, "../../router/src/Reachability.jl"))
     Base.invokelatest(compare, graph, index, origin)
 end
 

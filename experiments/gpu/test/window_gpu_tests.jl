@@ -26,6 +26,21 @@ if "--backend=oneapi" in ARGS
     push!(window_gpu_backends, oneAPI.oneAPIBackend())
 end
 
+@testset "Kernel host window modes" for backend in window_gpu_backends
+    graph = pack_graph(window_table([(1, 2, 0, 10, 1.0), (1, 2, 1, 1, 5.0),
+        (2, 3, 10, 1, 2.0), (1, 4, 0, 0, 4.0)]))
+    router = WindowKernelRouter(graph, backend; batch_size=2)
+    for distance_mode in (:itinerary, :straight_line),
+            window_mode in (:mean_intersection, :min_union, :max_intersection, :diff_union, :reachable_union)
+        options = (; step_ms=1, window_mode, distance_mode)
+        expected = route_window(graph, DEMO_ORIGIN, 0, 10, 2; options...)
+        actual = route_window_kernel!(router, DEMO_ORIGIN, 0, 10, 2; options...)
+        for field in (:elapsed_ms, :reachable_elapsed_ms, :distance_km, :reachable_samples, :sample_count, :elapsed_sum_ms)
+            @test isequal(getproperty(actual, field), getproperty(expected, field))
+        end
+    end
+end
+
 @testset "Batched windows: $(typeof(backend))" for backend in window_gpu_backends
     nodes = sort!(filter(h -> h != 0 && H3.API.isValidCell(h) != 0,
                         H3.API.gridDisk(parse(UInt64, "85075dd7fffffff"; base=16), 1)))
@@ -49,7 +64,7 @@ end
             for (origin, departure, budget, window) in (
                 (nodes[2], 0, 10, 9), (nodes[1], 0, 0, 7),
                 (nodes[3], period - 2, 10, 7),
-                (nodes[1], period - 1, Int(Reachability.MAX_BUDGET_MS), 9),
+                (nodes[1], period - 1, 604_800_000, 9),
                 (nodes[7], 0, 10, 7), (nodes[1], 0, 20, 7))
                 window_gpu_parity(router, origin, departure, budget, window)
             end

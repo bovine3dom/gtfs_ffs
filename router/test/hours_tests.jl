@@ -14,7 +14,7 @@
             params = merge(base, Dict(field => bad))
             @test_throws ArgumentError parse_hours(join(("$k=$v" for (k, v) in params), '&'))
         end
-        params = merge(base, Dict(field => field in ("budget_h", "max_walk_h") ? "168.000001" : "24.000001"))
+        params = merge(base, Dict(field => "1200"))
         @test_throws ArgumentError parse_hours(join(("$k=$v" for (k, v) in params), '&'))
         @test_throws ArgumentError parse_hours("departure_h=0&budget_h=1&window_h=1&$field=1&$field=2")
     end
@@ -24,8 +24,12 @@
     @test_throws ArgumentError parse_hours("departure_h=24&budget_h=0")
     @test_throws ArgumentError parse_hours("departure_h=23.99999999&budget_h=0")
     @test parse_hours("departure_h=$(23 + 3599.999 / 3600)&budget_h=0")[2] == P - 1
-    for extra in ("window_h=1e-10", "window_h=1e-999", "window_h=1&step_h=1e-10", "step_h=1", "window_h=0&step_h=1", "window_h=1&step_h=0")
+    for extra in ("window_h=1e-10", "window_h=1e-999", "window_h=1&step_h=1e-10", "window_h=0&step_h=1e-999",
+                  "window_h=1e-999&step_h=0", "window_h=1e-10&step_h=0", "window_h=0&step_h=1e-10")
         @test_throws ArgumentError parse_hours("departure_h=0&budget_h=1&$extra")
+    end
+    for extra in ("step_h=1", "window_h=0&step_h=1", "window_h=1&step_h=0", "window_h=0&step_h=0")
+        @test parse_hours("departure_h=0&budget_h=1&$extra")[5] == 0
     end
     tiny = parse_hours("departure_h=0&budget_h=1e-10&max_walk_h=1e-10")
     @test tiny[3] == tiny[8] == 0
@@ -36,14 +40,9 @@
     @test parse_hours("departure_h=0&budget_h=1&max_walk_h=$(1/3_600_000)")[8] == 1
     @test parse_hours("departure_h=0&budget_h=1&window_h=.024&step_h=$(1/3_600_000)")[5:6] == (86_400, 1)
     @test parse_hours("departure_h=0&budget_h=1&window_h=24&step_h=$(1/3600)")[5:6] == (P, 1000)
-    handler = make_handler(graph; window_route=error, walking_window_route=error)
     for window in (1, 86_401/3_600_000)
         query = "departure_h=0&budget_h=1&window_h=$window&step_h=$(1/3_600_000)"
-        @test_throws r"at most 86400 samples" parse_hours(query)
-        for walk in (0, 1)
-            response = handler(HTTP.Request("GET", "/reachable?index=$(string(DEMO_ORIGIN; base=16))&$query&max_walk_h=$walk"))
-            @test response.status == 400
-        end
+        @test parse_hours(query)[6] == 1
     end
 end
 

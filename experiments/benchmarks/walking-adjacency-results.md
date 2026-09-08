@@ -31,7 +31,7 @@ concrete geographic hop fields after the fix.
 ```sh
 julia --project=router --threads=1 router/test/runtests.jl
 julia --project=router --threads=4 router/test/runtests.jl
-julia --project=router --threads=4 router/benchmark-walking-adjacency.jl data/rail_and_friends_res7.arrow
+julia --project=router --threads=4 experiments/benchmarks/benchmark-walking-adjacency.jl data/rail_and_friends_res7.arrow
 ```
 
 The new standalone benchmark leaves the existing source-instrumented harness intact

@@ -2,6 +2,7 @@ module WalkingHTTPTests
 
 using Test, Arrow, HTTP, H3
 include("../src/Reachability.jl")
+Base.include(Reachability, joinpath(@__DIR__, "reference.jl"))
 using .Reachability
 
 cell_at(lat, lon, res) = H3.API.latLngToCell(H3.API.LatLng(deg2rad(lat), deg2rad(lon)), res)::UInt64
@@ -83,9 +84,9 @@ end
         end
     end
 
-    @testset "Defaults, overrides, encodings, metrics and callback isolation" begin
+    @testset "Defaults, overrides, encodings and metrics" begin
         graph, a, b, remote = fixture()
-        handler = make_handler(graph; route=error, window_route=error)
+        handler = make_handler(graph)
         index = "index=$(H3.API.h3ToString(a))"
         words = "index_lower=$(a % UInt32)&index_upper=$((a >> 32) % UInt32)"
         base = "$index&departure_h=0&budget_h=0.16666666666666666"
@@ -128,12 +129,7 @@ end
         shorter = Arrow.Table(request(handler, "$base&max_walk_h=0.08333333333333333").body)
         @test propertynames(default)[1:2] == [:index_lower, :index_upper]
         @test length(ids(shorter)) < length(ids(default))
-        # Zero must use the transit-only window callback, but walking must never use it.
-        calls = Ref(0)
-        zero_handler = make_handler(graph; route=error, window_route=(h, t, b, w, s) -> begin
-            calls[] += 1
-            route_window(graph, h, t, b, w; step_ms=s)
-        end)
+        zero_handler = handler
         for encoding in ("string", "split"), metric in ("time", "distance_time_quantile"), window in (false, true)
             response = request(zero_handler, "$base&max_walk_h=0&encoding=$encoding&metric=$metric" * (window ? "&window_h=0.03361111111111111&step_h=0.008333333333333333" : ""))
             expected = window ? route_window_walking(graph, a, 0, 600_000, 121_000; step_ms=30_000, max_walk_ms=0) :
@@ -143,12 +139,11 @@ end
             @test HTTP.header(response, "X-Router-Max-Walk-H") == "0.0"
             @test HTTP.header(response, "X-Router-Distance") == "connection-sum-km"
         end
-        @test calls[] == 4
     end
 
-    @testset "Missing distance and transit-only callback opt-out" begin
+    @testset "Missing distance and transit-only requests" begin
         graph, a, b, remote = fixture(; distances=false)
-        handler = make_handler(graph; route=error, window_route=error)
+        handler = make_handler(graph)
         base = "index=$(H3.API.h3ToString(a))&departure_h=0&budget_h=0.16666666666666666"
         for encoding in ("string", "split"), window in (false, true)
             suffix = "encoding=$encoding" * (window ? "&window_h=0.03361111111111111&step_h=0.008333333333333333" : "")
@@ -163,13 +158,9 @@ end
             @test any(h -> !(h in graph.h3), ids(table)[findall(isnan, table.distance_km)])
             @test request(handler, "$base&$suffix&metric=distance_time_quantile").status == 400
         end
-        calls = Ref(0)
-        transit = make_handler(graph; route=(h, t, b) -> begin
-            calls[] += 1
-            route_cpu(graph, h, t, b)
-        end)
+        transit = handler
         response = request(transit, "$base&max_walk_h=0")
-        @test response.status == 200 && calls[] == 1
+        @test response.status == 200
         @test ids(Arrow.Table(response.body)) == [a]
         @test !(:distance_km in propertynames(Arrow.Table(response.body)))
         @test HTTP.header(response, "X-Router-Distance") == "unavailable"
@@ -177,8 +168,11 @@ end
 
     @testset "Live walking catch-up and reference parity" begin
         graph, a, b, _ = fixture()
-        reference = make_handler(graph; walking_window_route=(h, t, budget, w, s, m, index) ->
-            route_window_walking(graph, h, t, budget, w; step_ms=s, max_walk_ms=m, walking_index=index))
+        reference = request -> begin
+            h, t, budget, encoding, w, s, metric, m, mode, wm = Reachability.parse_query(HTTP.URI(request.target), graph)
+            result = route_window_walking(graph, h, t, budget, w; step_ms=s, max_walk_ms=m, distance_mode=mode, window_mode=wm)
+            HTTP.Response(200, Reachability.window_arrow(graph, result, h, encoding; metric, window_mode=wm))
+        end
         handler = make_handler(graph)
         targets = ["/reachable?index=$(H3.API.h3ToString(origin))&departure_h=0&budget_h=0.16666666666666666&window_h=0.03361111111111111&step_h=0.008333333333333333&encoding=$encoding&metric=$metric&max_walk_h=$(seconds / 3600)"
                    for (origin, encoding, metric, seconds) in
@@ -212,15 +206,15 @@ end
 
     @testset "Validation and window intersection" begin
         graph, a, b, remote = fixture()
-        handler = make_handler(graph; route=error, window_route=error)
+        handler = make_handler(graph)
         base = "index=$(H3.API.h3ToString(a))&departure_h=0&budget_h=0.16666666666666666"
-        for bad in ("", "-1", "Inf", "+1", "1e3", "168.1", string(typemax(UInt64)), "%ZZ", "1%0A", "NaN")
+        for bad in ("", "-1", "Inf", "+1", "1e4", "1200", string(typemax(UInt64)), "%ZZ", "1%0A", "NaN")
             response = request(handler, "$base&max_walk_h=$bad")
             @test response.status == 400
             @test HTTP.header(response, "Content-Type") == "text/plain"
         end
         for suffix in ("max_walk_h=0.0002777777777777778&max_walk_h=0.0005555555555555556", "max_walk_h=0&max_walk_h=0", "max_walk_h=0.0002777777777777778&max%5Fwalk_s=2",
-                       "unknown=1", "metric=bad", "metric=time&metric=time", "encoding=bad", "step_h=0.0002777777777777778", "window_h=0.0002777777777777778&step_h=0")
+                       "unknown=1", "metric=bad", "metric=time&metric=time", "encoding=bad", "step_h=1e-999", "window_h=0&step_h=-1")
             @test request(handler, "$base&$suffix").status == 400
         end
         @test request(handler, "index=$(H3.API.h3ToString(H3.API.cellToParent(a, 7)))&departure_h=0&budget_h=0").status == 400
@@ -239,7 +233,7 @@ end
         other = cell_at(51.9, 0.6, 9)
         union_graph = pack_graph((from_h3=[b, b], to_h3=[remote, other],
                                   departure_ms=UInt32[0, 2000], duration_ms=Int64[0, 0]))
-        union_handler = make_handler(union_graph; route=error, window_route=error)
+        union_handler = make_handler(union_graph)
         union_query = "index=$(H3.API.h3ToString(b))&budget_h=0.0002777777777777778&max_walk_h=0.0002777777777777778"
         for clock in (0, 2/3600)
             @test request(union_handler, "$union_query&departure_h=$clock").status == 200
@@ -249,9 +243,6 @@ end
         @test ids(Arrow.Table(response.body)) == [b]
         @test request(union_handler, "$union_query&departure_h=0.0005555555555555556").status == 200
 
-        failing = make_handler(union_graph; route=(args...) -> error("routing failure"))
-        @test_throws r"routing failure" request(failing, "$base&max_walk_h=0")
-        @test request(failing, "$base&max_walk_h=0.0002777777777777778").status == 200
     end
 end
 

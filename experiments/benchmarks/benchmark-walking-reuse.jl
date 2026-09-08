@@ -1,10 +1,10 @@
 using Printf, Statistics, SHA, TOML, Profile
 using Arrow, H3
 
-const ROOT = dirname(@__DIR__)
+const ROOT = dirname(dirname(@__DIR__))
 const BASELINE_REV = get(ENV, "WALKING_BASELINE_REV", "8edcb64459f542cab4c9886c722d8660da6a3433")
-const CURRENT_SOURCES = Dict(name => read(joinpath(@__DIR__, "src", name), String)
-    for name in readdir(joinpath(@__DIR__, "src")) if endswith(name, ".jl"))
+const CURRENT_SOURCES = Dict(name => read(joinpath(@__DIR__, "../../router/src", name), String)
+    for name in readdir(joinpath(@__DIR__, "../../router/src")) if endswith(name, ".jl"))
 const BASELINE_SOURCES = Dict{String,String}()
 
 # Resolve every include from one source snapshot, without a worktree or second pack.
@@ -15,11 +15,12 @@ function snapshot_source(name, sources; baseline=false)
     return replace(source, r"include\(\"([^\"]+)\"\)" => text -> begin
         child = match(r"\"([^\"]+)\"", text)[1]
         expanded = snapshot_source(child, sources; baseline)
-        path = baseline ? "$BASELINE_REV/router/src/$child" : joinpath(@__DIR__, "src", child)
+        path = baseline ? "$BASELINE_REV/router/src/$child" : joinpath(@__DIR__, "../../router/src", child)
         "Base.include_string(@__MODULE__, $(repr(expanded)), $(repr(path)))"
     end)
 end
-Base.include_string(Main, snapshot_source("Reachability.jl", CURRENT_SOURCES), joinpath(@__DIR__, "src", "Reachability.jl"))
+Base.include_string(Main, snapshot_source("Reachability.jl", CURRENT_SOURCES), joinpath(@__DIR__, "../../router/src/Reachability.jl"))
+Base.include(Reachability, joinpath(@__DIR__, "../../router/test/reference.jl"))
 Base.include_string(Main, replace(snapshot_source("Reachability.jl", BASELINE_SOURCES; baseline=true),
     "module Reachability" => "module Baseline"; count=1), "$BASELINE_REV/router/src/Reachability.jl")
 const R = Reachability
@@ -70,8 +71,8 @@ end
 module Probe
 using DataStructures, H3
 const R = Main.Reachability
-for name in (:Graph, :WalkingIndex, :WalkingNeighbor, :WalkingRange, :PackedWalking, :INF, :PERIOD, :MAX_BUDGET_MS,
-             :query_times, :next_connection, :walking_neighbors, :_distance_mode, :_od_distances)
+for name in (:Graph, :WalkingIndex, :WalkingNeighbor, :WalkingRange, :PackedWalking, :INF, :PERIOD, :MAX_TIME_MS,
+             :query_times, :next_connection, :walking_neighbors, :_distance_mode, :_od_distances, :_window_times, :_window_mode)
     @eval const $name = R.$name
 end
 Base.@kwdef mutable struct Metrics
@@ -231,6 +232,7 @@ function install_probe()
     cached = change(cached, "topology.limit, arrival, eligible, workspace.kmA, workspace.kmE)\n        end",
         "topology.limit, arrival, eligible, workspace.kmA, workspace.kmE)\n            s.indexed_ns += time_ns() - indexed_start\n        end")
     Base.include_string(Probe, cached, "probe_walking_catchup.jl")
+    Base.include(Probe, joinpath(@__DIR__, "../../router/test/reference.jl"))
 end
 install_probe()
 
@@ -327,7 +329,7 @@ function benchmark(graph, index, old_graph, old_index, origin, budget, window, s
 end
 
 function main(args)
-    1 <= length(args) <= 2 || error("usage: julia --project=router --threads=4 router/benchmark-walking-reuse.jl input.arrow [output-directory]")
+    1 <= length(args) <= 2 || error("usage: julia --project=experiments/gpu --threads=4 experiments/benchmarks/benchmark-walking-reuse.jl input.arrow [output-directory]")
     input = abspath(first(args))
     output = length(args) == 2 ? abspath(args[2]) : mktempdir("/tmp/opencode"; prefix="walking-reuse-", cleanup=false)
     isdir(output) || error("create the output directory before running the benchmark")
@@ -386,7 +388,7 @@ function main(args)
     else
         println("SKIP optional_week_budget_samples1440 estimated_max_cached1_4_s=$estimate benchmark_gate_s=60 no_application_limit=true")
     end
-    changed = [name for (name, source) in CURRENT_SOURCES if read(joinpath(@__DIR__, "src", name), String) != source]
+    changed = [name for (name, source) in CURRENT_SOURCES if read(joinpath(@__DIR__, "../../router/src", name), String) != source]
     println("COMPLETE loaded_snapshot_sha256_recorded=true subsequently_changed_sources=$(join(changed, ',')) peak_RSS_MiB=$(Sys.maxrss()/2.0^20) loadavg=$(Sys.loadavg())")
 end
 

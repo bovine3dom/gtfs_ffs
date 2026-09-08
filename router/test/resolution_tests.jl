@@ -49,26 +49,13 @@ import Sockets
     @test_throws r"usage:" load_handlers(String[])
     @test_throws r"usage:" load_handlers(["--demo", "nonexistent.arrow"])
     @test_throws r"usage:" load_handlers(["--demo", "--demo"])
-    withenv("ROUTER_BACKEND" => "reference", "ROUTER_WINDOW_BACKEND" => "catchup") do
-        @test load_handlers(["--demo"])(HTTP.Request("GET", "/reachable?index=85075dd7fffffff&departure_h=8&budget_h=1&max_walk_h=0")).status == 200
-    end
-    # Exercise point kernel and window workspaces independently for every graph.
-    for backend in ("reference", "cpu"), window_backend in ("catchup", "ka_cpu")
-        withenv("ROUTER_BACKEND" => backend, "ROUTER_WINDOW_BACKEND" => window_backend) do
-            bare = [pack_graph(Base.structdiff(t, NamedTuple{(:distance_km,)})) for t in tables]
-            configured = make_resolution_handler(Dict(g.resolution => configured_handler(g; request_lock) for g in bare))
-            for (g, path) in zip(bare, paths), suffix in ("", "&window_h=0.03333333333333333&step_h=0.016666666666666666")
-                expected = make_handler(g)(HTTP.Request("GET", path * suffix))
-                @test configured(HTTP.Request("GET", path * suffix)).body == expected.body
-            end
-        end
-    end
+    @test load_handlers(["--demo"])(HTTP.Request("GET", "/reachable?index=85075dd7fffffff&departure_h=8&budget_h=1&max_walk_h=0")).status == 200
     mktempdir() do dir
         files = [joinpath(dir, "graph-$res.arrow") for res in 5:7]
         for (file, table) in zip(files, tables)
             Arrow.write(file, table)
         end
-        withenv("ROUTER_BACKEND" => "reference", "ROUTER_WINDOW_BACKEND" => "catchup") do
+        let
             @test_throws r"duplicate graph for H3 resolution 5" load_handlers([files[1], files[1]])
             other = joinpath(dir, "other.arrow")
             Arrow.write(other, tables[1])
@@ -80,8 +67,7 @@ import Sockets
         close(listener)
         command = `$(Base.julia_cmd()) --threads=4 --project=$(dirname(@__DIR__)) $(joinpath(dirname(@__DIR__), "serve.jl")) $files`
         log = open(joinpath(dir, "server.log"), "w+")
-        process = run(pipeline(addenv(command, "ROUTER_PORT" => string(port), "ROUTER_HOST" => "127.0.0.1",
-            "ROUTER_BACKEND" => "cpu", "ROUTER_WINDOW_BACKEND" => "catchup", "ROUTER_WS_ORIGINS" => ""), stdout=log, stderr=log); wait=false)
+        process = run(pipeline(addenv(command, "ROUTER_PORT" => string(port), "ROUTER_HOST" => "127.0.0.1"), stdout=log, stderr=log); wait=false)
         http = "http://127.0.0.1:$port"
         try
             @test timedwait(() -> begin
@@ -95,13 +81,13 @@ import Sockets
             startup_log = read(joinpath(dir, "server.log"), String)
             @test !occursin('\e', startup_log)
             for stage in ("Opening Arrow file", "Validating and filtering rows", "Indexing and validating H3 endpoints",
-                          "Sorting connections by edge", "Packing daily profiles", "Preparing routing workspace",
+                          "Sorting connections by edge", "Packing daily profiles",
                           "Enumerating walking geometry", "Packing walking adjacency", "Indexing walking output IDs")
                 @test occursin("Startup: $stage", startup_log)
                 @test occursin("Startup complete: $stage", startup_log)
             end
             @test occursin("elapsed_s", startup_log)
-            WS.open("ws://127.0.0.1:$port/query") do ws
+            socket_open("ws://127.0.0.1:$port/query") do ws
                 id = UInt32(0xfedcba98)
                 for (g, path) in zip(graphs, paths), mode in ("itinerary", "straight_line"), window in ("0", "0.03333333333333333"), walk in ("0", "0.001")
                     query = replace(path, "max_walk_h=0" => "max_walk_h=$walk") * "&distance_mode=$mode&window_h=$window"

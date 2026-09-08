@@ -1,5 +1,5 @@
 using Printf, Statistics
-include("src/Reachability.jl")
+include("Reachability.jl")
 using .Reachability
 import H3
 if "--backend=cuda" in ARGS
@@ -15,7 +15,7 @@ function main(args)
     cuda && "--gpu" in args && error("select --backend=cuda OR --gpu (oneAPI)")
     gpu = cuda || "--gpu" in args
     args = filter(a -> !(a in ("--gpu", "--backend=cuda")), args)
-    1 <= length(args) <= 4 || error("usage: julia --project=router router/benchmark-window-engines.jl <input.arrow> [origin_hex] [window_h=24] [repetitions=3] [--backend=cuda | --gpu]")
+    1 <= length(args) <= 4 || error("usage: julia --project=experiments/gpu experiments/gpu/benchmark-window-engines.jl <input.arrow> [origin_hex] [window_h=24] [repetitions=3] [--backend=cuda | --gpu]")
     graph = @time pack_graph(args[1]; skip_invalid_durations=true)
     origin = length(args) >= 2 ? parse(UInt64, args[2]; base=16) : graph.h3[argmax(diff(graph.out_ptr))]
     window = Reachability._hours_ms(length(args) >= 3 ? args[3] : "24", "window_h", 24; positive=true)

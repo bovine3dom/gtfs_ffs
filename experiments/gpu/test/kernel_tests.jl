@@ -89,7 +89,7 @@ end
                         H3.API.gridDisk(parse(UInt64, "85075dd7fffffff"; base=16), 1)))
     @test length(nodes) >= 7
     period = Int(Reachability.PERIOD)
-    max_budget = Int(Reachability.MAX_BUDGET_MS)
+    max_budget = 604_800_000
     infinity = typemax(UInt32)
 
     @testset "Full-depth zero-time chain" begin
@@ -152,7 +152,7 @@ end
             @test_throws ArgumentError route_kernel!(router, nodes[1], -1, 0)
             @test_throws ArgumentError route_kernel!(router, nodes[1], period, 0)
             @test_throws ArgumentError route_kernel!(router, nodes[1], 0, -1)
-            @test_throws ArgumentError route_kernel!(router, nodes[1], 0, max_budget + 1)
+            @test_throws ArgumentError route_kernel!(router, nodes[1], 0, infinity)
         end
     end
 

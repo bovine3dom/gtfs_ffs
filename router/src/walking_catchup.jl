@@ -194,6 +194,7 @@ function _walking_catchup_replay!(workspace, graph, origin, source, ready, cutof
             for edge in graph.out_ptr[u]:(graph.out_ptr[u + 1] - Int32(1))
                 connection = connections[edge]
                 connection == 0 && continue
+                graph.arrival[connection] > cutoff - base && continue
                 candidate, v = base + graph.arrival[connection], graph.edge_to[edge]
                 candidate <= cutoff && candidate < seenE[v] || continue
                 candidate >= eligible[v] || error("cached walking eligibility labels are not optimal")

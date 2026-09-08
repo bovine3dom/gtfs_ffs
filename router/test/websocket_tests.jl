@@ -2,8 +2,17 @@ import JSON
 
 const WS = HTTP.WebSockets
 
-function socket_test(f, handler; origins=String[])
-    server = HTTP.serve!(make_stream_handler(handler; origins), "127.0.0.1", 0;
+function socket_open(f, url; kwargs...)
+    WS.open(url; kwargs...) do ws
+        # Finish the HTTP upgrade write before a fast WS close; HTTP 1.x otherwise
+        # attempts its final flush after the socket has already closed.
+        HTTP.closewrite(ws.io)
+        f(ws)
+    end
+end
+
+function socket_test(f, handler)
+    server = HTTP.serve!(make_stream_handler(handler), "127.0.0.1", 0;
                          stream=true, listenany=true, verbose=-1)
     try
         f("ws://127.0.0.1:$(HTTP.port(server))/query", "http://127.0.0.1:$(HTTP.port(server))")
@@ -29,7 +38,7 @@ socket_id(bytes) = foldl((a, b) -> (a << 8) | UInt32(b), bytes[1:4]; init=UInt32
     handler = make_handler(graph)
     socket_test(handler) do url, http
         for origin in ("http://localhost:8000", "https://maps.example.org", "null")
-            WS.open(url; headers=["Origin" => origin]) do ws
+            socket_open(url; headers=["Origin" => origin]) do ws
                 path = "/reachable?index=85075dd7fffffff&departure_h=8&budget_h=1&max_walk_h=0"
                 socket_query(ws, 1, path)
                 bytes = socket_receive(ws)
@@ -38,13 +47,13 @@ socket_id(bytes) = foldl((a, b) -> (a << 8) | UInt32(b), bytes[1:4]; init=UInt32
             end
         end
     end
-    socket_test(handler; origins=["http://localhost:8000"]) do url, http
+    socket_test(handler) do url, http
         @test HTTP.get("$http/query"; status_exception=false).status == 426
         @test HTTP.get("$http/missing"; status_exception=false).status == 404
         for origin in ("null", "http://localhost:8000.evil", "http://localhost:8001", "*")
-            @test HTTP.get("$http/query", ["Origin" => origin]; status_exception=false).status == 403
+            @test HTTP.get("$http/query", ["Origin" => origin]; status_exception=false).status == 426
         end
-        WS.open(url; headers=["Origin" => "http://localhost:8000"]) do ws
+        socket_open(url; headers=["Origin" => "http://localhost:8000"]) do ws
             id = UInt32(0xfedcba98)
             for encoding in ("split", "string"), metric in ("time", "distance_time_quantile"),
                     mode in ("itinerary", "straight_line"), walk in (0, 3600), window in (0, 120),
@@ -71,7 +80,7 @@ end
     handler = make_handler(pack_graph(fixture_table()))
     good = "/reachable?index=85075dd7fffffff&departure_h=8&budget_h=1&max_walk_h=0"
     socket_test(handler) do url, http
-        WS.open(url) do ws
+        socket_open(url) do ws
             for (id, path) in enumerate(("https://secret@example.org/reachable", "/reachable#secret",
                     "//example.org/reachable", "/missing?secret", "/reachable?secret=secret", 123, "/reachable\\secret"))
                 socket_query(ws, id, path)
@@ -89,7 +98,7 @@ end
         end
         for text in ("{secret", "null", "[]", "{}", "{\"id\":true}", "{\"id\":0}",
                 "{\"id\":-1}", "{\"id\":1.5}", "{\"id\":4294967296}", "{\"id\":\"1\"}", UInt8[1, 2])
-            WS.open(url) do ws
+            socket_open(url) do ws
                 WS.send(ws, text)
                 error = try WS.receive(ws) catch e; e end
                 @test error isa WS.WebSocketError
@@ -97,7 +106,7 @@ end
             end
         end
         for repeated in (1, 2)
-            WS.open(url) do ws
+            socket_open(url) do ws
                 socket_query(ws, 2, "/missing")
                 @test JSON.parse(socket_receive(ws))["id"] == 2
                 socket_query(ws, repeated, good)
@@ -123,7 +132,7 @@ end
             HTTP.Response(200, UInt8[0x41, 0x52, 0x52, 0x4f, 0x57])
         end
         socket_test(handler) do url, http
-            WS.open(url) do ws
+            socket_open(url) do ws
                 socket_query(ws, 42, "/reachable?active")
                 @test timedwait(() -> isready(entered), 20) == :ok
                 @test take!(entered) == "/reachable?active"
@@ -151,7 +160,7 @@ end
                     @test take!(entered) == "/reachable?45"
                 end
             end
-            WS.open(url) do ws
+            socket_open(url) do ws
                 socket_query(ws, 1, "/reachable?fresh")
                 @test socket_id(socket_receive(ws)) == 1
                 @test take!(entered) == "/reachable?fresh"
@@ -162,29 +171,35 @@ end
 end
 
 @testset "WebSocket pending while shared HTTP workspace is locked" begin
+    dispatched = Channel{Nothing}(8)
     entered = Channel{Nothing}(8)
     release = Channel{Nothing}(8)
     graph = pack_graph(fixture_table())
-    handler = make_handler(graph; route=(h, t, b) -> begin
-        put!(entered, nothing)
-        take!(release)
-        route_cpu(graph, h, t, b)
-    end)
+    resident = make_handler(graph)
+    request_lock = ReentrantLock()
+    handler = request -> begin
+        put!(dispatched, nothing)
+        lock(request_lock) do
+            put!(entered, nothing)
+            take!(release)
+            resident(request)
+        end
+    end
     path = "/reachable?index=85075dd7fffffff&departure_h=8&budget_h=1&max_walk_h=0"
     socket_test(handler) do url, http
         http_task = @async HTTP.get(http * path)
         @test timedwait(() -> isready(entered), 20) == :ok
         take!(entered)
-        WS.open(url) do a
+        take!(dispatched)
+        socket_open(url) do a
             socket_query(a, 42, path)
             # The first socket job dispatches and waits for the HTTP-held lock.
-            WS.ping(a)
-            @test WS.readframe(a).flags.opcode == WS.PONG
-            yield()
-            WS.open(url) do b
+            @test timedwait(() -> isready(dispatched), 20) == :ok
+            take!(dispatched)
+            socket_open(url) do b
                 socket_query(b, 1, path)
-                WS.ping(b)
-                @test WS.readframe(b).flags.opcode == WS.PONG
+                @test timedwait(() -> isready(dispatched), 20) == :ok
+                take!(dispatched)
                 for id in 43:45
                     socket_query(a, id, path)
                 end

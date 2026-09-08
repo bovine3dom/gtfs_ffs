@@ -8,13 +8,14 @@ function route_window_cached(graph::Graph, origin::UInt64, departure_ms::Integer
                              workers::Integer=Threads.nthreads(:default),
                              distance_mode="itinerary", window_mode=:mean_intersection)
     track = _distance_mode(distance_mode) == :itinerary
-    1 <= chunk_size <= 256 || throw(ArgumentError("chunk_size must be between 1 and 256"))
+    chunk_size > 0 || throw(ArgumentError("chunk_size must be positive"))
     workers > 0 || throw(ArgumentError("workers must be positive"))
     plan = _window_plan(graph, origin, departure_ms, budget_ms, window_ms; step_ms)
     acc = _window_accumulator(graph, plan, track; window_mode)
     groups = length(plan.groups)
-    width = min(Int(chunk_size), groups)
-    full_searches = cld(groups, Int(chunk_size))
+    chunk_size = Int(min(chunk_size, max(groups, 1)))
+    width = min(chunk_size, groups)
+    full_searches = cld(groups, chunk_size)
     worker_count = Int(min(workers, Threads.nthreads(:default), full_searches))
     workspaces = [_catchup_workspace(graph, width, track) for _ in 1:worker_count]
     outcomes = Vector{Any}(undef, worker_count)
@@ -22,15 +23,15 @@ function route_window_cached(graph::Graph, origin::UInt64, departure_ms::Integer
     for wave in 1:max(worker_count, 1):full_searches
         active = min(worker_count, full_searches - wave + 1)
         if active == 1
-            first_group = (wave - 1) * Int(chunk_size) + 1
-            outcomes[1] = _catchup_chunk!(workspaces[1], graph, plan, first_group, min(first_group + Int(chunk_size) - 1, groups))
+            first_group = (wave - 1) * chunk_size + 1
+            outcomes[1] = _catchup_chunk!(workspaces[1], graph, plan, first_group, min(first_group + chunk_size - 1, groups))
         else
             # Ownership is by slot, not thread ID: spawned tasks may migrate.
             @sync for slot in 1:active
-                let slot=slot, first_group=(wave + slot - 2) * Int(chunk_size) + 1
+                let slot=slot, first_group=(wave + slot - 2) * chunk_size + 1
                     Threads.@spawn begin
                         outcomes[slot] = try
-                            _catchup_chunk!(workspaces[slot], graph, plan, first_group, min(first_group + Int(chunk_size) - 1, groups))
+                            _catchup_chunk!(workspaces[slot], graph, plan, first_group, min(first_group + chunk_size - 1, groups))
                         catch error
                             error
                         end
@@ -45,9 +46,9 @@ function route_window_cached(graph::Graph, origin::UInt64, departure_ms::Integer
         for slot in 1:active
             profile_lookups += outcomes[slot][1]
             routing_expansions += outcomes[slot][2]
-            first_group = (wave + slot - 2) * Int(chunk_size) + 1
+            first_group = (wave + slot - 2) * chunk_size + 1
             state = workspaces[slot]
-            for index in first_group:min(first_group + Int(chunk_size) - 1, groups)
+            for index in first_group:min(first_group + chunk_size - 1, groups)
                 column = index - first_group + 1
                 distances = isnothing(state.saved_distances) ? nothing : view(state.saved_distances, :, column)
                 _accumulate_window!(acc, plan, plan.groups[index], view(state.saved_arrivals, :, column), distances)

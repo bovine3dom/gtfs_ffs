@@ -1,22 +1,15 @@
 export make_stream_handler
 
 """Wrap one resident request handler for HTTP and `/query` WebSockets (serve with stream=true)."""
-function make_stream_handler(handler; origins=String[])
-    allowed = Set(String.(origins))
-    any(o -> isempty(o) || o in ("*", "null"), allowed) &&
-        throw(ArgumentError("WebSocket origins must be explicit origins"))
+function make_stream_handler(handler)
     ordinary = HTTP.streamhandler(handler)
     return function (stream)
         request = stream.message
         request.target == "/query" || return ordinary(stream)
-        request_origins = [v for (k, v) in request.headers if lowercase(k) == "origin"]
-        status = length(request_origins) > 1 || (!isempty(allowed) && !isempty(request_origins) && !(only(request_origins) in allowed)) ? 403 :
-                 HTTP.WebSockets.isupgrade(request) ? 101 : 426
-        if status != 101
-            body = status == 403 ? "origin not allowed" : "websocket upgrade required"
-            headers = ["Content-Length" => string(sizeof(body))]
-            status == 426 && push!(headers, "Upgrade" => "websocket")
-            return HTTP.streamhandler(_ -> HTTP.Response(status,
+        if !HTTP.WebSockets.isupgrade(request)
+            body = "websocket upgrade required"
+            headers = ["Content-Length" => string(sizeof(body)), "Upgrade" => "websocket"]
+            return HTTP.streamhandler(_ -> HTTP.Response(426,
                 headers, body))(stream)
         end
         HTTP.WebSockets.upgrade(stream; suppress_close_error=true) do ws

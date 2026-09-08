@@ -27,7 +27,7 @@ end
     times = "departure_h=0&budget_h=0.027777777777777776&max_walk_h=0"
     graph = pack_graph(distance_table([(1, 2, 0, 30, 10.0), (1, 2, 60, 0, 1.0),
                                       (1, 3, 0, 40, 2.0), (1, 3, 60, 20, 2.0), (3, 4, 1000, 0, 50.0)]))
-    handler = make_handler(graph; route=error)
+    handler = make_handler(graph)
     request(query) = handler(HTTP.Request("GET", "/reachable?$query"))
     for encoding in ("string", "split")
         for window in ("", "&window_h=0.016944444444444446&step_h=0.016666666666666666")
@@ -65,7 +65,7 @@ end
     for window in ("", "&window_h=0.016666666666666666")
         singleton = Arrow.Table(request("index=$(H3.API.h3ToString(DEMO_CELLS[7]))&$times&$metric$window").body)
         @test singleton.value == singleton.distance_quantile == singleton.time_quantile == [0]
-        legacy = make_handler(pack_graph(fixture_table()); route=error)
+        legacy = make_handler(pack_graph(fixture_table()))
         @test legacy(HTTP.Request("GET", "/reachable?$index&$times&$metric$window")).status == 400
     end
     for option in ("metric=", "metric=distance", "metric=TIME", "$metric&metric=time")

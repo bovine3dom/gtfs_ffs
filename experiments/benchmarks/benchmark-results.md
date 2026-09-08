@@ -1,10 +1,10 @@
 # CPU versus iGPU benchmark
 
-Date: 2026-09-06. Benchmark: [`benchmark.jl`](benchmark.jl).
+Date: 2026-09-06. Historical benchmark, now at [`experiments/gpu/benchmark.jl`](../gpu/benchmark.jl).
 
 ## Conclusion
 
-Use packed CPU Dijkstra (`ROUTER_BACKEND=reference`) for the current single-origin
+Use packed CPU Dijkstra (now the server's only point engine) for the current single-origin
 res5 endpoint. It had the lowest per-case median in all 96 cases, for both routing
 and handler-plus-Arrow execution, in both the one- and four-worker runs.
 
@@ -158,8 +158,8 @@ rather than assuming a speedup over KA CPU is sufficient.
 From the repository root, choose new or empty output directories:
 
 ```sh
-env ZE_ENABLE_ALT_DRIVERS=/usr/lib/libze_intel_gpu_legacy1.so.1 julia --project=router --threads=4 router/benchmark.jl data/rail_res5.arrow data/benchmark-t4-repeat 20
-env ZE_ENABLE_ALT_DRIVERS=/usr/lib/libze_intel_gpu_legacy1.so.1 julia --project=router --threads=1 router/benchmark.jl data/rail_res5.arrow data/benchmark-t1-repeat 20
+env ZE_ENABLE_ALT_DRIVERS=/usr/lib/libze_intel_gpu_legacy1.so.1 julia --project=experiments/gpu --threads=4 experiments/gpu/benchmark.jl data/rail_res5.arrow data/benchmark-t4-repeat 20
+env ZE_ENABLE_ALT_DRIVERS=/usr/lib/libze_intel_gpu_legacy1.so.1 julia --project=experiments/gpu --threads=1 experiments/gpu/benchmark.jl data/rail_res5.arrow data/benchmark-t1-repeat 20
 ```
 
 The measured runs are saved locally in `data/benchmark-t4/` and `data/benchmark-t1/`:
@@ -176,10 +176,10 @@ was exploratory and is not included in these tables.
 To use the measured fastest implementation without changing source or installing a GPU runtime:
 
 ```sh
-env ROUTER_BACKEND=reference julia --project=router router/serve.jl data/rail_res5.arrow
+julia --threads=8 --project=router router/serve.jl data/rail_res5.arrow
 ```
 
-`ROUTER_BACKEND=cpu` still selects KA CPU, not Dijkstra.
+The production server no longer includes a selectable kernel backend.
 
 ## Larger-network repeat: rail and friends
 
@@ -239,5 +239,5 @@ were 2.31/4.12, including the benchmark. Input SHA-256:
 Reproduce with a new output directory:
 
 ```sh
-env ZE_ENABLE_ALT_DRIVERS=/usr/lib/libze_intel_gpu_legacy1.so.1 julia --project=router --threads=4 router/benchmark.jl data/rail_and_friends_res5.arrow data/benchmark-rail-and-friends-t4-repeat 20
+env ZE_ENABLE_ALT_DRIVERS=/usr/lib/libze_intel_gpu_legacy1.so.1 julia --project=experiments/gpu --threads=4 experiments/gpu/benchmark.jl data/rail_and_friends_res5.arrow data/benchmark-rail-and-friends-t4-repeat 20
 ```

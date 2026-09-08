@@ -80,9 +80,6 @@ od(origin, cells) = [h == origin ? 0.0 : H3.Lib.greatCircleDistanceKm(
 
         @testset "HTTP mode and metric" begin
             handler = make_handler(graph)
-            bypass = make_handler(graph; route=(args...) -> error("itinerary callback"),
-                window_route=(args...) -> error("itinerary callback"),
-                walking_window_route=(args...) -> error("itinerary callback"))
             for origin in (a, offgraph), walking in (0, seconds), window in (0, 86400),
                 metric in ("time", "distance_time_quantile"), encoding in ("string", "split")
                 query = "/reachable?index=$(string(origin; base=16))&departure_h=0&budget_h=168&max_walk_h=$(walking / 3600)&metric=$metric&encoding=$encoding"
@@ -91,7 +88,7 @@ od(origin, cells) = [h == origin ? 0.0 : H3.Lib.greatCircleDistanceKm(
                 explicit = handler(HTTP.Request("GET", query * "&distance_mode=itinerary"))
                 @test old.status == explicit.status
                 @test old.body == explicit.body
-                response = bypass(HTTP.Request("GET", query * "&distance_mode=straight_line"))
+                response = handler(HTTP.Request("GET", query * "&distance_mode=straight_line"))
                 @test response.status == 200
                 @test HTTP.header(response, "X-Router-Distance") == "origin-destination-great-circle-km"
                 @test HTTP.header(response, "X-Router-Distance-Mode") == "straight_line"

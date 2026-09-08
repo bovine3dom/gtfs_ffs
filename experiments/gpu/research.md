@@ -1,5 +1,9 @@
 # iGPU Routing Research and Build Plan
 
+Historical research and implementation notes. Paths in code references below are
+relative to the repository root. See [README](README.md) for the retained experiments
+and [the CPU server](../../router/README.md) for current production behaviour.
+
 | Item | Value |
 |---|---|
 | Status | Res5 single-query CPU/GPU benchmarks complete; batched routing pending |
@@ -10,7 +14,7 @@
 
 ## MVP implementation update (2026-09-05)
 
-The first implementation is in [`router/`](router/README.md). The sections below
+The first implementation was in [`router/`](../../router/README.md). The sections below
 retain the original res10 walking/path research plan; the implemented MVP is narrower:
 
 - Routing directly on resolution-5 H3 cells, not fine routing aggregated for display.
@@ -29,7 +33,7 @@ retain the original res10 walking/path research plan; the implemented MVP is nar
   H3-MON's installed reader accepts files and streams. Its `onclick`/`onmove`
   metadata hooks now fetch complete Arrow responses from the routing endpoint.
 
-The input contract and repeatable export are in [`router/export.sql`](router/export.sql):
+The input contract and repeatable export are in [`experiments/data/export.sql`](../data/export.sql):
 non-null `from_h3 UInt64`, `to_h3 UInt64`, `departure_ms UInt32`, `duration_ms Int64`.
 Endpoints must be res5, clocks within a day, and durations between zero and seven days.
 The source `travel_time` is in minutes and is multiplied by 60,000 during export.
@@ -45,15 +49,15 @@ the kernels use its supported read-modify-write operations instead.
 The working legacy-driver override remains launch configuration, not routing code:
 
 ```sh
-env ZE_ENABLE_ALT_DRIVERS=/usr/lib/libze_intel_gpu_legacy1.so.1 ROUTER_BACKEND=oneapi julia --project=router router/serve.jl --demo
+env ZE_ENABLE_ALT_DRIVERS=/usr/lib/libze_intel_gpu_legacy1.so.1 julia --project=experiments/gpu experiments/gpu/test/runtests.jl --backend=oneapi
 ```
 
-The [2026-09-06 real-network benchmark](router/benchmark-results.md) compares packed
+The [2026-09-06 real-network benchmark](../benchmarks/benchmark-results.md) compares packed
 Dijkstra, KA CPU and the P630 over 96 query cases with one and four Julia workers.
 Dijkstra wins every case by median, including Arrow output. Four-worker city-workload
 seven-day routing medians are 3.24 ms for Dijkstra, 71.11 ms for KA CPU, and 31.96 ms
-for the GPU. Use `ROUTER_BACKEND=reference` for current interactive queries; the
-dispatch default remains unchanged. GPU batching and thermal/headroom studies remain
+for the GPU. The current production server uses CPU Dijkstra only.
+GPU batching and thermal/headroom studies were then
 future work; these single-query results do not establish batched throughput.
 
 ## Scope and agreed goals
@@ -1061,7 +1065,7 @@ Exit criteria:
 
 ## Immediate next steps
 
-1. Generate the res5 rail snapshot using `router/export.sql`, recording the source table and clock timezone.
+1. Generate the res5 rail snapshot using `experiments/data/export.sql`, recording the source table and clock timezone.
 2. Audit raw/retained connection counts, node and edge counts, self-edges, invalid durations, and memory footprint.
 3. Compare representative queries across packed Dijkstra, KA CPU, and iGPU, separating compilation,
    preprocessing/upload, warm routing, label download, and complete HTTP/Arrow response time.

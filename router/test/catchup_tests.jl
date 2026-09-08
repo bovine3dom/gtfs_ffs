@@ -116,7 +116,7 @@ end
         check_catchup(graph, origin, 0, 100, 23)
         check_catchup(graph, DEMO_CELLS[7], 0, 100, 23)
         check_catchup(pack_graph(window_table([])), origin, 0, 100, 23)
-        for size in (0, -1, 257, typemax(UInt64))
+        for size in (0, -1)
             @test_throws ArgumentError Reachability.route_window_cached(graph, origin, 0, 100, 23; chunk_size=size)
         end
         for (departure, budget, window, step) in ((-1, 100, 23, 10), (day, 100, 23, 10),

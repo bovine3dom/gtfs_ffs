@@ -140,8 +140,7 @@ end
 
 function _walking_validate(index, origin, max_walk_ms)
     validate_cell(origin, index.resolution)
-    0 <= max_walk_ms <= MAX_BUDGET_MS ||
-        throw(ArgumentError("max_walk_ms must be between zero and seven days"))
+    _walking_limit(max_walk_ms)
 end
 
 function _walking_neighbor(origin, cell, a, b, max_walk_ms)
@@ -161,7 +160,7 @@ end
 Return graph destinations sorted by cell as `(cell, duration_ms, distance_km)`.
 The origin may be off-graph but must be valid at the index resolution. Distances
 are symmetric great-circle centre distances; durations are rounded up to integer
-milliseconds, with an inclusive cutoff in `0:MAX_BUDGET_MS`. Zero disables walks
+milliseconds, with an inclusive cutoff in `0:MAX_TIME_MS`. Zero disables walks
 and self is always excluded. Large radii scan vertices instead of a huge bin cube.
 """
 function walking_neighbors(index::WalkingIndex, origin::UInt64,

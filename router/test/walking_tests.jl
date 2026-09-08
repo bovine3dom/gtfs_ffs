@@ -2,6 +2,7 @@ module WalkingTests
 
 using Test, Random, H3
 include("../src/Reachability.jl")
+Base.include(Reachability, joinpath(@__DIR__, "reference.jl"))
 using .Reachability
 
 const DAY = 86_400_000
@@ -209,7 +210,7 @@ end
         @test_throws r"accumulated route distance" route_walking(huge, a, 0, 0; max_walk_ms=1000seconds)
         @test_throws r"accumulated route distance" route_window_walking(huge, a, 0, 0, 1; max_walk_ms=1000seconds)
         graph = pack_graph(cycle)
-        for bad in (-1, 604_800_001, typemax(UInt64))
+        for bad in (-1, Reachability.INF, typemax(UInt64))
             @test_throws ArgumentError route_walking(graph, a, 0, 0; max_walk_ms=bad)
             @test_throws ArgumentError route_window_walking(graph, a, 0, 0, 1; max_walk_ms=bad)
         end
@@ -308,7 +309,7 @@ end
         @test mixed.reachable_samples[at(mixed, b)] == 2
         @test mixed.elapsed_ms[at(mixed, b)] == mixed.reachable_elapsed_ms[at(mixed, b)] == budget / 2
         @test isnan(mixed.distance_km[at(mixed, b)]) # Never average just the known walking km.
-        for (window, step) in ((0, 1), (DAY + 1, 1), (1, 0), (86_401, 1))
+        for (window, step) in ((0, 1), (Reachability.INF, 1), (1, 0))
             @test_throws ArgumentError route_window_walking(graph, a, 0, budget, window; step_ms=step)
         end
     end

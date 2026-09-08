@@ -1,21 +1,21 @@
 using Test, Random, Arrow, HTTP
 import H3
-import KernelAbstractions as KA
 include("../serve.jl")
+Base.include(Reachability, joinpath(@__DIR__, "reference.jl"))
 using .Reachability
 include("../fixture.jl")
-
-if "--backend=oneapi" in ARGS
-    @eval import oneAPI
-    oneAPI.functional() || error("GPU tests requested but oneAPI is unavailable")
-    oneAPI.versioninfo()
-end
 
 const P = Int(Reachability.PERIOD)
 const INF = Reachability.INF
 const START = 28_800_000
 
 include("startup_tests.jl")
+
+@testset "CPU-only server surface" begin
+    @test !isdefined(Reachability, :KernelRouter)
+    @test !isdefined(Reachability, :WindowKernelRouter)
+    @test_throws MethodError make_stream_handler(identity; origins=["http://localhost"])
+end
 
 @testset "Input validation and packing" begin
     table = fixture_table()
@@ -30,7 +30,7 @@ include("startup_tests.jl")
         @test all(>(0), diff(Int64.(graph.departure[range])))
         @test all(>(0), diff(Int64.(graph.arrival[range])))
     end
-    for duration in (-1, Int(Reachability.MAX_BUDGET_MS) + 1)
+    for duration in (-1, Int(INF))
         @test_throws ArgumentError pack_graph(merge(table, (duration_ms=fill(Int64(duration), 6),)))
     end
     @test_throws ArgumentError pack_graph(merge(table, (departure_ms=fill(UInt32(P), 6),)))
@@ -59,7 +59,7 @@ end
                departure_ms=zeros(UInt32, 5),
                duration_ms=Int64[-60_000, -120_000, typemin(Int64), 1_767_311_700_000, typemax(Int64)])
     table = map(vcat, valid, invalid)
-    @test_throws r"3 negative, 2 above seven days" pack_graph(table)
+    @test_throws r"3 negative, 2 overflowing" pack_graph(table)
     graph = @test_logs (:warn, r"Skipping 5 of 11 connections") pack_graph(table; skip_invalid_durations=true)
     reference = pack_graph(valid)
     @test graph.h3[graph.edge_from] == reference.h3[reference.edge_from]
@@ -135,18 +135,16 @@ end
 
 include("window_tests.jl")
 include("catchup_tests.jl")
-include("window_gpu_tests.jl")
 include("distance_http_tests.jl")
 include("window_engine_http_tests.jl")
 include("metric_tests.jl")
 include("hours_tests.jl")
-include("kernel_tests.jl")
+include("time_bounds_tests.jl")
 include("shuttle_tests.jl")
 
-@testset "HTTP and Arrow: $(typeof(backend))" for backend in kernel_backends
+@testset "HTTP and Arrow" begin
     graph = pack_graph(fixture_table())
-    router = KernelRouter(graph, backend)
-    handler = make_handler(graph; route=(h, t, b) -> route_kernel!(router, h, t, b))
+    handler = make_handler(graph)
     origin = "index=85075dd7fffffff"
     times = "departure_h=8&budget_h=1"
     lower, upper = DEMO_ORIGIN % UInt32, (DEMO_ORIGIN >> 32) % UInt32
@@ -199,7 +197,7 @@ include("shuttle_tests.jl")
         "$origin&departure_h=8%0A&budget_h=0.0002777777777777778", "$origin&departure_h=8&budget_h=0.0002777777777777778%0A",
         "$origin&departure_h=24&budget_h=0.0002777777777777778", "$origin&departure_h=8:00:00&budget_h=0.0002777777777777777778",
         "$origin&departure_h=8&budget_h=-1", "$origin&departure_h=8&budget_h=NaN",
-        "$origin&departure_h=8&budget_h=168.00027777777777", "$origin&departure_h=8&budget_h=$(typemax(UInt64))",
+        "$origin&departure_h=8&budget_h=1200", "$origin&departure_h=8&budget_h=$(typemax(UInt64))",
         "$origin&$times&encoding=uint64", "$origin&$times&foo=1",
         "$origin&$times&$origin", "$origin&$times&budget_h=0.0002777777777777778")
         @test request(query).status == 400
@@ -229,14 +227,6 @@ include("shuttle_tests.jl")
     finally
         close(server)
     end
-    if haskey(ENV, "ROUTER_FRONTEND")
-        mktempdir() do dir
-            for (encoding, response) in responses
-                write(joinpath(dir, "$encoding.arrow"), response.body)
-            end
-            @test success(`node $(joinpath(@__DIR__, "frontend.mjs")) $(ENV["ROUTER_FRONTEND"]) $dir`)
-        end
-    end
 end
 
 include("walking_geometry_tests.jl")
@@ -246,3 +236,4 @@ include("walking_http_tests.jl")
 include("websocket_tests.jl")
 include("resolution_tests.jl")
 include("window_mode_tests.jl")
+include("window_statistics_tests.jl")

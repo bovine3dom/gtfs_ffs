@@ -49,7 +49,7 @@ same_walks(a, b) = length(a) == length(b) && all(x === y for (x, y) in zip(a, b)
         @test sum(length, values(index.bins)) == length(graph.h3)
         @test Reachability.WALK_BIN_WIDTH == 2sin(5 / (2 * 6371.007180918475))
         @test any(origin -> !(origin in graph.h3), origins)
-        for origin in [origins; graph.h3[1:20]], limit in (0, 1, 600_000, 3_600_000, 9_000_000, Reachability.MAX_BUDGET_MS)
+        for origin in [origins; graph.h3[1:20]], limit in (0, 1, 600_000, 3_600_000, 9_000_000, 604_800_000)
             actual = walking_neighbors(index, origin, limit)
             @test actual == brute_walks(graph.h3, origin, limit)
             @test eltype(actual) == @NamedTuple{cell::UInt64, duration_ms::UInt32, distance_km::Float64}
@@ -82,7 +82,7 @@ end
         @test isempty(query(index, origin, 0))
         @test_throws ArgumentError query(index, UInt64(0), 0)
         @test_throws ArgumentError query(index, H3.API.cellToParent(origin, 8), 0)
-        for limit in (-1, big(Reachability.MAX_BUDGET_MS) + 1, typemax(UInt64))
+        for limit in (-1, big(Reachability.INF), typemax(UInt64))
             @test_throws ArgumentError query(index, origin, limit)
         end
     end
@@ -136,7 +136,7 @@ end
         index = WalkingIndex(graph_of(cells))
         origins = [rand(rng, cells, 30); cell_at(90, 0, resolution);
                    cell_at(-90, 0, resolution); cell_at(0, 180, resolution)]
-        for origin in origins, limit in (3_600_000, 36_000_000, Reachability.MAX_BUDGET_MS)
+        for origin in origins, limit in (3_600_000, 36_000_000, Reachability.MAX_TIME_MS)
             actual = walking_cells(index, origin, limit)
             @test same_walks(actual, brute_walks(cells, origin, limit))
             @test same_walks(actual, polygon_walks(index, origin, limit))
@@ -160,7 +160,7 @@ end
         for origin in unique(origins)
             # An independent destination selects cutoffs that exercise inclusion
             # even when the default walk has no neighbors at coarse resolutions.
-            boundary = rand(rng, brute_walks(disk(origin, 2), origin, Reachability.MAX_BUDGET_MS))
+            boundary = rand(rng, brute_walks(disk(origin, 2), origin, 604_800_000))
             for limit in (0, 1, 3_600_000, 7_200_000, rand(rng, 1:7_200_000),
                           Int(boundary.duration_ms) - 1, Int(boundary.duration_ms))
                 actual = walking_cells(index, origin, limit)
@@ -199,7 +199,7 @@ end
     @test_throws MethodError walking_cells(index, origin; max_cells=0)
     @test_throws MethodError walking_cells(index, origin; work=nothing)
     @test_throws MethodError walking_neighbors(index, origin; work=nothing)
-    for bad in (-1, Int(Reachability.MAX_BUDGET_MS) + 1, typemax(UInt64))
+    for bad in (-1, Int(Reachability.INF), typemax(UInt64))
         @test_throws ArgumentError walking_cells(index, origin, bad)
     end
     origin = cell_at(0, 0, 5)

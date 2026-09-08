@@ -18,7 +18,7 @@ been removed by user choice. These timings are not a benchmark of the uncapped v
 From the repository root, with the existing router environment installed:
 
 ```sh
-timeout 300s julia --project=router --threads=1 router/benchmark-walking.jl
+timeout 300s julia --project=router --threads=1 experiments/benchmarks/benchmark-walking.jl
 ```
 
 This was the actual command for both complete runs. Tables use the final run,
@@ -177,7 +177,7 @@ query with walking enabled took **98.058 ms** median, allocating **8.254 MiB**.
 After adding the 500,000,000-visit cumulative request guard:
 
 ```sh
-timeout 300s julia --project=router --threads=1 router/benchmark-walking.jl data/rail_and_friends_res7.arrow
+timeout 300s julia --project=router --threads=1 experiments/benchmarks/benchmark-walking.jl data/rail_and_friends_res7.arrow
 ```
 
 All parity/oracle assertions and reach counts above were unchanged. Medians were

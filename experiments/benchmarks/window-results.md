@@ -44,7 +44,7 @@ from dynamic column access: this run packed the large graph in 11.8 s including
 compilation, rather than the initial implementation's 162 s. Warm query times exclude packing.
 
 ```sh
-julia --project=router --threads=4 router/benchmark-window.jl data/rail_and_friends_res5.arrow
+julia --project=router --threads=4 experiments/benchmarks/benchmark-window.jl data/rail_and_friends_res5.arrow
 ```
 
 ## Verification
@@ -60,7 +60,7 @@ julia --project=router --threads=4 router/benchmark-window.jl data/rail_and_frie
 
 ## Next data step
 
-Use `router/export.sql`, setting its target resolution and your desired mode filter.
+Use `experiments/data/export.sql`, setting its target resolution and your desired mode filter.
 Its additional non-null `Float64` column is:
 
 ```sql

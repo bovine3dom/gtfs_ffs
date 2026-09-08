@@ -8,7 +8,7 @@ silently substituted by the frontend.
 ## Reproduce
 
 ```sh
-julia --project=router --threads=8 router/benchmark-distance-modes.jl data/everything_res7.arrow
+julia --project=router --threads=8 experiments/benchmarks/benchmark-distance-modes.jl data/everything_res7.arrow
 ```
 
 The optional second argument selects a hexadecimal origin. The measured origin is
@@ -124,7 +124,7 @@ and accumulator km. No per-sample floating-point distance averaging remains.
   `replay_ns` is timer/branch overhead, not replay work.
 - The existing `benchmark-walking-output.jl` diagnostic smoke passes for both its
   96-sample and 12-sample fixture cases after adapting the shared probe instrumentation.
-- Launcher dispatch smoke passes with `ROUTER_BACKEND=cpu` and window backends
+- Historical launcher dispatch smoke passed with the KA CPU point engine and window backends
   `origin`, `catchup` and `ka_cpu`, for straight-line walking/transit points/windows.
   The launcher body is evaluated with only the final listener replaced by handler
   construction; no live user port is bound or queried.

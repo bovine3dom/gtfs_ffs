@@ -66,7 +66,7 @@
         other = pack_graph(raw_table([a], [(1, 1, 0, 0, 0.0)]))
         @test_throws ArgumentError route_walking(other, a, 0, 0; walking_index=prepared)
         @test_throws ArgumentError route_window_walking_cached(other, a, 0, 0, 1; walking_index=prepared)
-        for bad in (-1, 604_800_001, typemax(UInt64))
+        for bad in (-1, Reachability.INF, typemax(UInt64))
             @test_throws ArgumentError prepare_walking(bare; max_walk_ms=bad)
         end
         @test_throws ArgumentError prepare_walking(bare; workers=0)

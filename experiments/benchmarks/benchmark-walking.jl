@@ -1,6 +1,7 @@
 using Printf, Statistics, Random, DataStructures
 import H3
-include("src/Reachability.jl")
+include("../../router/src/Reachability.jl")
+Base.include(Reachability, joinpath(@__DIR__, "../../router/test/reference.jl"))
 using .Reachability
 
 const DEPARTURE = 28_800_000
@@ -217,7 +218,7 @@ function benchmark(path)
 end
 
 function main(args)
-    paths = isempty(args) ? [joinpath(@__DIR__, "..", "data", name) for name in
+    paths = isempty(args) ? [joinpath(@__DIR__, "../..", "data", name) for name in
         ("rail_and_friends_dist_res5.arrow", "rail_and_friends_res6.arrow", "rail_and_friends_res7.arrow")] : args
     println("ENV julia=$VERSION threads=$(Threads.nthreads()) cpu=$(Sys.CPU_NAME) repetitions=3 departure_h=8.0 budget_h=3.0 max_walk_h=1.0 step_h=$(1/12)")
     for path in paths

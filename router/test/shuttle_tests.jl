@@ -22,9 +22,7 @@
               route_details(plain, a, START, 10).arrival[plain.node_id[b]]
         @test graph.resolution == res
         expected_window = route_window(graph, elvas, START, 900_000, 120_000; step_ms=60_000)
-        for result in (route_window_cached(graph, elvas, START, 900_000, 120_000; step_ms=60_000),
-                       route_window_kernel!(WindowKernelRouter(KernelRouter(graph, KA.CPU())),
-                                            elvas, START, 900_000, 120_000; step_ms=60_000))
+        for result in (route_window_cached(graph, elvas, START, 900_000, 120_000; step_ms=60_000),)
             for name in (:elapsed_ms, :reachable_elapsed_ms, :distance_km, :reachable_samples, :sample_count)
                 @test isequal(getproperty(result, name), getproperty(expected_window, name))
             end
@@ -38,7 +36,7 @@
                 @test result.arrival[graph.node_id[to]] == arrival
                 @test result.distance_km[graph.node_id[to]] == 13.88
                 @test route_cpu(graph, from, ready, budget - 1)[graph.node_id[to]] == INF
-                @test route_kernel!(KernelRouter(graph, KA.CPU()), from, ready, budget) == result.arrival
+                @test route_cpu(graph, from, ready, budget) == result.arrival
             end
         end
         # Merge with genuine faster service; duplicates and slower services are pruned normally.

@@ -1,15 +1,20 @@
+function _window_times(ready, budget, window_ms::Integer, step_ms::Integer)
+    1 <= window_ms <= MAX_TIME_MS || throw(ArgumentError("window must fit the UInt32 time range"))
+    step_ms >= 1 || throw(ArgumentError("sample step must be at least one millisecond"))
+    step = Int64(min(step_ms, window_ms))
+    samples = cld(Int64(window_ms), step)
+    cutoff = Int64(ready) + (samples - 1) * step + budget
+    cutoff < INF || throw(ArgumentError("last departure plus budget must be below UInt32 arrival INF"))
+    # With millisecond steps and cutoff < INF, counts fit UInt32 and time sums fit UInt64.
+    return step, samples, UInt32(cutoff)
+end
+
 function _window_plan(graph::Graph, origin::UInt64, departure_ms::Integer,
                       budget_ms::Integer, window_ms::Integer;
                       step_ms::Integer=60_000, reuse::Bool=true)
     ready, _ = query_times(graph, origin, departure_ms, budget_ms)
-    1 <= window_ms <= PERIOD || throw(ArgumentError("window must be between one millisecond and one day"))
-    step_ms >= 1 || throw(ArgumentError("sample step must be at least one millisecond"))
-    # A step beyond the window produces only the first sample; avoid narrowing huge integers.
-    step = Int64(min(step_ms, window_ms))
-    samples = cld(Int64(window_ms), step)
-    samples <= 86_400 || throw(ArgumentError("window must contain at most 86400 samples"))
+    step, samples, cutoff = _window_times(ready, budget_ms, window_ms, step_ms)
     start, budget = Int64(ready), Int64(budget_ms)
-    cutoff = UInt32(start + (samples - 1) * step + budget)
     source = get(graph.node_id, origin, Int32(0))
     groups = Tuple{Int,Int}[]
     if source != 0
@@ -42,14 +47,18 @@ function _window_plan(graph::Graph, origin::UInt64, departure_ms::Integer,
 end
 
 function _window_mode(mode)
-    mode isa Union{Symbol,AbstractString} && mode in (:mean_intersection, :min_union, "mean_intersection", "min_union") ||
-        throw(ArgumentError("window_mode must be mean_intersection or min_union"))
+    mode isa Union{Symbol,AbstractString} && mode in
+        (:mean_intersection, :min_union, :max_intersection, :diff_union, :reachable_union,
+         "mean_intersection", "min_union", "max_intersection", "diff_union", "reachable_union") ||
+        throw(ArgumentError("window_mode must be mean_intersection, min_union, max_intersection, diff_union or reachable_union"))
     return Symbol(mode)
 end
 
 function _window_accumulator(graph, plan, track_distance=true; window_mode=:mean_intersection)
+    mode = _window_mode(window_mode)
     return (elapsed_sum_ms=fill(UInt64(plan.samples) * UInt64(plan.budget), length(graph.h3)),
-            elapsed_min_ms=_window_mode(window_mode) == :min_union ? fill(INF, length(graph.h3)) : nothing,
+            elapsed_min_ms=mode in (:min_union, :diff_union) ? fill(INF, length(graph.h3)) : nothing,
+            elapsed_max_ms=mode in (:max_intersection, :diff_union) ? zeros(UInt32, length(graph.h3)) : nothing,
             reachable_samples=zeros(UInt32, length(graph.h3)),
             distance_km=track_distance ? fill(NaN, length(graph.h3)) : nothing)
 end
@@ -76,29 +85,51 @@ function _accumulate_window!(acc, plan, group, arrivals, distances)
                 acc.elapsed_min_ms[vertex] = elapsed
                 isnothing(distances) || (acc.distance_km[vertex] = distances[vertex])
             end
-        elseif !isnothing(distances)
+        elseif isnothing(acc.elapsed_max_ms) && !isnothing(distances)
             acc.distance_km[vertex] = previous_count == 0 ? distances[vertex] :
                 acc.distance_km[vertex] + (distances[vertex] - acc.distance_km[vertex]) * (reached / acc.reachable_samples[vertex])
         end
+        if !isnothing(acc.elapsed_max_ms)
+            # Only the reachable suffix contributes: its earliest departure is worst.
+            elapsed = UInt32(UInt64(arrival) - time)
+            if previous_count == 0 || elapsed > acc.elapsed_max_ms[vertex]
+                acc.elapsed_max_ms[vertex] = elapsed
+                isnothing(acc.elapsed_min_ms) && !isnothing(distances) && (acc.distance_km[vertex] = distances[vertex])
+            end
+        end
     end
     return acc
+end
+
+function _window_elapsed(total, counts, minimum, maximum, samples, budget)
+    elapsed = Float64.(total) ./ samples
+    conditional = fill(NaN, length(elapsed))
+    for i in eachindex(counts)
+        reached = counts[i]
+        reached == 0 && continue
+        if !isnothing(minimum) && !isnothing(maximum)
+            elapsed[i] = Float64(reached < samples ? budget : maximum[i]) - minimum[i]
+        elseif !isnothing(minimum)
+            elapsed[i] = minimum[i]
+        elseif !isnothing(maximum)
+            elapsed[i] = maximum[i]
+        end
+        conditional[i] = isnothing(minimum) && isnothing(maximum) ?
+            (total[i] - UInt64(samples - reached) * UInt64(budget)) / reached : elapsed[i]
+    end
+    return elapsed, conditional
 end
 
 function _finish_window(acc, plan; searches::Int, origin=nothing, cells=nothing, kwargs...)
     if plan.source != 0
         acc.elapsed_sum_ms[plan.source] = 0
         isnothing(acc.elapsed_min_ms) || (acc.elapsed_min_ms[plan.source] = 0)
+        isnothing(acc.elapsed_max_ms) || (acc.elapsed_max_ms[plan.source] = 0)
         acc.reachable_samples[plan.source] = UInt32(plan.samples)
         isnothing(acc.distance_km) || (acc.distance_km[plan.source] = 0.0)
     end
-    elapsed_ms = isnothing(acc.elapsed_min_ms) ? Float64.(acc.elapsed_sum_ms) ./ plan.samples : Float64.(acc.elapsed_min_ms)
-    reachable_elapsed_ms = fill(NaN, length(elapsed_ms))
-    for vertex in eachindex(acc.reachable_samples)
-        reached = acc.reachable_samples[vertex]
-        reached == 0 && continue
-        conditional_sum = acc.elapsed_sum_ms[vertex] - UInt64(plan.samples - reached) * UInt64(plan.budget)
-        reachable_elapsed_ms[vertex] = isnothing(acc.elapsed_min_ms) ? conditional_sum / reached : elapsed_ms[vertex]
-    end
+    elapsed_ms, reachable_elapsed_ms = _window_elapsed(acc.elapsed_sum_ms, acc.reachable_samples,
+        acc.elapsed_min_ms, acc.elapsed_max_ms, plan.samples, plan.budget)
     distance_km = acc.distance_km
     if isnothing(distance_km)
         distance_km = fill(NaN, length(elapsed_ms))
@@ -108,25 +139,6 @@ function _finish_window(acc, plan; searches::Int, origin=nothing, cells=nothing,
     return (; elapsed_ms, reachable_elapsed_ms, distance_km,
             reachable_samples=acc.reachable_samples, sample_count=UInt32(plan.samples),
             searches, reused_samples=plan.samples - searches, elapsed_sum_ms=acc.elapsed_sum_ms, kwargs...)
-end
-
-"""Reference window routing with origin-only grouping and chronological aggregation."""
-function route_window(graph::Graph, origin::UInt64, departure_ms::Integer,
-                      budget_ms::Integer, window_ms::Integer;
-                      step_ms::Integer=60_000, reuse::Bool=true, window_mode=:mean_intersection,
-                      distance_mode="itinerary")
-    track = _distance_mode(distance_mode) == :itinerary
-    plan = _window_plan(graph, origin, departure_ms, budget_ms, window_ms; step_ms, reuse)
-    acc = _window_accumulator(graph, plan, track; window_mode)
-    distances = !track || isnothing(graph.distance_km) ? nothing : Vector{Float64}(undef, length(graph.h3))
-    for group in plan.groups
-        first, count = group
-        ready = UInt32(Int64(plan.ready) + first * plan.step)
-        cutoff = UInt32(Int64(plan.ready) + (first + count - 1) * plan.step + plan.budget)
-        arrivals = _route_at(graph, plan.source, ready, cutoff, distances)
-        _accumulate_window!(acc, plan, group, arrivals, distances)
-    end
-    return _finish_window(acc, plan; searches=length(plan.groups), origin, cells=graph.h3)
 end
 
 """Replay canonical Dijkstra discoveries using cached connections and final arrivals."""
@@ -149,6 +161,7 @@ function _replay_distances!(distances, seen, graph, source, ready, cutoff, label
             v == u && continue
             index = connections[edge]
             index == 0 && continue
+            graph.arrival[index] > cutoff - base && continue
             candidate = base + graph.arrival[index]
             candidate <= cutoff && candidate < seen[v] || continue
             candidate >= labels[v] || error("cached arrival labels are not optimal")

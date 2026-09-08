@@ -1,10 +1,11 @@
 using Printf, Statistics
-include("src/Reachability.jl")
+include("../../router/src/Reachability.jl")
+Base.include(Reachability, joinpath(@__DIR__, "../../router/test/reference.jl"))
 using .Reachability
 import H3
 
 function main(args)
-    1 <= length(args) <= 2 || error("usage: julia --project=router router/benchmark-window.jl <input.arrow> [origin_hex]")
+    1 <= length(args) <= 2 || error("usage: julia --project=router experiments/benchmarks/benchmark-window.jl <input.arrow> [origin_hex]")
     graph = @time pack_graph(first(args); skip_invalid_durations=true)
     degree = diff(graph.out_ptr)
     origins = length(args) == 2 ? [parse(UInt64, args[2]; base=16)] :

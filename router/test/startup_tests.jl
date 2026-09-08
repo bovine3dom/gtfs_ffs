@@ -27,14 +27,14 @@ using Logging
                 doubled = map(vcat, doubled, NamedTuple{keys(doubled)}(extra))
             end
             pairs = sort!(unique([(doubled.from_h3[i], doubled.to_h3[i]) for i in eachindex(doubled.from_h3)
-                                 if 0 <= doubled.duration_ms[i] <= 7P]))
+                                 if 0 <= doubled.duration_ms[i] <= Int64(INF) - 1 - P - doubled.departure_ms[i]]))
             @test collect(zip(graph.h3[graph.edge_from], graph.h3[graph.edge_to])) == pairs
             # Independent original two-day sort, including stable equal-key and signed-zero ties.
             for (edge, (from, to)) in enumerate(pairs)
                 profile = Tuple{UInt32,UInt32,Int}[]
                 for i in eachindex(doubled.from_h3)
                     (doubled.from_h3[i], doubled.to_h3[i]) == (from, to) || continue
-                    0 <= doubled.duration_ms[i] <= 7P || continue
+                    0 <= doubled.duration_ms[i] <= Int64(INF) - 1 - P - doubled.departure_ms[i] || continue
                     d, a = doubled.departure_ms[i], doubled.departure_ms[i] + UInt32(doubled.duration_ms[i])
                     push!(profile, (d, a, i), (d + UInt32(P), a + UInt32(P), i))
                 end

@@ -2,6 +2,7 @@ module WalkingCatchupTests
 
 using Test, Random, H3
 include("../src/Reachability.jl")
+Base.include(Reachability, joinpath(@__DIR__, "reference.jl"))
 using .Reachability
 
 const DAY = 86_400_000
@@ -237,7 +238,7 @@ end
         @test Reachability._walking_hops(topologies[1], b; geographic=true, limit=250seconds) === partial
         @test Reachability._walking_hops(topologies[1], b; geographic=true) === larger
         @test_throws ArgumentError Reachability._walking_hops(topologies[1], b; geographic=true,
-                                                             limit=Int(Reachability.MAX_BUDGET_MS) + 1)
+                                                             limit=Int(Reachability.INF))
         @test Reachability._walking_hops(topologies[3], b; geographic=true) === larger
         @test_throws ArgumentError Reachability._walking_hops(topologies[1], UInt64(0); geographic=true)
         @test Reachability._walking_hops(topologies[1], c; geographic=true) == walking_cells(index, c, 1000seconds)
@@ -248,13 +249,13 @@ end
         a, b = chain(9)
         graph = pack_graph(raw_table([a, b], [(1, 2, 0, 0, 1.0)]))
         for kwargs in ((chunk_size=0,), (chunk_size=-1,), (workers=0,), (workers=-1,),
-                       (max_walk_ms=-1,), (max_walk_ms=604801000,), (max_walk_ms=typemax(UInt64),),
+                       (max_walk_ms=-1,), (max_walk_ms=Reachability.INF,), (max_walk_ms=typemax(UInt64),),
                        (step_ms=0,), (step_ms=-1,))
             @test_throws ArgumentError route_window_walking_cached(graph, a, 0, 0, 1; kwargs...)
         end
         for (ready, budget, window) in ((-1, 0, 1), (DAY, 0, 1), (0, -1, 1),
-                                        (0, 7DAY + 1, 1), (0, typemax(UInt64), 1),
-                                        (0, 0, 0), (0, 0, DAY + 1), (0, 0, 86_401))
+                                        (0, Reachability.INF, 1), (0, typemax(UInt64), 1),
+                                        (0, 0, 0), (0, 0, Reachability.INF))
             @test_throws ArgumentError route_window_walking_cached(graph, a, ready, budget, window; step_ms=1)
         end
         for origin in (UInt64(0), H3.API.cellToParent(a, 7))

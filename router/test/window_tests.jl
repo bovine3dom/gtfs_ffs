@@ -172,18 +172,18 @@ end
 
     @testset "Validation" begin
         graph = pack_graph(window_table([(1, 2, 10, 1, 1.0)]))
-        for window in (0, -1, day + 1, typemax(UInt64))
+        for window in (0, -1, INF, typemax(UInt64))
             @test_throws ArgumentError route_window(graph, origin, 0, 0, window)
         end
         for step in (0, -1, typemin(Int64))
             @test_throws ArgumentError route_window(graph, origin, 0, 0, 1; step_ms=step)
         end
-        @test_throws ArgumentError route_window(graph, origin, 0, 0, 86_401; step_ms=1)
-        @test_throws ArgumentError route_window(graph, origin, 0, 0, day; step_ms=999)
+        @test route_window(graph, origin, 0, 0, 86_401; step_ms=1).sample_count == 86_401
+        @test route_window(graph, origin, 0, 0, day; step_ms=999).sample_count == cld(day, 999)
         for departure in (-1, day, typemax(UInt64))
             @test_throws ArgumentError route_window(graph, origin, departure, 0, 1)
         end
-        for budget in (-1, 7day + 1, typemax(UInt64))
+        for budget in (-1, INF, typemax(UInt64))
             @test_throws ArgumentError route_window(graph, origin, 0, budget, 1)
         end
         @test_throws ArgumentError route_window(graph, UInt64(0), 0, 0, 1)

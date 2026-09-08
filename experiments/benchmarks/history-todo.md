@@ -1,4 +1,8 @@
-# Backend TODO
+# Backend Development History
+
+This is a historical work log, including superseded API and backend decisions.
+The [README](../../router/README.md) and [query contract](../../router/docs/api.md) describe the current
+CPU-only release. GPU work is retained in [experiments](../gpu/README.md).
 
 ## Runtime Window Mode (2026-09-08)
 
@@ -35,7 +39,7 @@
 - [x] Verify live framing, HTTP parity, scheduling, failures and disconnects: full one/four-thread suites each pass 65,672 checks; eight-thread WebSocket suite passes 355. Includes two sockets waiting on the HTTP-held workspace lock.
 - [x] Document deployment, protocol policy and cooperative scheduling limitations. No query caps, frontend edits, or interaction with the user's running server.
 
-Frontend tasks are tracked in [H3-MON/todo.md](../../H3-MON/todo.md).
+Frontend tasks are tracked in [H3-MON](https://github.com/bovine3dom/H3-MON).
 
 ## Startup Performance
 
@@ -224,7 +228,7 @@ coverage on finer graphs rather than silently changing the distance model.
 Implemented: departure-window averaging, selected-itinerary kilometres and estimated
 walking access/transfers/geographic egress. The reuse/backend details below describe
 transit-only requests (`max_walk_s=0`); walking uses the baseline documented above.
-Code, contract and measurements: [README](README.md), [window results](window-results.md).
+Code, contract and measurements: [README](../../router/README.md), [window results](window-results.md).
 
 - Sample a half-open departure window, every minute by default; expose the interval.
 - Unreachable departures contribute the full travel budget to mean elapsed time.

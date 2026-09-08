@@ -169,7 +169,7 @@ metric.
 - `router/src/walking_output.jl`: indexed destination reduction and window counts.
 - `router/src/walking.jl`: two-state CPU routing and dictionary geographic oracle.
 - `router/src/Reachability.jl`: HTTP/Arrow metrics and window destination filtering.
-- `router/src/window_gpu.jl`: current GPU download and host aggregation path.
+- `experiments/gpu/window_gpu.jl`: experimental GPU download and host aggregation path.
 - `geonames/readme.md`: references `public_kontur_population_20231101`, with `h3`
   and `population` columns.
 - `plots/walker.jl`: existing population aggregation by H3 parent.
