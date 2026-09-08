@@ -37,6 +37,15 @@
 
 Frontend tasks are tracked in [H3-MON/todo.md](../../H3-MON/todo.md).
 
+## Startup Performance
+
+- [x] Use available default-pool threads for walking preparation, without a four-worker cap.
+- [x] Add batched ProgressMeter updates and per-file stage timings, with plain redirected logs.
+- [x] Flatten random-access sort columns, avoid endpoint concatenation and sort daily profiles once.
+- Verified baseline-identical real res6 graphs and walking adjacency; full CPU suites passed
+  with one, four and eight threads. See [startup results](startup-results.md) for measured
+  packing improvements, higher peak memory and the still-serial sorting/packing stages.
+
 ## Estimated Walking: Findings and Next Deliverables
 
 ### Straight-Line Distance Milestones (2026-09-07)

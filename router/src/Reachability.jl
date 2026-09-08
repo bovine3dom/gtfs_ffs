@@ -3,6 +3,7 @@ module Reachability
 using Arrow, DataStructures, H3, HTTP, JSON
 import KernelAbstractions as KA
 import Atomix
+import ProgressMeter
 
 export Graph, pack_graph, route_cpu, route_details, route_window, route_window_cached,
        KernelRouter, route_kernel!, WindowKernelRouter, route_window_kernel!, make_handler,
@@ -47,8 +48,35 @@ end
 
 include("missing_data.jl")
 
+function _startup_stage(f, progress, stage; total=nothing)
+    progress || return f(nothing)
+    @info "Startup: $stage"
+    flush(stderr)
+    started = time_ns()
+    meter = !isnothing(total) && stderr isa Base.TTY ? ProgressMeter.Progress(total; desc="$stage: ") : nothing
+    try
+        result = f(meter)
+        isnothing(meter) || ProgressMeter.finish!(meter)
+        @info "Startup complete: $stage" elapsed_s=(time_ns() - started) / 1e9
+        flush(stderr)
+        return result
+    catch
+        isnothing(meter) || ProgressMeter.cancel(meter)
+        rethrow()
+    end
+end
+
+_startup_advance(meter, count) = isnothing(meter) ? nothing : ProgressMeter.next!(meter; step=count)
+
 """Pack daily profiles; opt into the original rail repair with `badajoz_shuttle=true`."""
-function pack_graph(table; skip_invalid_durations::Bool=false, badajoz_shuttle::Bool=false)
+function pack_graph(table; skip_invalid_durations::Bool=false, badajoz_shuttle::Bool=false, progress::Bool=false)
+    columns, raw_distance, order = _startup_stage(progress, "Validating and filtering rows") do _
+        _validated_columns(table, skip_invalid_durations, badajoz_shuttle)
+    end
+    return _pack_columns(columns, raw_distance, order, badajoz_shuttle, progress)
+end
+
+function _validated_columns(table, skip_invalid_durations, badajoz_shuttle)
     schema = (:from_h3 => UInt64, :to_h3 => UInt64,
               :departure_ms => UInt32, :duration_ms => Int64)
     for (name, type) in schema
@@ -82,14 +110,22 @@ function pack_graph(table; skip_invalid_durations::Bool=false, badajoz_shuttle::
     # Specialize the sorting loops on column types instead of Arrow.Table's dynamic lookup.
     columns = (from_h3=table.from_h3, to_h3=table.to_h3,
                departure_ms=table.departure_ms, duration_ms=table.duration_ms)
-    return _pack_columns(columns, raw_distance, order, badajoz_shuttle)
+    return columns, raw_distance, order
 end
 
-function _pack_columns(table, raw_distance, order, badajoz_shuttle)
-    cells = sort!(unique(vcat(table.from_h3, table.to_h3)))
-    foreach(validate_cell, cells)
-    resolution = isempty(cells) ? RESOLUTION : Int(H3.API.getResolution(first(cells)))
-    all(h -> H3.API.getResolution(h) == resolution, cells) || throw(ArgumentError("graph must use one H3 resolution"))
+function _pack_columns(table, raw_distance, order, badajoz_shuttle, progress)
+    # Sorting revisits endpoints at random: avoid a chunk search per comparison.
+    table, raw_distance = _startup_stage(progress, "Materializing sort columns") do _
+        merge(table, (from_h3=convert(Vector{UInt64}, table.from_h3), to_h3=convert(Vector{UInt64}, table.to_h3))),
+            isnothing(raw_distance) ? nothing : convert(Vector{Float64}, raw_distance)
+    end
+    cells, resolution = _startup_stage(progress, "Indexing and validating H3 endpoints") do _
+        cells = sort!(union!(unique(table.from_h3), table.to_h3))
+        foreach(validate_cell, cells)
+        resolution = isempty(cells) ? RESOLUTION : Int(H3.API.getResolution(first(cells)))
+        all(h -> H3.API.getResolution(h) == resolution, cells) || throw(ArgumentError("graph must use one H3 resolution"))
+        cells, resolution
+    end
     if badajoz_shuttle
         extra = _badajoz_shuttle(resolution)
         n = length(table.from_h3)
@@ -99,18 +135,27 @@ function _pack_columns(table, raw_distance, order, badajoz_shuttle)
         sort!(union!(cells, extra.from_h3))
         @info "Added Elvas-Badajoz fantasy rail shuttle" resolution connections=length(extra.from_h3)
     end
-    return _pack_profiles(table, raw_distance, order, cells, resolution)
+    return _pack_profiles(table, raw_distance, order, cells, resolution, progress)
 end
 
-function _pack_profiles(table, raw_distance, order, cells, resolution)
+function _pack_profiles(table, raw_distance, order, cells, resolution, progress)
+    _startup_stage(progress, "Sorting connections by edge") do _
+        sort!(order; by=i -> (table.from_h3[i], table.to_h3[i]))
+    end
+    return _startup_stage(progress, "Packing daily profiles"; total=length(order)) do meter
+        _build_profiles(table, raw_distance, order, cells, resolution, meter)
+    end
+end
+
+function _build_profiles(table, raw_distance, order, cells, resolution, meter)
     has_distance = !isnothing(raw_distance)
     node_id = Dict(h => Int32(i) for (i, h) in enumerate(cells))
-    sort!(order; by=i -> (table.from_h3[i], table.to_h3[i]))
     n = length(order)
     edge_from, edge_to, schedule_ptr = Int32[], Int32[], Int32[1]
     departure, arrival = UInt32[], UInt32[]
     distance_km = has_distance ? Float64[] : nothing
     first_row = 1
+    pending = 0
     while first_row <= n
         row = order[first_row]
         from, to = table.from_h3[row], table.to_h3[row]
@@ -121,17 +166,20 @@ function _pack_profiles(table, raw_distance, order, cells, resolution)
             (table.from_h3[row], table.to_h3[row]) == (from, to) || break
             d = table.departure_ms[row]
             a = d + UInt32(table.duration_ms[row])
-            push!(profile, (d, a, Int32(row)), (d + PERIOD, a + PERIOD, Int32(row)))
+            push!(profile, (d, a, Int32(row)))
             last_row += 1
         end
         # Prefer the fastest arrival; identical departures/arrivals use the shorter segment.
         sort!(profile; by=c -> (c[1], -Int64(c[2]), has_distance ? -raw_distance[c[3]] : 0.0))
         retained = Tuple{UInt32,UInt32,Int32}[]
         best = INF
-        for (d, a, row) in Iterators.reverse(profile)
-            if a < best
-                push!(retained, (d, a, row))
-                best = a
+        # Departures are within one day, so both sorted day copies have the same order.
+        for offset in (PERIOD, UInt32(0))
+            for (d, a, row) in Iterators.reverse(profile)
+                if a + offset < best
+                    push!(retained, (d + offset, a + offset, row))
+                    best = a + offset
+                end
             end
         end
         for (d, a, row) in Iterators.reverse(retained)
@@ -142,8 +190,14 @@ function _pack_profiles(table, raw_distance, order, cells, resolution)
         push!(edge_from, node_id[from])
         push!(edge_to, node_id[to])
         push!(schedule_ptr, Int32(length(departure) + 1))
+        pending += last_row - first_row
+        if pending >= 10_000
+            _startup_advance(meter, pending)
+            pending = 0
+        end
         first_row = last_row
     end
+    _startup_advance(meter, pending)
     out_ptr = zeros(Int32, length(cells) + 1)
     out_ptr[1] = 1
     for u in edge_from
@@ -153,8 +207,12 @@ function _pack_profiles(table, raw_distance, order, cells, resolution)
     return Graph(cells, node_id, out_ptr, edge_from, edge_to, schedule_ptr, departure, arrival, resolution, distance_km)
 end
 
-pack_graph(path::AbstractString; skip_invalid_durations=false, badajoz_shuttle=false) =
-    pack_graph(Arrow.Table(path); skip_invalid_durations, badajoz_shuttle)
+function pack_graph(path::AbstractString; skip_invalid_durations=false, badajoz_shuttle=false, progress::Bool=false)
+    table = _startup_stage(progress, "Opening Arrow file $path") do _
+        Arrow.Table(path)
+    end
+    return pack_graph(table; skip_invalid_durations, badajoz_shuttle, progress)
+end
 
 @inline function next_connection(schedule_ptr, departure, arrival, edge,
                                  ready::UInt32, cutoff::UInt32)
@@ -387,8 +445,11 @@ function make_handler(graph::Graph; route=(h, t, b) -> route_cpu(graph, h, t, b)
                           route_window_walking_cached(graph, h, t, b, w; step_ms=s, max_walk_ms=m,
                               walking_index=index, distance_mode=:straight_line, window_mode) :
                           route_window_cached(graph, h, t, b, w; step_ms=s, distance_mode=:straight_line, window_mode)),
-                      request_lock=ReentrantLock())
-    walking_index = prepare_walking(WalkingIndex(graph))
+                      request_lock=ReentrantLock(), progress::Bool=false)
+    walking_index = _startup_stage(progress, "Building walking spatial index") do _
+        WalkingIndex(graph)
+    end
+    walking_index = prepare_walking(walking_index; progress)
     return function (request)
         headers = _response_headers()
         query = try

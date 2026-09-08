@@ -15,6 +15,8 @@ const P = Int(Reachability.PERIOD)
 const INF = Reachability.INF
 const START = 28_800_000
 
+include("startup_tests.jl")
+
 @testset "Input validation and packing" begin
     table = fixture_table()
     graph = pack_graph(table)

@@ -405,8 +405,20 @@ itineraries using transit without distance data have `NaN`, including later egre
 Direct Julia APIs are `route_walking`, `route_window_walking` (independent reference),
 and `route_window_walking_cached` (optimized windows), with `max_walk_ms`
 and optional `walking_index` keywords. `WalkingIndex(graph)` remains cheap and unprepared;
-explicitly use `index = prepare_walking(WalkingIndex(graph); max_walk_ms=3_600_000, workers=4)`
+explicitly use `index = prepare_walking(WalkingIndex(graph); max_walk_ms=3_600_000)`
 and pass `walking_index=index` to reuse prepared adjacency across point/window calls.
+Omitting `workers` uses all available default-pool Julia threads (bounded by vertex
+count), not a four-worker cap. The explicit keyword remains useful for comparisons.
+The server enables startup stage messages and elapsed timings for each input file,
+including Arrow opening, validation/filtering, H3 indexing, sorting, profile packing,
+workspace allocation/upload, walking geometry, adjacency packing and output-ID mapping.
+On a terminal, ProgressMeter displays actual completed-row/vertex/target counts for
+profile packing and walking preparation, updated in batches. Opaque stages such as
+sorting have begin/end timings, not fabricated percentages. Redirected stderr gets
+plain stage logs without progress-bar escape sequences. Direct `pack_graph`,
+`prepare_walking` and `make_handler` calls default to `progress=false`; opt in with
+`progress=true`. See [startup measurements](startup-results.md) for CPU packing changes,
+exact-output validation and the memory tradeoff.
 These low-level engine APIs use integer milliseconds for all time arguments,
 including `max_walk_ms` (default `3_600_000`, formerly `max_walk_s=3600`).
 Raw window diagnostics retain partial cells. By default `elapsed_ms` is capped mean

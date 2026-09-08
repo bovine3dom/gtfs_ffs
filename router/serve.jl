@@ -21,7 +21,9 @@ function configured_handler(graph; request_lock=ReentrantLock())
         else
             error("ROUTER_BACKEND must be cpu, reference, or oneapi")
         end
-        workspace = KernelRouter(graph, backend)
+        workspace = Reachability._startup_stage(true, "Preparing routing workspace ($backend_name)") do _
+            KernelRouter(graph, backend)
+        end
         (h, t, b) -> route_kernel!(workspace, h, t, b)
     end
 
@@ -41,11 +43,15 @@ function configured_handler(graph; request_lock=ReentrantLock())
         graph_workspace = if window_backend == "oneapi" && backend_name == "oneapi"
             workspace
         else
-            KernelRouter(graph, window_backend == "ka_cpu" ? KA.CPU() : oneAPI.oneAPIBackend())
+            Reachability._startup_stage(true, "Preparing window graph workspace ($window_backend)") do _
+                KernelRouter(graph, window_backend == "ka_cpu" ? KA.CPU() : oneAPI.oneAPIBackend())
+            end
         end
         batch = parse(Int, get(ENV, "ROUTER_WINDOW_BATCH", "32"))
         checks = parse(Int, get(ENV, "ROUTER_WINDOW_CHECK_EVERY", "4"))
-        window_workspace = WindowKernelRouter(graph_workspace; batch_size=batch, check_every=checks)
+        window_workspace = Reachability._startup_stage(true, "Preparing window workspace ($window_backend)") do _
+            WindowKernelRouter(graph_workspace; batch_size=batch, check_every=checks)
+        end
         (h, t, b, w, s; window_mode=:mean_intersection) -> route_window_kernel!(window_workspace, h, t, b, w; step_ms=s, window_mode)
     else
         error("ROUTER_WINDOW_BACKEND must be origin, catchup, oneapi, or ka_cpu")
@@ -71,9 +77,8 @@ function configured_handler(graph; request_lock=ReentrantLock())
     @info "Window routing" window_backend
     @info "Single-departure route distances use CPU Dijkstra"
     @info "Walking uses CPU routing; window catch-up unless ROUTER_WINDOW_BACKEND=origin" default_max_walk_h=1.0 workers chunk
-    @info "Preparing resident walking adjacency before accepting requests" max_walk_h=1.0 preparation_workers=min(4, Threads.nthreads(:default))
     @info "Straight-line distance uses CPU arrival-only routing, including transit-only requests"
-    return make_handler(graph; route, window_route, walking_window_route, straight_window_route, request_lock)
+    return make_handler(graph; route, window_route, walking_window_route, straight_window_route, request_lock, progress=true)
 end
 
 function load_handlers(paths)
@@ -84,11 +89,13 @@ function load_handlers(paths)
     sources = Dict{Int,String}()
     request_lock = ReentrantLock()
     for path in paths
-        graph = path == "--demo" ? pack_graph(fixture_table()) :
-            pack_graph(path; skip_invalid_durations=true, badajoz_shuttle=true)
-        haskey(handlers, graph.resolution) && error("duplicate graph for H3 resolution $(graph.resolution): $(sources[graph.resolution]) and $path")
-        handlers[graph.resolution] = configured_handler(graph; request_lock)
-        sources[graph.resolution] = path
+        Reachability._startup_stage(true, "Loading graph $path") do _
+            graph = path == "--demo" ? pack_graph(fixture_table(); progress=true) :
+                pack_graph(path; skip_invalid_durations=true, badajoz_shuttle=true, progress=true)
+            haskey(handlers, graph.resolution) && error("duplicate graph for H3 resolution $(graph.resolution): $(sources[graph.resolution]) and $path")
+            handlers[graph.resolution] = configured_handler(graph; request_lock)
+            sources[graph.resolution] = path
+        end
     end
     return make_resolution_handler(handlers)
 end

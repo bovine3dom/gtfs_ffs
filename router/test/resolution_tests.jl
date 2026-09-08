@@ -92,6 +92,15 @@ import Sockets
                     false
                 end
             end, 120; pollint=0.1) == :ok
+            startup_log = read(joinpath(dir, "server.log"), String)
+            @test !occursin('\e', startup_log)
+            for stage in ("Opening Arrow file", "Validating and filtering rows", "Indexing and validating H3 endpoints",
+                          "Sorting connections by edge", "Packing daily profiles", "Preparing routing workspace",
+                          "Enumerating walking geometry", "Packing walking adjacency", "Indexing walking output IDs")
+                @test occursin("Startup: $stage", startup_log)
+                @test occursin("Startup complete: $stage", startup_log)
+            end
+            @test occursin("elapsed_s", startup_log)
             WS.open("ws://127.0.0.1:$port/query") do ws
                 id = UInt32(0xfedcba98)
                 for (g, path) in zip(graphs, paths), mode in ("itinerary", "straight_line"), window in ("0", "0.03333333333333333"), walk in ("0", "0.001")
