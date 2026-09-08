@@ -31,14 +31,14 @@
         offgraph = first(setdiff(disk(a, 1), graph.h3))
         for origin in (a, b, offgraph), limit in (0, seconds ÷ 2, seconds, 3600, 3601),
             budget in (ab - 1, ab, 7_200_000)
-            expected = route_walking(graph, origin, 0, budget; max_walk_s=limit, walking_index=bare)
+            expected = route_walking(graph, origin, 0, budget; max_walk_ms=1000limit, walking_index=bare)
             @test isequal(expected, route_walking(graph, origin, 0, budget;
-                                                 max_walk_s=limit, walking_index=prepared))
+                                                 max_walk_ms=1000limit, walking_index=prepared))
             expected_window = route_window_walking(graph, origin, 0, budget, 3;
-                step_ms=1, max_walk_s=limit, walking_index=bare)
+                step_ms=1, max_walk_ms=1000limit, walking_index=bare)
             for route in (route_window_walking, route_window_walking_cached)
                 actual = route(graph, origin, 0, budget, 3;
-                    step_ms=1, max_walk_s=limit, walking_index=prepared)
+                    step_ms=1, max_walk_ms=1000limit, walking_index=prepared)
                 for field in (:h3, :elapsed_sum_ms, :elapsed_ms, :reachable_elapsed_ms,
                               :reachable_samples, :distance_km, :sample_count)
                     @test isequal(getproperty(actual, field), getproperty(expected_window, field))
@@ -66,10 +66,10 @@
         other = pack_graph(raw_table([a], [(1, 1, 0, 0, 0.0)]))
         @test_throws ArgumentError route_walking(other, a, 0, 0; walking_index=prepared)
         @test_throws ArgumentError route_window_walking_cached(other, a, 0, 0, 1; walking_index=prepared)
-        for bad in (-1, 604801, typemax(UInt64))
-            @test_throws ArgumentError prepare_walking(bare; max_walk_s=bad)
+        for bad in (-1, 604_800_001, typemax(UInt64))
+            @test_throws ArgumentError prepare_walking(bare; max_walk_ms=bad)
         end
         @test_throws ArgumentError prepare_walking(bare; workers=0)
-        @test isempty(prepare_walking(bare; max_walk_s=0).prepared.geographic.targets)
+        @test isempty(prepare_walking(bare; max_walk_ms=0).prepared.geographic.targets)
     end
 end

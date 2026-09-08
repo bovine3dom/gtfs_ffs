@@ -332,7 +332,7 @@ function main(args)
     output = length(args) == 2 ? abspath(args[2]) : mktempdir("/tmp/opencode"; prefix="walking-reuse-", cleanup=false)
     isdir(output) || error("create the output directory before running the benchmark")
     println("ENV julia=$VERSION threads=$(Threads.nthreads()) cpu=$(Sys.CPU_NAME) loadavg=$(Sys.loadavg()) baseline=$BASELINE_REV output=$output")
-    println("QUERY Paris departure=08:00 default_max_walk_s=3600 chunk_size=64 GPU=false")
+    println("QUERY Paris departure_h=8.0 default_max_walk_h=1.0 chunk_size=64 GPU=false")
     metadata = Dict("baseline_revision" => BASELINE_REV, "julia" => string(VERSION),
         "threads" => Threads.nthreads(), "input" => input, "input_bytes" => filesize(input),
         "current_sha256" => Dict(name => bytes2hex(sha256(source)) for (name, source) in CURRENT_SOURCES),

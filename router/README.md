@@ -14,6 +14,9 @@ repeating fantasy daily timetable. Run the commands below from the repository ro
 - `--demo` uses a small synthetic fixture, not the real rail export.
 
 **Input And Export**
+This timetable-file format is separate from the floating-hour HTTP/WebSocket API.
+The integer-millisecond input and low-level routing engine formats are unchanged;
+no dataset rewrite or SQL export change is needed for the query-unit migration.
 The loader requires the first four columns below; the fifth is optional. Types are non-null:
 
 | Column | Type | Valid Values |
@@ -65,8 +68,8 @@ Replace the source table only with one having the same column semantics.
 File-backed `serve.jl` loads always enable `pack_graph(path; badajoz_shuttle=true)`.
 The default `pack_graph` and `--demo` remain unpatched. This restores the fantasy
 rail service from `plots/longest_journey.jl:46-55`, not an actual published timetable
-or a walking/road connection: 15 minutes, 13.88 itinerary km, both directions,
-every minute from 04:00 through 23:30 inclusive (1,171 per direction, 2,342 rows).
+or a walking/road connection: 0.25 hours, 13.88 itinerary km, both directions,
+every 1/60 hour from 4 through 23.5 hours inclusive (1,171 per direction, 2,342 rows).
 The daily clock uses the same convention as the input, without timezone conversion.
 
 `src/missing_data.jl` uses actual railway-station coordinates from OpenStreetMap
@@ -127,7 +130,7 @@ julia --project=router router/serve.jl --demo
 julia --project=router router/serve.jl data/rail_res5.arrow
 ```
 
-With walking disabled (`max_walk_s=0`), `ROUTER_BACKEND=cpu` is the default and runs the kernels on `KA.CPU()`.
+With walking disabled (`max_walk_h=0`), `ROUTER_BACKEND=cpu` is the default and runs the kernels on `KA.CPU()`.
 `ROUTER_BACKEND=reference` selects the CPU Dijkstra reference instead.
 `ROUTER_BACKEND=oneapi` selects Intel GPU kernels for arrival-only point queries.
 oneAPI is imported only when the point or window backend explicitly requests it;
@@ -146,7 +149,7 @@ env ZE_ENABLE_ALT_DRIVERS=/usr/lib/libze_intel_gpu_legacy1.so.1 ROUTER_BACKEND=o
 <a id="query-websocket"></a>
 **Query WebSocket**
 `ws://127.0.0.1:1988/query` shares the HTTP server, resident index, routing callbacks,
-workspace lock and Arrow encoder. Existing `/reachable` requests are unchanged.
+workspace lock and Arrow encoder. Both transports use the same floating-hour query contract.
 No frontend configuration or files are changed automatically. The client contract is
 [H3-MON's query protocol](../../H3-MON/docs/query-websocket.md).
 
@@ -170,7 +173,7 @@ Avoid payload/URL logging at the proxy if parameters contain sensitive informati
 Send one JSON text message per query, with no subprotocol or acknowledgement:
 
 ```json
-{"type":"query","id":42,"url":"/reachable?index=85075dd7fffffff&departure=08:00:00&budget_s=3600&encoding=split"}
+{"type":"query","id":42,"url":"/reachable?index=85075dd7fffffff&departure_h=8&budget_h=1&encoding=split"}
 ```
 
 - IDs are increasing, connection-local JSON integers in `1..4294967295`; gaps and
@@ -214,15 +217,36 @@ The same server also supports the optional [query WebSocket API](#query-websocke
 Save a response from the running server:
 
 ```sh
-curl --fail --show-error 'http://127.0.0.1:1988/reachable?index=85075dd7fffffff&departure=08:00:00&budget_s=3600&encoding=split' -o data/reachable.arrow
+curl --fail --show-error 'http://127.0.0.1:1988/reachable?index=85075dd7fffffff&departure_h=8&budget_h=1&encoding=split' -o data/reachable.arrow
 ```
 
 `GET /reachable` requires exactly one origin representation: `index`, a 15-digit
 hexadecimal H3 string without `0x`, OR both `index_lower` and `index_upper`, unsigned
 32-bit decimal words with `index = lower | (upper << 32)`. The cell must match the graph resolution.
-`departure` is `HH:MM:SS`; `budget_s` is an integer in `0..604800` (seven days).
-`max_walk_s` is an integer in `0..604800`, default **3600 seconds per walking hop**;
-`0` disables walking and preserves the previous transit-only output and backend paths.
+All query times are finite floating-point **hours**, accepting decimals and scientific notation:
+
+| Parameter | Range | Default |
+| --- | --- | --- |
+| `departure_h` | `0 <= h < 24`, hours after midnight | Required |
+| `budget_h` | `0..168` (seven days) | Required |
+| `window_h` | `0..24`; zero disables sampling | `0` |
+| `step_h` | `0 < h <= 24`; explicit use requires a positive window | `1/60` hour |
+| `max_walk_h` | `0..168`, per walking hop; zero disables walking | `1` hour |
+
+This is a breaking rename: `departure=HH:MM:SS`, `budget_s`, `window_s`, `step_s`
+and `max_walk_s` are rejected, not interpreted as aliases. Values are parsed as
+Float64, range-checked, then rounded once to integer milliseconds using Julia
+`RoundNearest` (ties to even). Departures rounding to 24 hours are rejected.
+Negative values, including signed negative zero, are rejected.
+Positive windows and steps must round to at least 1 ms; smaller positive budgets
+and walking limits may round to zero. Output time columns are Float64 hours at
+this engine resolution (window means may contain fractional milliseconds).
+After rounding, `ceil(window_ms / step_ms)` must not exceed the existing engine
+limit of 86,400 samples; excessive requests return HTTP 400 before routing.
+At a 1 ms step this allows at most 0.024 hours (86.4 seconds) of departures.
+This adds no restriction to formerly valid seconds-based requests: the old minimum
+step of one second already guaranteed at most 86,400 samples in a one-day window.
+Zero walking uses transit-only backend paths. Distances remain kilometres.
 Malformed, duplicate or unknown parameters return HTTP 400.
 
 Output `encoding` is independent of the input representation and defaults to `split`:
@@ -232,8 +256,9 @@ Output `encoding` is independent of the input representation and defaults to `sp
 | `split` | `index_lower UInt32`, `index_upper UInt32` |
 | `string` | `index Utf8`, canonical lowercase H3 strings, no dictionary |
 
-Both include `value Float64`, elapsed **minutes including waiting**, and
-`elapsed_ms UInt32`, the exact elapsed milliseconds. `value` is required by H3-MON.
+Both include `value Float64`, elapsed **hours including waiting** for `metric=time`,
+and `elapsed_h Float64`, the same elapsed hours. `value` is required by H3-MON.
+No transport time columns retain `_ms` names.
 Rows are unique and sorted by H3, include arrivals exactly at the budget cutoff,
 and always include the origin at elapsed zero. An off-graph origin can walk to transit
 or directly to surrounding cells; with walking disabled it returns only itself.
@@ -252,7 +277,7 @@ Use `distance_mode=straight_line` explicitly for faster CPU arrival-only routing
 No frontend selection or default is changed.
 
 ```text
-/reachable?index=871fb4662ffffff&departure=00:00:00&budget_s=604800&window_s=86400&step_s=900&max_walk_s=3600&metric=distance_time_quantile&distance_mode=straight_line
+/reachable?index=871fb4662ffffff&departure_h=0&budget_h=168&window_h=24&step_h=0.25&max_walk_h=1&metric=distance_time_quantile&distance_mode=straight_line
 ```
 
 In straight-line mode, `distance_km` is the origin-to-destination **H3-centre
@@ -270,7 +295,7 @@ column**; the existing missing-column guard still applies to itinerary quantiles
 Straight-line responses have `X-Router-Distance: origin-destination-great-circle-km`;
 itinerary distance headers retain their existing values.
 Straight-line HTTP routing explicitly uses the CPU reference backend, including
-`max_walk_s=0`; it does not call configured itinerary-only CPU/oneAPI callbacks.
+`max_walk_h=0`; it does not call configured itinerary-only CPU/oneAPI callbacks.
 `X-Router-Backend: reference` and the window strategy identify the actual engine.
 The launcher honors walking `origin` versus catch-up selection and configured
 workers/chunks; transit-only straight-line windows use CPU catch-up.
@@ -303,7 +328,7 @@ that permit useful onward walks. Final geographic cells without transit are term
 destinations, not stepping stones for chained walking.
 
 ```text
-/reachable?index=871fb4662ffffff&departure=08:00:00&budget_s=10800&max_walk_s=3600
+/reachable?index=871fb4662ffffff&departure_h=8&budget_h=3&max_walk_h=1
 ```
 
 The service eagerly prepares one resident walking index per loaded graph at handler
@@ -327,7 +352,7 @@ Search counters and the `walking_catchup` HTTP strategy retain their existing me
 Prepared hits borrow read-only ranges without geometry calls or cache locks. Both the
 requested hop limit and remaining budget filter these ranges. Requests above the
 prepared radius and off-graph origins use the existing exact geometry and request-local
-caches, never clipping the requested `max_walk_s=0..604800`. Fallback data is shared
+caches, never clipping the requested `max_walk_h=0..168`. Fallback data is shared
 between window samples and workers, not retained across requests. Cached coverage is
 reused when it covers the requested radius. Small expansions use a local H3 disk only
 after certifying that its outer cell polygons cannot intersect the walking area;
@@ -336,17 +361,21 @@ attempts are a fast path, not an output bound or an average-edge-length approxim
 By user choice, walking has no resource caps on output cells, geographic candidates,
 work or request-local geometry caches. Large valid requests may consume substantial
 memory and CPU; results are not silently truncated. The existing seven-day journey
-budget, one-day window, sample limits and `max_walk_s=0..604800` validation remain.
-`X-Router-Max-Walk-S` exposes the requested
-limit. `X-Router-Distance` is `connection-sum+estimated-walk-km` with transit distance
+budget, one-day window, sample limits and `max_walk_h=0..168` validation remain.
+`X-Router-Max-Walk-H` exposes the effective rounded limit in floating hours.
+`X-Router-Distance` is `connection-sum+estimated-walk-km` with transit distance
 data, or `partial-estimated-walk-km` without it. Pure walks still have known km;
 itineraries using transit without distance data have `NaN`, including later egress.
 
 Direct Julia APIs are `route_walking`, `route_window_walking` (independent reference),
-and `route_window_walking_cached` (optimized windows), with `max_walk_s`
+and `route_window_walking_cached` (optimized windows), with `max_walk_ms`
 and optional `walking_index` keywords. `WalkingIndex(graph)` remains cheap and unprepared;
-explicitly use `index = prepare_walking(WalkingIndex(graph); max_walk_s=3600, workers=4)`
+explicitly use `index = prepare_walking(WalkingIndex(graph); max_walk_ms=3_600_000, workers=4)`
 and pass `walking_index=index` to reuse prepared adjacency across point/window calls.
+These low-level engine APIs use integer milliseconds for all time arguments,
+including `max_walk_ms` (default `3_600_000`, formerly `max_walk_s=3600`).
+Raw window diagnostics retain partial cells, capped `elapsed_ms` and conditional
+`reachable_elapsed_ms`; strict coverage filtering and hour conversion occur at export.
 Treat indices and their arrays as read-only and rebuild after vertex/resolution changes.
 Preparation returns a new index without modifying the original. The HTTP service always
 prepares the fixed default radius; larger requests never grow the resident adjacency.
@@ -361,36 +390,40 @@ See [indexed output results](walking-output-results.md) for the actual all-modes
 96-sample, seven-day workload, phase profile and exact same-graph comparisons.
 
 **Departure Windows**
-Add `window_s` to average departures in `[departure, departure + window_s)`.
-The window may cross midnight and lasts at most 86400 seconds. `step_s` defaults to
-60 and must be an integer from 1 to 86400; it requires a positive window. `window_s=0`
+Add `window_h` to average departures in `[departure_h, departure_h + window_h)`.
+The window may cross midnight and lasts at most 24 hours. `step_h` defaults to
+1/60 hour and explicitly specifying it requires a positive window. `window_h=0`
 or omission retains single-departure behavior. A step longer than the window produces
 one sample, and the end of the window is never sampled.
+The existing engine limit of 86,400 samples per window still applies.
 
 ```sh
 env ROUTER_BACKEND=reference julia --project=router router/serve.jl data/rail_and_friends_dist_res5.arrow
 # Whole-day departures, every minute, each with its own three-hour travel budget:
-curl --fail 'http://127.0.0.1:1988/reachable?index=851fb467fffffff&departure=00:00:00&window_s=86400&step_s=60&budget_s=10800&encoding=split' -o data/day-average.arrow
+curl --fail 'http://127.0.0.1:1988/reachable?index=851fb467fffffff&departure_h=0&window_h=24&step_h=0.016666666666666666&budget_h=3&encoding=split' -o data/day-average.arrow
 ```
 
-Window output retains `value` in minutes for H3-MON and adds these statistics:
+Window output retains `value` in hours for `metric=time` and adds these statistics:
 
 | Column | Meaning |
 | --- | --- |
-| `elapsed_ms Float64` | Mean elapsed time, charging the full budget for unsuccessful departures |
-| `reachable_elapsed_ms Float64` | Mean elapsed time over successful departures only |
+| `elapsed_h Float64` | Mean elapsed hours across all sampled departures |
+| `reachable_elapsed_h Float64` | Successful-departure mean hours; equals `elapsed_h` for returned cells |
 | `distance_km Float64` | Itinerary: mean selected-route length over successful departures. Straight-line: origin-to-destination H3-centre distance |
-| `reachable_fraction Float64` | Successful samples divided by all samples |
+| `reachable_fraction Float64` | Successful samples divided by all samples; always `1.0` |
 | `reachable_samples UInt32` | Number of departures reaching the cell within budget |
 | `sample_count UInt32` | Total sampled departures |
 
-The response contains cells reachable at least once plus the origin. The origin has
+The response contains only cells reachable from **every sampled departure** within
+that departure's budget, plus the origin. Partial cells are excluded **before**
+quantile ranks are computed, for both distance modes and geographic walking egress.
+Counts are integer counts, not time units. The origin has
 zero time/distance and full coverage. Unknown itinerary distance is `NaN`, not zero.
 A window distance mean is `NaN` if any successful sample has unknown kilometres;
 unknown samples are not excluded from that mean. With walking disabled,
 In transit-only itinerary mode, `X-Router-Distance` reports `unavailable` or `connection-sum-km`.
-The internal `route_window` result includes every graph node, assigning the full budget
-to never-reachable nodes; the HTTP output omits those nodes as before.
+The internal `route_window` result includes every graph node and charges the budget
+for failed samples; HTTP and WebSocket output exclude any cell with a failed sample.
 
 Walking windows process chronological chunks backward, repairing both arrival and
 walking-eligible labels and caching selected transit connections. Fresh canonical km
@@ -411,7 +444,7 @@ join before results are consumed or errors propagate; aggregation preserves exac
 chronological means. The serial oracle remains available through
 `ROUTER_WINDOW_BACKEND=origin`, reporting `walking_reference`.
 
-With `max_walk_s=0`, window routing is selected independently of `ROUTER_BACKEND`:
+With `max_walk_h=0`, window routing is selected independently of `ROUTER_BACKEND`:
 
 | `ROUTER_WINDOW_BACKEND` | Implementation |
 | --- | --- |
@@ -444,15 +477,16 @@ env ZE_ENABLE_ALT_DRIVERS=/usr/lib/libze_intel_gpu_legacy1.so.1 ROUTER_BACKEND=r
 
 Distance-bearing point queries still use CPU Dijkstra regardless of backend selection.
 `make_handler` accepts a separate `window_route` callback, defaulting to CPU catchup
-with all available default-pool threads. Its `walking_window_route(h, t, b, w, s, max_walk_s,
+with all available default-pool threads. Its `walking_window_route(h, t, b, w, s, max_walk_ms,
 walking_index)` callback defaults to walking catch-up and receives the resident index.
+All callback time arguments, including the walking limit, are integer milliseconds.
 CPU `origin` and `catchup` windows retain `X-Router-Backend: reference`;
 `X-Router-Window-Strategy` distinguishes `origin`, `catchup`, `gpu_batched`, and
 `ka_cpu_batched`. `X-Router-Searches` and `X-Router-Reused-Samples` retain their
 grouping meanings. When present, `X-Router-Full-Searches`, `X-Router-Repair-Searches`,
 `X-Router-Profile-Lookups`, `X-Router-Batches`, and `X-Router-Rounds` expose engine work.
 Transit-only query metrics, output fields and bitwise-identical means are preserved
-when `max_walk_s=0`.
+when `max_walk_h=0`.
 
 Reuse compares absolute first-hop arrival/distance labels, ignoring useless self-edges,
 across adjacent samples. When they are unchanged, all non-origin routing results are
@@ -474,6 +508,11 @@ and verification, including res6/res7 loading, and
 [`window-optimization-results.md`](window-optimization-results.md) for the
 new downstream-cache and batched-iGPU measurements. Catchup improves the measured wide
 windows; short or sparse sweeps may favor `origin`, which remains an explicit override.
+Historical benchmark reports record the former seconds/minutes query contract and
+union output. Their raw engine statistics remain meaningful; use this README's
+hour-based URLs and `max_walk_ms` keywords for current requests and Julia calls.
+`benchmark-window-engines.jl` now takes its optional window argument in hours
+(default `24`), rather than seconds.
 
 **Selected-Route Kilometres**
 In the default itinerary mode, distance is attached to each retained schedule connection, not to an H3 edge group.
@@ -502,18 +541,18 @@ Add `metric=distance_time_quantile` to a point or window request. The default re
 distances. `distance_mode=straight_line` requires no input kilometres.
 
 ```text
-/reachable?index=851fb467fffffff&departure=00:00:00&window_s=86400&step_s=60&budget_s=10800&metric=distance_time_quantile
+/reachable?index=851fb467fffffff&departure_h=0&window_h=24&step_h=0.016666666666666666&budget_h=3&metric=distance_time_quantile
 ```
 
-For windows, time aggregation happens first. The router ranks the selected `distance_km`
-and budget-capped mean `elapsed_ms`, then returns:
+For windows, time aggregation and strict all-departures filtering happen first.
+The router ranks the selected `distance_km` and mean `elapsed_h`, then returns:
 
 ```text
 value = distance_quantile - time_quantile
 ```
 
-This is not the average of per-departure rank differences, and does not rank the
-conditional `reachable_elapsed_ms`. Both ranks use the same returned cells with finite
+This is not the average of per-departure rank differences. For returned cells,
+`reachable_elapsed_h` equals `elapsed_h`. Both ranks use the same returned cells with finite
 distance and time, including the origin, not just cells visible in the viewport.
 Ties share a rank; the empirical-CDF ranks are rescaled to 0..1 as in the old plotting
 helper. Constant columns and singleton results receive rank zero. No rounding is
@@ -533,7 +572,7 @@ For static snapshots, it reads `www/data/<name>.arrow` with an optional same-bas
 sibling checkout, run this yourself from this repository:
 
 ```sh
-curl --fail --show-error 'http://127.0.0.1:1988/reachable?index=85075dd7fffffff&departure=08:00:00&budget_s=3600&encoding=split' -o ../H3-MON/www/data/reachable.arrow
+curl --fail --show-error 'http://127.0.0.1:1988/reachable?index=85075dd7fffffff&departure_h=8&budget_h=1&encoding=split' -o ../H3-MON/www/data/reachable.arrow
 ```
 
 With the frontend running on port 1983, open
@@ -541,7 +580,7 @@ With the frontend running on port 1983, open
 An optional `reachable.json` can set the display title and disable spatial infill:
 
 ```json
-{"t":"Travel time (minutes)","raw":false,"quantileSource":"map","cartogram":"none","infill":false,"defaultValue":null}
+{"t":"Travel time (hours)","raw":false,"quantileSource":"map","cartogram":"none","infill":false,"defaultValue":null}
 ```
 
 The installed `@loaders.gl/arrow` 4.3.3 / `apache-arrow` 19.0.1 frontend accepts IPC

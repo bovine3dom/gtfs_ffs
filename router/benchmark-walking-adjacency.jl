@@ -38,7 +38,7 @@ function main()
     flush(stdout)
     origin, ready, budget = UInt64(0x871fb4662ffffff), 28_800_000, 10_800_000
     @assert haskey(graph.node_id, origin)
-    println("origin=$(string(origin; base=16)) ready_ms=$ready budget_ms=$budget workers=4 max_walk_s=3600")
+    println("origin=$(string(origin; base=16)) ready_ms=$ready budget_ms=$budget workers=4 max_walk_h=1")
     expected = measure(() -> route_walking(graph, origin, ready, budget; walking_index=bare), "point unprepared")
     measure(() -> route_walking(graph, origin, ready, budget; walking_index=index), "point prepared"; expected)
     measure(() -> route_details(graph, origin, ready, budget), "point no-walk")

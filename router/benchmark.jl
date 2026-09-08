@@ -87,7 +87,7 @@ function main(args)
     handlers = map(routers) do router
         make_handler(graph; route=(h, t, b) -> route(router, h, t, b))
     end
-    requests = [HTTP.Request("GET", "/reachable?index=$(c.index)&departure=$(c.departure)&budget_s=$(c.budget_ms ÷ 1000)&encoding=split") for c in cases]
+    requests = [HTTP.Request("GET", "/reachable?index=$(c.index)&departure_h=$(c.departure_ms / 3_600_000)&budget_h=$(c.budget_ms / 3_600_000)&encoding=split") for c in cases]
     first_calls = []
     for backend in eachindex(routers)
         start = time_ns()

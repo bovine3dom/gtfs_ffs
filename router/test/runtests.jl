@@ -137,6 +137,7 @@ include("window_gpu_tests.jl")
 include("distance_http_tests.jl")
 include("window_engine_http_tests.jl")
 include("metric_tests.jl")
+include("hours_tests.jl")
 include("kernel_tests.jl")
 include("shuttle_tests.jl")
 
@@ -145,16 +146,16 @@ include("shuttle_tests.jl")
     router = KernelRouter(graph, backend)
     handler = make_handler(graph; route=(h, t, b) -> route_kernel!(router, h, t, b))
     origin = "index=85075dd7fffffff"
-    times = "departure=08:00:00&budget_s=3600"
+    times = "departure_h=8&budget_h=1"
     lower, upper = DEMO_ORIGIN % UInt32, (DEMO_ORIGIN >> 32) % UInt32
     words = "index_lower=$lower&index_upper=$upper"
-    request(query) = handler(HTTP.Request("GET", "/reachable?$query&max_walk_s=0"))
+    request(query) = handler(HTTP.Request("GET", "/reachable?$query&max_walk_h=0"))
     high_cell = first(filter(h -> h % UInt32 > typemax(Int32), DEMO_CELLS))
     high_words = "index_lower=$(high_cell % UInt32)&index_upper=$((high_cell >> 32) % UInt32)"
     high_split = Arrow.Table(request("$high_words&$times&encoding=string").body)
     high_string = Arrow.Table(request("index=$(H3.API.h3ToString(high_cell))&$times&encoding=string").body)
     @test high_split.index == high_string.index
-    @test high_split.elapsed_ms == high_string.elapsed_ms
+    @test high_split.elapsed_h == high_string.elapsed_h
     responses = Dict(encoding => request("$origin&$times&encoding=$encoding")
                      for encoding in ("string", "split"))
     for encoding in ("string", "split")
@@ -168,21 +169,21 @@ include("shuttle_tests.jl")
         split_input = Arrow.Table(request("$words&$times&encoding=$encoding").body)
         @test all(collect(getproperty(table, key)) == collect(getproperty(split_input, key))
                   for key in propertynames(table))
-        @test eltype(table.elapsed_ms) == UInt32
+        @test eltype(table.elapsed_h) == Float64
         @test eltype(table.value) == Float64
-        @test table.value == table.elapsed_ms ./ 60_000
+        @test table.value == table.elapsed_h
         ids = if encoding == "string"
-            @test propertynames(table) == [:index, :value, :elapsed_ms]
+            @test propertynames(table) == [:index, :value, :elapsed_h]
             @test eltype(table.index) == String
             parse.(UInt64, table.index; base=16)
         else
-            @test propertynames(table) == [:index_lower, :index_upper, :value, :elapsed_ms]
+            @test propertynames(table) == [:index_lower, :index_upper, :value, :elapsed_h]
             @test eltype(table.index_lower) == UInt32
             @test eltype(table.index_upper) == UInt32
             UInt64.(table.index_lower) .| (UInt64.(table.index_upper) .<< 32)
         end
         @test ids == sort(DEMO_CELLS[1:4])
-        @test table.elapsed_ms[findfirst(==(DEMO_ORIGIN), ids)] == 0
+        @test table.elapsed_h[findfirst(==(DEMO_ORIGIN), ids)] == 0
     end
     for query in (
         "", "$origin", "$times", "$words", "$origin&$words&$times",
@@ -193,12 +194,12 @@ include("shuttle_tests.jl")
         "index=84075ddffffffff&$times", "index=%ZZ&$times",
         "index=%&$times", "index=%0&$times", "$origin%0A&$times",
         "index_lower=$lower%0A&index_upper=$upper&$times",
-        "$origin&departure=08:00:00%0A&budget_s=1", "$origin&departure=08:00:00&budget_s=1%0A",
-        "$origin&departure=24:00:00&budget_s=1", "$origin&departure=8:00:00&budget_s=1",
-        "$origin&departure=08:00:00&budget_s=-1", "$origin&departure=08:00:00&budget_s=1.5",
-        "$origin&departure=08:00:00&budget_s=604801", "$origin&departure=08:00:00&budget_s=$(typemax(UInt64))",
+        "$origin&departure_h=8%0A&budget_h=0.0002777777777777778", "$origin&departure_h=8&budget_h=0.0002777777777777778%0A",
+        "$origin&departure_h=24&budget_h=0.0002777777777777778", "$origin&departure_h=8:00:00&budget_h=0.0002777777777777777778",
+        "$origin&departure_h=8&budget_h=-1", "$origin&departure_h=8&budget_h=NaN",
+        "$origin&departure_h=8&budget_h=168.00027777777777", "$origin&departure_h=8&budget_h=$(typemax(UInt64))",
         "$origin&$times&encoding=uint64", "$origin&$times&foo=1",
-        "$origin&$times&$origin", "$origin&$times&budget_s=1")
+        "$origin&$times&$origin", "$origin&$times&budget_h=0.0002777777777777778")
         @test request(query).status == 400
     end
     @test handler(HTTP.Request("POST", "/reachable")).status == 405
@@ -207,21 +208,21 @@ include("shuttle_tests.jl")
     outside = H3.API.h3ToString(DEMO_CELLS[7])
     isolated = Arrow.Table(request("index=$outside&$times&encoding=string").body)
     @test collect(isolated.index) == [outside]
-    @test collect(isolated.elapsed_ms) == [0]
-    zero = Arrow.Table(request("$origin&departure=08:00:00&budget_s=0").body)
-    @test collect(zero.elapsed_ms) == [0]
+    @test collect(isolated.elapsed_h) == [0]
+    zero = Arrow.Table(request("$origin&departure_h=8&budget_h=0").body)
+    @test collect(zero.elapsed_h) == [0]
 
     server = HTTP.serve!(handler, "127.0.0.1", 0; listenany=true, verbose=-1)
     try
         url = "http://127.0.0.1:$(HTTP.port(server))/reachable"
         tasks = map(1:8) do i
             query = isodd(i) ? "$origin&$times" : "index=$(H3.API.h3ToString(DEMO_CELLS[5]))&$times"
-            @async HTTP.get("$url?$query&max_walk_s=0")
+            @async HTTP.get("$url?$query&max_walk_h=0")
         end
         for (i, task) in enumerate(tasks)
             result = fetch(task)
             @test result.status == 200
-            @test sort(collect(Arrow.Table(result.body).value)) == (isodd(i) ? [0, 20, 40, 60] : [0, 5])
+            @test sort(collect(Arrow.Table(result.body).value)) == (isodd(i) ? [0, 1/3, 2/3, 1] : [0, 1/12])
         end
     finally
         close(server)

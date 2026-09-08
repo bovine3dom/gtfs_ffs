@@ -111,7 +111,7 @@ function validate_offgraph(graph, index, origin)
     candidates = filter(h -> !iszero(h) && !haskey(graph.node_id, h), H3.API.gridDisk(origin, 12))
     sort!(candidates; by=h -> (walk(centre(origin), centre(h)).km, h))
     off = first(candidates)
-    disabled = route_walking(graph, off, DEPARTURE, BUDGET; max_walk_s=0, walking_index=index)
+    disabled = route_walking(graph, off, DEPARTURE, BUDGET; max_walk_ms=0, walking_index=index)
     @assert disabled == (h3=[off], arrival=UInt32[DEPARTURE], distance_km=[0.0])
     @assert all(==(Reachability.INF), route_details(graph, off, DEPARTURE, BUDGET).arrival)
     result, _ = measure(() -> route_walking(graph, off, DEPARTURE, BUDGET; walking_index=index), "offgraph_walk3600")
@@ -180,7 +180,7 @@ function benchmark(path)
     @printf("WALKS scanned=%d directed=%d mean_degree=%.6f median_degree=%.1f max_degree=%d isolated=%d origin_degree=%d count_s=%.6f\n",
             length(degrees), sum(degrees), mean(degrees), median(degrees), maximum(degrees), count(iszero, degrees), origin_degree, counted)
     baseline, _ = measure(() -> route_details(graph, origin, DEPARTURE, BUDGET), "point_transit")
-    zero, _ = measure(() -> route_walking(graph, origin, DEPARTURE, BUDGET; max_walk_s=0, walking_index=index), "point_walk0")
+    zero, _ = measure(() -> route_walking(graph, origin, DEPARTURE, BUDGET; max_walk_ms=0, walking_index=index), "point_walk0")
     reached = findall(!=(Reachability.INF), baseline.arrival)
     expected = Dict(graph.h3[v] => (baseline.arrival[v], baseline.distance_km[v]) for v in reached)
     expected[origin] = (UInt32(DEPARTURE), 0.0)
@@ -195,7 +195,7 @@ function benchmark(path)
     for minutes in (60, 180)
         window = minutes * 60_000
         transit, _ = measure(() -> route_window_cached(graph, origin, DEPARTURE, BUDGET, window; step_ms=STEP, workers=1), "window$(minutes)_catchup")
-        disabled, _ = measure(() -> route_window_walking(graph, origin, DEPARTURE, BUDGET, window; step_ms=STEP, max_walk_s=0, walking_index=index), "window$(minutes)_walk0")
+        disabled, _ = measure(() -> route_window_walking(graph, origin, DEPARTURE, BUDGET, window; step_ms=STEP, max_walk_ms=0, walking_index=index), "window$(minutes)_walk0")
         reached_window = findall(>(0), transit.reachable_samples)
         @assert disabled.h3 == sort!(unique([graph.h3[reached_window]; origin]))
         for (i, h) in enumerate(disabled.h3)
@@ -219,7 +219,7 @@ end
 function main(args)
     paths = isempty(args) ? [joinpath(@__DIR__, "..", "data", name) for name in
         ("rail_and_friends_dist_res5.arrow", "rail_and_friends_res6.arrow", "rail_and_friends_res7.arrow")] : args
-    println("ENV julia=$VERSION threads=$(Threads.nthreads()) cpu=$(Sys.CPU_NAME) repetitions=3 departure=08:00 budget_s=10800 walk_s=3600 step_s=300")
+    println("ENV julia=$VERSION threads=$(Threads.nthreads()) cpu=$(Sys.CPU_NAME) repetitions=3 departure_h=8.0 budget_h=3.0 max_walk_h=1.0 step_h=$(1/12)")
     for path in paths
         benchmark(path)
         GC.gc() # Do not retain multiple packed graphs or indices.

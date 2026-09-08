@@ -17,8 +17,9 @@ for (const encoding of ['string', 'split']) {
         field.name, table.getChild(field.name).toArray()
     ]));
     assert(columns[encoding].value instanceof Float64Array);
-    assert(columns[encoding].elapsed_ms instanceof Uint32Array);
-    assert.deepEqual(Array.from(columns[encoding].value).sort((a, b) => a - b), [0, 20, 40, 60]);
+    assert(columns[encoding].elapsed_h instanceof Float64Array);
+    assert(!('elapsed_ms' in columns[encoding]));
+    assert.deepEqual(Array.from(columns[encoding].value).sort((a, b) => a - b), [0, 1/3, 2/3, 1]);
 }
 
 const {index_lower: lower, index_upper: upper} = columns.split;
@@ -27,5 +28,5 @@ assert(upper instanceof Uint32Array);
 const indices = Array.from(lower, (word, i) => splitLongToH3Index(word, upper[i]));
 assert.deepEqual(indices, Array.from(columns.string.index));
 assert(indices.every(index => getResolution(index) === 5));
-assert.deepEqual(columns.string.elapsed_ms, columns.split.elapsed_ms);
+assert.deepEqual(columns.string.elapsed_h, columns.split.elapsed_h);
 console.log('H3-MON ArrowLoader: emitted string and split IPC files are compatible');

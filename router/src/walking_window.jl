@@ -1,6 +1,6 @@
 function _walking_window_plan(graph::Graph, origin::UInt64, departure_ms::Integer,
                               budget_ms::Integer, window_ms::Integer;
-                              step_ms::Integer=60_000, max_walk_s::Integer=3600,
+                               step_ms::Integer=60_000, max_walk_ms::Integer=3_600_000,
                               walking_index::Union{Nothing,WalkingIndex}=nothing,
                               distance_mode="itinerary")
     mode = _distance_mode(distance_mode)
@@ -11,7 +11,7 @@ function _walking_window_plan(graph::Graph, origin::UInt64, departure_ms::Intege
     samples = Int(cld(Int64(window_ms), step))
     samples <= 86_400 || throw(ArgumentError("window must contain at most 86400 samples"))
     budget = UInt32(budget_ms)
-    limit = min(_walking_limit(max_walk_s), budget)
+    limit = min(_walking_limit(max_walk_ms), budget)
     index = isnothing(walking_index) ? WalkingIndex(graph) : walking_index
     index.resolution == graph.resolution && index.cells == graph.h3 ||
         throw(ArgumentError("walking index does not match graph"))
@@ -21,11 +21,11 @@ end
 """Independent walking searches with shared geometry and chronological window aggregation."""
 function route_window_walking(graph::Graph, origin::UInt64, departure_ms::Integer,
                               budget_ms::Integer, window_ms::Integer;
-                              step_ms::Integer=60_000, max_walk_s::Integer=3600,
+                               step_ms::Integer=60_000, max_walk_ms::Integer=3_600_000,
                               walking_index::Union{Nothing,WalkingIndex}=nothing,
                               distance_mode="itinerary")
     plan = _walking_window_plan(graph, origin, departure_ms, budget_ms, window_ms;
-                                step_ms, max_walk_s, walking_index, distance_mode)
+                                 step_ms, max_walk_ms, walking_index, distance_mode)
     (; ready, budget, step, samples) = plan
     topology = WalkingTopology(plan.index, plan.limit)
     acc = plan.track_distance ? Dict{UInt64,Tuple{UInt64,UInt32,Float64}}() : Dict{UInt64,Tuple{UInt64,UInt32}}()

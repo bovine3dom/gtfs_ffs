@@ -1,7 +1,7 @@
-function _walking_limit(max_walk_s::Integer)
-    0 <= max_walk_s <= MAX_BUDGET_MS ÷ 1000 ||
-        throw(ArgumentError("max_walk_s must be an integer from 0 to 604800"))
-    return UInt32(max_walk_s * 1000)
+function _walking_limit(max_walk_ms::Integer)
+    0 <= max_walk_ms <= MAX_BUDGET_MS ||
+        throw(ArgumentError("max_walk_ms must be an integer from 0 to 604800000"))
+    return UInt32(max_walk_ms)
 end
 
 const WalkingGeometryEntry = Tuple{UInt32,Vector{WalkingNeighbor}}
@@ -70,11 +70,11 @@ _walking_node(graph, cell::Int32) = cell
 
 """Walking-aware CPU reference, returning sorted reachable H3 cells, arrivals and km."""
 function route_walking(graph::Graph, origin::UInt64, departure_ms::Integer, budget_ms::Integer;
-                       max_walk_s::Integer=3600, walking_index::Union{Nothing,WalkingIndex}=nothing,
+                       max_walk_ms::Integer=3_600_000, walking_index::Union{Nothing,WalkingIndex}=nothing,
                        distance_mode="itinerary")
     mode = _distance_mode(distance_mode)
     ready, cutoff = query_times(graph, origin, departure_ms, budget_ms)
-    limit = min(_walking_limit(max_walk_s), budget_ms)
+    limit = min(_walking_limit(max_walk_ms), budget_ms)
     index = isnothing(walking_index) ? WalkingIndex(graph) : walking_index
     topology = WalkingTopology(index, limit)
     result = _walking_route_at(graph, topology, origin, ready, cutoff, mode == :itinerary)

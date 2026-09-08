@@ -70,16 +70,16 @@ function WalkingIndex(graph::Graph)
 end
 
 """
-    prepare_walking(index::WalkingIndex; max_walk_s=3600, workers=min(4, Threads.nthreads(:default)))
+    prepare_walking(index::WalkingIndex; max_walk_ms=3_600_000, workers=min(4, Threads.nthreads(:default)))
 
 Return a read-only index with resident packed geographic and graph adjacency.
 Enumerate exact geometry once per vertex, preserving canonical H3 order. Preparation
 does not mutate the input; larger radii and off-graph origins use request-local fallback.
 Memory and startup work scale with the complete geographic adjacency, without caps.
 """
-function prepare_walking(index::WalkingIndex; max_walk_s::Integer=3600,
+function prepare_walking(index::WalkingIndex; max_walk_ms::Integer=3_600_000,
                          workers::Integer=min(4, Threads.nthreads(:default)))
-    limit = _walking_limit(max_walk_s)
+    limit = _walking_limit(max_walk_ms)
     workers > 0 || throw(ArgumentError("workers must be positive"))
     bare = WalkingIndex(index.cells, index.centres, index.bins, index.resolution, nothing)
     n = length(index.cells)

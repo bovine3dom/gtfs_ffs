@@ -64,9 +64,9 @@ end
     origin = DEMO_CELLS[1]
     index = "index=$(H3.API.h3ToString(origin))"
     words = "index_lower=$(origin % UInt32)&index_upper=$((origin >> 32) % UInt32)"
-    times = "departure=00:00:00&budget_s=120"
-    window = "window_s=121&step_s=30"
-    request(query) = handler(HTTP.Request("GET", "/reachable?$query&max_walk_s=0"))
+    times = "departure_h=0&budget_h=0.03333333333333333"
+    window = "window_h=0.03361111111111111&step_h=0.008333333333333333"
+    request(query) = handler(HTTP.Request("GET", "/reachable?$query&max_walk_h=0"))
     for encoding in ("string", "split")
         response = request("$index&$times&$window&encoding=$encoding")
         @test response.status == 200
@@ -81,73 +81,73 @@ end
         collect(stream)
         @test stream.compression[] === nothing
         indices = encoding == "string" ? [:index] : [:index_lower, :index_upper]
-        @test propertynames(table) == [indices; :value; :elapsed_ms; :distance_km; :reachable_elapsed_ms; :reachable_fraction; :reachable_samples; :sample_count]
+        @test propertynames(table) == [indices; :value; :elapsed_h; :distance_km; :reachable_elapsed_h; :reachable_fraction; :reachable_samples; :sample_count]
         @test all(!(getproperty(table, f) isa Arrow.DictEncoded) for f in propertynames(table))
-        @test all(eltype(getproperty(table, f)) == Float64 for f in (:value, :elapsed_ms, :distance_km, :reachable_elapsed_ms, :reachable_fraction))
+        @test all(eltype(getproperty(table, f)) == Float64 for f in (:value, :elapsed_h, :distance_km, :reachable_elapsed_h, :reachable_fraction))
         @test eltype(table.reachable_samples) == eltype(table.sample_count) == UInt32
         @test all(eltype(getproperty(table, f)) == (encoding == "string" ? String : UInt32) for f in indices)
         ids = encoding == "string" ? parse.(UInt64, table.index; base=16) : UInt64.(table.index_lower) .| (UInt64.(table.index_upper) .<< 32)
-        @test ids == sort(DEMO_CELLS[1:3]) # Never-reachable node 4 must not be emitted.
-        at = [findfirst(==(h), ids) for h in DEMO_CELLS[1:3]]
-        @test table.elapsed_ms[at] == [0.0, 60_000.0, 102_000.0]
-        @test table.reachable_elapsed_ms[at] == [0.0, 60_000.0, 90_000.0]
-        @test table.distance_km[at] == [0.0, 2.0, 5.0]
-        @test table.reachable_fraction[at] == [1.0, 1.0, 0.6]
-        @test table.reachable_samples[at] == UInt32[5, 5, 3]
-        @test table.sample_count == fill(UInt32(5), 3)
-        @test table.value == table.elapsed_ms ./ 60_000
+        @test ids == sort(DEMO_CELLS[1:2]) # Partial and never-reachable cells are excluded.
+        at = [findfirst(==(h), ids) for h in DEMO_CELLS[1:2]]
+        @test table.elapsed_h[at] == [0.0, 1/60]
+        @test table.reachable_elapsed_h[at] == [0.0, 1/60]
+        @test table.distance_km[at] == [0.0, 2.0]
+        @test table.reachable_fraction[at] == [1.0, 1.0]
+        @test table.reachable_samples[at] == UInt32[5, 5]
+        @test table.sample_count == fill(UInt32(5), 2)
+        @test table.value == table.elapsed_h
         split_input = Arrow.Table(request("$words&$times&$window&encoding=$encoding").body)
         @test all(isequal(getproperty(table, f), getproperty(split_input, f)) for f in propertynames(table))
-        point = request("$index&$times&window_s=0&encoding=$encoding")
+        point = request("$index&$times&window_h=0&encoding=$encoding")
         point_table = Arrow.Table(point.body)
         @test HTTP.header(point, "X-Router-Backend") == "reference"
-        @test propertynames(point_table) == [indices; :value; :elapsed_ms; :distance_km]
-        @test eltype(point_table.elapsed_ms) == UInt32
+        @test propertynames(point_table) == [indices; :value; :elapsed_h; :distance_km]
+        @test eltype(point_table.elapsed_h) == Float64
         @test sort(collect(point_table.distance_km)) == [0.0, 2.0]
         calls = Ref(0)
         legacy = pack_graph(distance_table(rows; distances=false))
         old = make_handler(legacy; route=(h, t, b) -> (calls[] += 1; route_cpu(legacy, h, t, b)))
-        for suffix in ("", "&window_s=0")
-            result = old(HTTP.Request("GET", "/reachable?$index&$times&encoding=$encoding$suffix&max_walk_s=0"))
-            @test propertynames(Arrow.Table(result.body)) == [indices; :value; :elapsed_ms]
-            @test eltype(Arrow.Table(result.body).elapsed_ms) == UInt32
+        for suffix in ("", "&window_h=0")
+            result = old(HTTP.Request("GET", "/reachable?$index&$times&encoding=$encoding$suffix&max_walk_h=0"))
+            @test propertynames(Arrow.Table(result.body)) == [indices; :value; :elapsed_h]
+            @test eltype(Arrow.Table(result.body).elapsed_h) == Float64
         end
-        unknown = old(HTTP.Request("GET", "/reachable?$index&$times&$window&encoding=$encoding&max_walk_s=0"))
+        unknown = old(HTTP.Request("GET", "/reachable?$index&$times&$window&encoding=$encoding&max_walk_h=0"))
         @test calls[] == 2
         @test HTTP.header(unknown, "X-Router-Distance") == "unavailable"
-        @test count(isnan, Arrow.Table(unknown.body).distance_km) == 2
+        @test count(isnan, Arrow.Table(unknown.body).distance_km) == 1
         @test count(iszero, Arrow.Table(unknown.body).distance_km) == 1
     end
-    for suffix in ("window_s=-1", "window_s=86401", "window_s=1.5", "window_s=%ZZ", "window_s=1%0A",
-                   "window_s=$(typemax(UInt64))", "window_s=1&window_s=2", "step_s=1", "window_s=0&step_s=1",
-                   "window_s=1&step_s=0", "window_s=1&step_s=-1", "window_s=1&step_s=86401",
-                   "window_s=1&step_s=1.5", "window_s=1&step_s=1%0A", "window_s=1&step_s=1&step_s=2")
+    for suffix in ("window_h=-1", "window_h=24.00027777777778", "window_h=NaN", "window_h=%ZZ", "window_h=0.0002777777777777778%0A",
+                   "window_h=$(typemax(UInt64))", "window_h=0.0002777777777777778&window_h=0.0005555555555555556", "step_h=0.0002777777777777778", "window_h=0&step_h=0.0002777777777777778",
+                   "window_h=0.0002777777777777778&step_h=0", "window_h=0.0002777777777777778&step_h=-1", "window_h=0.0002777777777777778&step_h=24.00027777777778",
+                   "window_h=0.0002777777777777778&step_h=Inf", "window_h=0.0002777777777777778&step_h=0.0002777777777777778%0A", "window_h=0.0002777777777777778&step_h=0.0002777777777777778&step_h=0.0005555555555555556")
         @test request("$index&$times&$suffix").status == 400
     end
     absent = "index=$(H3.API.h3ToString(DEMO_CELLS[7]))"
-    cases = [("$index&$times&$window", [0.0, 60_000.0, 102_000.0], 5),
-             ("$index&departure=00:00:00&budget_s=0&$window", [0.0, 0.0], 5),
-             ("index=$(H3.API.h3ToString(DEMO_CELLS[2]))&$times&$window", [0.0, 102_000.0], 5),
-             ("$index&$times&window_s=121", [0.0, 60_000.0, 100_000.0], 3),
-             ("$index&$times&window_s=61&step_s=30", [0.0, 90_000.0, 120_000.0], 3),
-             ("$index&departure=23:59:59&budget_s=120&$window", [0.0, 60_800.0, 102_400.0], 5),
-             ("$absent&$times&window_s=121", [0.0], 3),
-             ("$absent&departure=23:59:59&budget_s=604800&window_s=86400&step_s=1", [0.0], 86400),
-             ("$absent&departure=23:59:59&budget_s=0&window_s=2&step_s=86400", [0.0], 1)]
+    cases = [("$index&$times&$window", [0.0, 60_000.0], 5),
+             ("$index&departure_h=0&budget_h=0&$window", [0.0], 5),
+             ("index=$(H3.API.h3ToString(DEMO_CELLS[2]))&$times&$window", [0.0], 5),
+             ("$index&$times&window_h=0.03361111111111111", [0.0, 60_000.0], 3),
+             ("$index&$times&window_h=0.016944444444444446&step_h=0.008333333333333333", [0.0, 90_000.0], 3),
+             ("$index&departure_h=23.999722222222225&budget_h=0.03333333333333333&$window", [0.0], 5),
+             ("$absent&$times&window_h=0.03361111111111111", [0.0], 3),
+             ("$absent&departure_h=23.999722222222225&budget_h=168&window_h=24&step_h=0.0002777777777777778", [0.0], 86400),
+             ("$absent&departure_h=23.999722222222225&budget_h=0&window_h=0.0005555555555555556&step_h=24", [0.0], 1)]
     server = HTTP.serve!(handler, "127.0.0.1", 0; listenany=true, verbose=-1)
     try
         tasks = map(cases) do (query, elapsed, samples)
-            @async HTTP.get("http://127.0.0.1:$(HTTP.port(server))/reachable?$query&encoding=string&max_walk_s=0")
+            @async HTTP.get("http://127.0.0.1:$(HTTP.port(server))/reachable?$query&encoding=string&max_walk_h=0")
         end
         for ((query, elapsed, samples), task) in zip(cases, tasks)
             response = fetch(task)
             @test response.status == 200
             table = Arrow.Table(response.body)
             @test all(==(samples), table.sample_count)
-            @test sort(collect(table.elapsed_ms)) == elapsed
+            @test sort(collect(table.elapsed_h)) == elapsed ./ 3_600_000
             if startswith(query, "$absent&")
                 @test table.index == [H3.API.h3ToString(DEMO_CELLS[7])]
-                @test table.distance_km == table.reachable_elapsed_ms == [0.0]
+                @test table.distance_km == table.reachable_elapsed_h == [0.0]
                 @test table.reachable_fraction == [1.0]
                 @test table.reachable_samples == table.sample_count
             end
@@ -166,7 +166,7 @@ end
     @test route_window(graph, cells[1], 0, 1000, 1).reachable_samples == UInt32[1, 1]
     handler = make_handler(graph; route=error)
     for cell in (cells[1], cells[3], DEMO_ORIGIN, UInt64(0))
-        response = handler(HTTP.Request("GET", "/reachable?index=$(H3.API.h3ToString(cell))&departure=00:00:00&budget_s=1&window_s=1&max_walk_s=0"))
+        response = handler(HTTP.Request("GET", "/reachable?index=$(H3.API.h3ToString(cell))&departure_h=0&budget_h=0.0002777777777777778&window_h=0.0002777777777777778&max_walk_h=0"))
         @test response.status == (cell in cells ? 200 : 400)
         if !(cell in cells)
             @test_throws ArgumentError route_cpu(graph, cell, 0, 1000)

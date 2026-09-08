@@ -1,5 +1,15 @@
 # Backend TODO
 
+## All-Departure Coverage And Hours (2026-09-07)
+
+- [x] Exclude partial cells before transport encoding and quantile ranks, including geographic walking egress and both distance modes. Keep raw engine diagnostics unchanged.
+- [x] Replace public clock/seconds parameters with floating `departure_h`, `budget_h`, `window_h`, `step_h`, `max_walk_h`; export `elapsed_h`, `reachable_elapsed_h`, and `X-Router-Max-Walk-H`. No legacy aliases; distances remain km.
+- [x] Round finite hours once at the boundary, including fractional walking limits. Internal walking APIs/callbacks now use `max_walk_ms`; timetable files remain unchanged.
+- [x] Convert H3-MON controls and all active/inactive routing URLs, preserving existing res7 hooks, socket configuration and distance modes. Document the breaking change.
+- [x] Full one/four-thread backend suites each pass 66,347 checks with H3-MON ArrowLoader verification, live HTTP/WebSocket parity, strict ranks, millisecond boundaries and sampling validation before dispatch.
+- [x] H3-MON: 73 tests, build and headless desktop/mobile rendering suite pass. Used `CHROMIUM_PATH=/tmp/opencode/h3mon-chromium/chrome-headless-shell-linux64/chrome-headless-shell` for the existing local browser.
+- No live user server was queried or restarted; no datasets were modified. GPU hardware and full-size graph performance were not reprofiled for this interface/export change.
+
 ## Window Worker Decision
 
 - [x] CPU catch-up windows use all Julia default-pool threads, bounded by available

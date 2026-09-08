@@ -15,11 +15,11 @@ od(origin, cells) = [h == origin ? 0.0 : H3.Lib.greatCircleDistanceKm(
     for distances in (false, true)
         graph = pack_graph(raw_table(cells, rows; distances))
         bare = WalkingIndex(graph)
-        prepared = prepare_walking(bare; max_walk_s=seconds)
+        prepared = prepare_walking(bare; max_walk_ms=1000seconds)
         for origin in (a, offgraph, remote), limit in (0, seconds, seconds + 1),
             (ready, budget, window, step) in ((0, 0, 3, 1), (0, ab, 7, 1), (DAY - 2, 7DAY, 65, 7))
             args = (graph, origin, ready, budget)
-            kwargs = (; max_walk_s=limit)
+            kwargs = (; max_walk_ms=1000limit)
             expected_point = route_walking(args...; kwargs..., walking_index=bare)
             expected = route_window_walking(args..., window; kwargs..., step_ms=step, walking_index=bare)
             for index in (bare, prepared)
@@ -50,7 +50,7 @@ od(origin, cells) = [h == origin ? 0.0 : H3.Lib.greatCircleDistanceKm(
 
         @testset "Absent replay and km buffers" for index in (bare, prepared), origin in (a, offgraph)
             plan = Reachability._walking_window_plan(graph, origin, 0, 7DAY, 7;
-                step_ms=1, max_walk_s=seconds, walking_index=index, distance_mode=:straight_line)
+                step_ms=1, max_walk_ms=1000seconds, walking_index=index, distance_mode=:straight_line)
             output = Reachability._walking_output_plan(plan, origin)
             state = Reachability._walking_catchup_workspace(graph, plan, 7, nothing, output)
             @test all(isnothing(getproperty(state, f)) for f in (:connections, :seenA, :seenE, :kmA, :kmE))
@@ -85,8 +85,8 @@ od(origin, cells) = [h == origin ? 0.0 : H3.Lib.greatCircleDistanceKm(
                 walking_window_route=(args...) -> error("itinerary callback"))
             for origin in (a, offgraph), walking in (0, seconds), window in (0, 86400),
                 metric in ("time", "distance_time_quantile"), encoding in ("string", "split")
-                query = "/reachable?index=$(string(origin; base=16))&departure=00:00:00&budget_s=604800&max_walk_s=$walking&metric=$metric&encoding=$encoding"
-                window > 0 && (query *= "&window_s=$window&step_s=900")
+                query = "/reachable?index=$(string(origin; base=16))&departure_h=0&budget_h=168&max_walk_h=$(walking / 3600)&metric=$metric&encoding=$encoding"
+                window > 0 && (query *= "&window_h=$(window / 3600)&step_h=0.25")
                 old = handler(HTTP.Request("GET", query))
                 explicit = handler(HTTP.Request("GET", query * "&distance_mode=itinerary"))
                 @test old.status == explicit.status
@@ -99,12 +99,12 @@ od(origin, cells) = [h == origin ? 0.0 : H3.Lib.greatCircleDistanceKm(
                 @test occursin("X-Router-Distance-Mode", HTTP.header(response, "Access-Control-Expose-Headers"))
                 expected_body = if window > 0
                     result = walking > 0 ? route_window_walking(graph, origin, 0, 7DAY, DAY;
-                        step_ms=900_000, max_walk_s=walking, walking_index=bare) :
+                        step_ms=900_000, max_walk_ms=1000walking, walking_index=bare) :
                         route_window(graph, origin, 0, 7DAY, DAY; step_ms=900_000)
                     h3 = hasproperty(result, :h3) ? result.h3 : graph.h3
                     Reachability.window_arrow(graph, merge(result, (distance_km=od(origin, h3),)), origin, encoding; metric)
                 else
-                    result = walking > 0 ? route_walking(graph, origin, 0, 7DAY; max_walk_s=walking, walking_index=bare) :
+                    result = walking > 0 ? route_walking(graph, origin, 0, 7DAY; max_walk_ms=1000walking, walking_index=bare) :
                         route_details(graph, origin, 0, 7DAY)
                     h3 = hasproperty(result, :h3) ? result.h3 : graph.h3
                     Reachability.arrow_result(graph, result.arrival, origin, UInt32(0), encoding;
@@ -114,7 +114,7 @@ od(origin, cells) = [h == origin ? 0.0 : H3.Lib.greatCircleDistanceKm(
                 @test all(isfinite, Arrow.Table(response.body).distance_km)
                 !distances && metric != "time" && @test old.status == 400
             end
-            base = "/reachable?index=$(string(a; base=16))&departure=00:00:00&budget_s=0"
+            base = "/reachable?index=$(string(a; base=16))&departure_h=0&budget_h=0"
             for suffix in ("&distance_mode=fast", "&distance_mode=", "&distance_mode=straight_line&distance_mode=itinerary")
                 @test handler(HTTP.Request("GET", base * suffix)).status == 400
             end
@@ -147,8 +147,8 @@ od(origin, cells) = [h == origin ? 0.0 : H3.Lib.greatCircleDistanceKm(
         @test route_window_cached(graph, a, 0, 20, 4; step_ms=1, distance_mode=:straight_line).elapsed_sum_ms ==
               route_window_cached(oracle, a, 0, 20, 4; step_ms=1).elapsed_sum_ms
         handler = make_handler(graph)
-        for window in ("", "&window_s=4&step_s=1"), walk in (0, 3600)
-            query = "/reachable?index=$(string(a; base=16))&departure=00:00:00&budget_s=1&max_walk_s=$walk&distance_mode=straight_line$window"
+        for window in ("", "&window_h=0.0011111111111111111&step_h=0.0002777777777777778"), walk in (0, 3600)
+            query = "/reachable?index=$(string(a; base=16))&departure_h=0&budget_h=0.0002777777777777778&max_walk_h=$(walk / 3600)&distance_mode=straight_line$window"
             @test handler(HTTP.Request("GET", query)).status == 200
         end
     end
@@ -156,7 +156,7 @@ od(origin, cells) = [h == origin ? 0.0 : H3.Lib.greatCircleDistanceKm(
     @testset "No consecutive walks" begin
         graph = pack_graph(raw_table([a, c], [(1, 1, 0, 0, 0.0), (2, 2, 0, 0, 0.0)]))
         for route in (route_window_walking, route_window_walking_cached)
-            result = route(graph, a, 0, 7DAY, 3; step_ms=1, max_walk_s=seconds, distance_mode=:straight_line)
+            result = route(graph, a, 0, 7DAY, 3; step_ms=1, max_walk_ms=1000seconds, distance_mode=:straight_line)
             @test !(c in result.h3)
             @test at(result, a, :distance_km) == 0.0
         end

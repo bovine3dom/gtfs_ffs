@@ -4,7 +4,7 @@ Lookup and expansion counters cover arrival routing, not distance replay or geog
 """
 function route_window_walking_cached(graph::Graph, origin::UInt64, departure_ms::Integer,
                                      budget_ms::Integer, window_ms::Integer;
-                                     step_ms::Integer=60_000, max_walk_s::Integer=3600,
+                                      step_ms::Integer=60_000, max_walk_ms::Integer=3_600_000,
                                      walking_index::Union{Nothing,WalkingIndex}=nothing,
                                      chunk_size::Integer=64,
                                       workers::Integer=Threads.nthreads(:default),
@@ -12,7 +12,7 @@ function route_window_walking_cached(graph::Graph, origin::UInt64, departure_ms:
     chunk_size > 0 || throw(ArgumentError("chunk_size must be positive"))
     workers > 0 || throw(ArgumentError("workers must be positive"))
     plan = _walking_window_plan(graph, origin, departure_ms, budget_ms, window_ms;
-                                step_ms, max_walk_s, walking_index, distance_mode)
+                                 step_ms, max_walk_ms, walking_index, distance_mode)
     worker_count = Int(min(workers, Threads.nthreads(:default), plan.samples))
     width = Int(min(chunk_size, cld(plan.samples, worker_count)))
     full_searches = cld(plan.samples, width)

@@ -85,7 +85,7 @@ km_at(result, cell) = result.distance_km[at(result, cell)]
 
 function check_oracle(table, origin, ready, budget, seconds)
     expected = brute_route(table, origin, ready, budget, seconds)
-    actual = route_walking(pack_graph(table), origin, ready, budget; max_walk_s=seconds)
+    actual = route_walking(pack_graph(table), origin, ready, budget; max_walk_ms=1000seconds)
     @test actual.h3 == expected.h3
     @test actual.arrival == expected.arrival
     @test issorted(actual.h3) && allunique(actual.h3)
@@ -118,9 +118,9 @@ end
             table = raw_table(cells, rows; distances=isodd(trial))
             actual = check_oracle(table, origin, ready, budget, seconds)
             permuted = raw_table(cells, shuffle(rng, rows); distances=isodd(trial))
-            @test isequal(actual, route_walking(pack_graph(permuted), origin, ready, budget; max_walk_s=seconds))
+            @test isequal(actual, route_walking(pack_graph(permuted), origin, ready, budget; max_walk_ms=1000seconds))
             graph = pack_graph(table)
-            zero = route_walking(graph, origin, ready, budget; max_walk_s=0)
+            zero = route_walking(graph, origin, ready, budget; max_walk_ms=0)
             transit = route_details(graph, origin, ready, budget)
             reached = findall(!=(typemax(UInt32)), transit.arrival)
             @test zero.h3 == sort!(unique([graph.h3[reached]; origin]))
@@ -160,12 +160,12 @@ end
         @test arrival_at(result, egress) == cutoff
         @test isapprox(km_at(result, egress), ab.km + 4 + de.km)
         @test !(egress in pack_graph(access).h3) # Egress from a destination-only graph vertex.
-        @test !(egress in route_walking(pack_graph(access), a, 0, cutoff - 1; max_walk_s=seconds).h3)
+        @test !(egress in route_walking(pack_graph(access), a, 0, cutoff - 1; max_walk_ms=1000seconds).h3)
         for budget in (ab.ms - 1, ab.ms)
-            direct = route_walking(pack_graph(only_remote), a, 0, budget; max_walk_s=seconds)
+            direct = route_walking(pack_graph(only_remote), a, 0, budget; max_walk_ms=1000seconds)
             @test (b in direct.h3) == (budget == ab.ms)
         end
-        @test !(b in route_walking(pack_graph(only_remote), a, 0, limit * 2; max_walk_s=fld(ab.ms - 1, 1000)).h3)
+        @test !(b in route_walking(pack_graph(only_remote), a, 0, limit * 2; max_walk_ms=1000fld(ab.ms - 1, 1000)).h3)
 
         for delay in (0, 10)
             later = raw_table(cells, [(1, 2, 0, ab.ms + delay, 7.0), (2, 3, div(DAY, 2), 0, 0.0)])
@@ -206,15 +206,15 @@ end
         @test all(iszero, result.arrival)
         @test km_at(result, c) == 6.0
         huge = pack_graph(raw_table(cells, [(1, 2, 0, 0, floatmax(Float64)), (2, 3, 0, 0, floatmax(Float64))]))
-        @test_throws r"accumulated route distance" route_walking(huge, a, 0, 0; max_walk_s=seconds)
-        @test_throws r"accumulated route distance" route_window_walking(huge, a, 0, 0, 1; max_walk_s=seconds)
+        @test_throws r"accumulated route distance" route_walking(huge, a, 0, 0; max_walk_ms=1000seconds)
+        @test_throws r"accumulated route distance" route_window_walking(huge, a, 0, 0, 1; max_walk_ms=1000seconds)
         graph = pack_graph(cycle)
-        for bad in (-1, 604801, typemax(UInt64))
-            @test_throws ArgumentError route_walking(graph, a, 0, 0; max_walk_s=bad)
-            @test_throws ArgumentError route_window_walking(graph, a, 0, 0, 1; max_walk_s=bad)
+        for bad in (-1, 604_800_001, typemax(UInt64))
+            @test_throws ArgumentError route_walking(graph, a, 0, 0; max_walk_ms=bad)
+            @test_throws ArgumentError route_window_walking(graph, a, 0, 0, 1; max_walk_ms=bad)
         end
         for (ready, budget) in ((-1, 0), (DAY, 0), (0, -1), (0, typemax(UInt64)))
-            @test_throws ArgumentError route_walking(graph, a, ready, budget; max_walk_s=0)
+            @test_throws ArgumentError route_walking(graph, a, ready, budget; max_walk_ms=0)
         end
         @test_throws ArgumentError route_walking(graph, UInt64(0), 0, 0)
         @test_throws ArgumentError route_walking(graph, H3.API.cellToParent(a, 7), 0, 0)
@@ -224,7 +224,7 @@ end
         @test length(route_walking(graph, a, 0, 0).h3) == 3
         # A valid maximum budget must not wrap; impossible long connections stay absent.
         long = pack_graph(raw_table(cells, [(1, 2, DAY - 1, 7DAY, 1.0), (2, 3, DAY - 1, 7DAY, 1.0)]))
-        result = route_walking(long, a, DAY - 1, 7DAY; max_walk_s=0)
+        result = route_walking(long, a, DAY - 1, 7DAY; max_walk_ms=0)
         @test arrival_at(result, b) == 8DAY - 1
         @test !(c in result.h3)
     end
@@ -237,7 +237,7 @@ end
         Reachability._walking_route_at(graph, topology, a, UInt32(0), UInt32(2000seconds))
         for budget in (0, 1000seconds, 2000seconds)
             cached = Reachability._walking_route_at(graph, topology, a, UInt32(0), UInt32(budget))
-            @test isequal(cached, route_walking(graph, a, 0, budget; max_walk_s=seconds))
+            @test isequal(cached, route_walking(graph, a, 0, budget; max_walk_ms=1000seconds))
         end
         for cell in graph.h3, geographic in (false, true)
             cache = geographic ? topology.coverage : topology.neighbors
@@ -261,8 +261,8 @@ end
                     (2, 4, mod(ready + ab + 300_000, DAY), 0, 8.0)]
             graph = pack_graph(raw_table(cells, rows; distances))
             samples = collect(ready:step:(ready + window - 1))
-            points = [route_walking(graph, a, mod(t, DAY), budget; max_walk_s=seconds) for t in samples]
-            result = route_window_walking(graph, a, ready, budget, window; step_ms=step, max_walk_s=seconds)
+            points = [route_walking(graph, a, mod(t, DAY), budget; max_walk_ms=1000seconds) for t in samples]
+            result = route_window_walking(graph, a, ready, budget, window; step_ms=step, max_walk_ms=1000seconds)
             union_cells = sort!(unique(reduce(vcat, getproperty.(points, :h3))))
             @test result.h3 == union_cells
             @test result.sample_count == length(samples) == result.searches
@@ -286,11 +286,11 @@ end
             @test result.reachable_samples[at(result, remote)] == 3
             @test isnan(result.distance_km[at(result, remote)]) == !distances
             # One sample when step exceeds the window; zero walking retains graph-only parity.
-            single = route_window_walking(graph, a, ready, budget, 1; step_ms=DAY, max_walk_s=seconds)
+            single = route_window_walking(graph, a, ready, budget, 1; step_ms=DAY, max_walk_ms=1000seconds)
             @test single.h3 == points[1].h3
             @test single.elapsed_ms == points[1].arrival .- ready
             @test isequal(single.distance_km, points[1].distance_km)
-            zero = route_window_walking(graph, b, ready, budget, window; step_ms=step, max_walk_s=0)
+            zero = route_window_walking(graph, b, ready, budget, window; step_ms=step, max_walk_ms=0)
             transit = route_window(graph, b, ready, budget, window; step_ms=step)
             reached = findall(>(0), transit.reachable_samples)
             @test zero.h3 == graph.h3[reached]
@@ -301,10 +301,10 @@ end
         a, b, c, seconds = chain(9)
         graph = pack_graph(raw_table([a, b], [(1, 2, 0, 0, 0.0)]; distances=false))
         budget = walk(a, b).ms
-        early = route_walking(graph, a, 0, budget; max_walk_s=seconds)
-        late = route_walking(graph, a, 1, budget; max_walk_s=seconds)
+        early = route_walking(graph, a, 0, budget; max_walk_ms=1000seconds)
+        late = route_walking(graph, a, 1, budget; max_walk_ms=1000seconds)
         @test isnan(km_at(early, b)) && isfinite(km_at(late, b))
-        mixed = route_window_walking(graph, a, 0, budget, 2; step_ms=1, max_walk_s=seconds)
+        mixed = route_window_walking(graph, a, 0, budget, 2; step_ms=1, max_walk_ms=1000seconds)
         @test mixed.reachable_samples[at(mixed, b)] == 2
         @test mixed.elapsed_ms[at(mixed, b)] == mixed.reachable_elapsed_ms[at(mixed, b)] == budget / 2
         @test isnan(mixed.distance_km[at(mixed, b)]) # Never average just the known walking km.

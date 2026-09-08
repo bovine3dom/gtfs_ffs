@@ -244,11 +244,24 @@ include("walking_window.jl")
 include("walking_output.jl")
 include("walking_catchup.jl")
 
+function _hours_ms(value, name, maximum; positive=false, nonzero=false, clock=false)
+    text = string(value)
+    hours = occursin(r"^[+-]?(?:[0-9]+(?:\.[0-9]*)?|\.[0-9]+)(?:[eE][+-]?[0-9]+)?\z", text) ? tryparse(Float64, text) : nothing
+    (!isnothing(hours) && isfinite(hours) && !signbit(hours) && hours <= maximum &&
+        (!positive || hours > 0) && (!clock || hours < maximum)) ||
+        throw(ArgumentError("$name must be finite hours in $(positive ? "(0" : "[0"), $maximum$(clock ? ")" : "]")"))
+    ms = round(Int, hours * 3_600_000, RoundNearest)
+    (clock && ms >= PERIOD) && throw(ArgumentError("$name rounds to the next day"))
+    ms == 0 && (positive || (nonzero && occursin(r"[1-9]", first(split(text, r"[eE]"))))) &&
+        throw(ArgumentError("$name must represent at least one millisecond"))
+    return ms
+end
+
 function parse_query(uri, graph)
     pairs = HTTP.queryparampairs(uri.query)
     params = Dict(pairs)
     length(params) == length(pairs) || throw(ArgumentError("duplicate query parameter"))
-    allowed = ("index", "index_lower", "index_upper", "departure", "budget_s", "encoding", "window_s", "step_s", "metric", "max_walk_s", "distance_mode")
+    allowed = ("index", "index_lower", "index_upper", "departure_h", "budget_h", "encoding", "window_h", "step_h", "metric", "max_walk_h", "distance_mode")
     all(k -> k in allowed, keys(params)) || throw(ArgumentError("unknown query parameter"))
     has_string = haskey(params, "index")
     has_split = haskey(params, "index_lower") || haskey(params, "index_upper")
@@ -266,19 +279,9 @@ function parse_query(uri, graph)
         end
         words[1] | (words[2] << 32)
     end
-    clock = get(params, "departure", "")
-    occursin(r"^([01][0-9]|2[0-3]):[0-5][0-9]:[0-5][0-9]\z", clock) ||
-        throw(ArgumentError("departure must be HH:MM:SS"))
-    h, m, s = parse.(Int, split(clock, ':'))
-    departure_ms = (3600h + 60m + s) * 1000
-    budget = get(params, "budget_s", "")
-    seconds = occursin(r"^[0-9]+\z", budget) ? tryparse(Int, budget) : nothing
-    (!isnothing(seconds) && seconds <= MAX_BUDGET_MS ÷ 1000) ||
-        throw(ArgumentError("budget_s must be an integer from 0 to 604800"))
-    walk = get(params, "max_walk_s", "3600")
-    max_walk_s = occursin(r"^[0-9]+\z", walk) ? tryparse(Int, walk) : nothing
-    (!isnothing(max_walk_s) && max_walk_s <= MAX_BUDGET_MS ÷ 1000) ||
-        throw(ArgumentError("max_walk_s must be an integer from 0 to 604800"))
+    departure_ms = _hours_ms(get(params, "departure_h", ""), "departure_h", 24; clock=true)
+    budget_ms = _hours_ms(get(params, "budget_h", ""), "budget_h", 168)
+    max_walk_ms = _hours_ms(get(params, "max_walk_h", "1"), "max_walk_h", 168)
     encoding = get(params, "encoding", "split")
     encoding in ("string", "split") || throw(ArgumentError("encoding must be string or split"))
     metric = get(params, "metric", "time")
@@ -286,15 +289,12 @@ function parse_query(uri, graph)
     distance_mode = _distance_mode(get(params, "distance_mode", "itinerary"))
     metric == "distance_time_quantile" && distance_mode == :itinerary && isnothing(graph.distance_km) &&
         throw(ArgumentError("distance_time_quantile requires an input distance_km column"))
-    ready, _ = query_times(graph, origin, departure_ms, seconds * 1000)
-    window = get(params, "window_s", "0")
-    window_s = occursin(r"^[0-9]+\z", window) ? tryparse(Int, window) : nothing
-    (!isnothing(window_s) && window_s <= 86400) || throw(ArgumentError("window_s must be an integer from 0 to 86400"))
-    step = get(params, "step_s", "60")
-    step_s = occursin(r"^[0-9]+\z", step) ? tryparse(Int, step) : nothing
-    (!isnothing(step_s) && 1 <= step_s <= 86400) || throw(ArgumentError("step_s must be an integer from 1 to 86400"))
-    haskey(params, "step_s") && window_s == 0 && throw(ArgumentError("step_s requires a positive window_s"))
-    return origin, ready, seconds * 1000, encoding, window_s * 1000, step_s * 1000, metric, max_walk_s, distance_mode
+    ready, _ = query_times(graph, origin, departure_ms, budget_ms)
+    window_ms = _hours_ms(get(params, "window_h", "0"), "window_h", 24; nonzero=true)
+    step_ms = _hours_ms(get(params, "step_h", 1 / 60), "step_h", 24; positive=true)
+    haskey(params, "step_h") && window_ms == 0 && throw(ArgumentError("step_h requires a positive window_h"))
+    cld(window_ms, step_ms) <= 86_400 || throw(ArgumentError("window must contain at most 86400 samples"))
+    return origin, ready, budget_ms, encoding, window_ms, step_ms, metric, max_walk_ms, distance_mode
 end
 
 function normalized_ranks(values)
@@ -309,11 +309,11 @@ end
 
 function arrow_table(cells, columns, encoding; metric="time")
     if metric == "distance_time_quantile"
-        valid = findall(i -> isfinite(columns.distance_km[i]) && isfinite(columns.elapsed_ms[i]), eachindex(cells))
+        valid = findall(i -> isfinite(columns.distance_km[i]) && isfinite(columns.elapsed_h[i]), eachindex(cells))
         cells = cells[valid]
         columns = map(column -> column[valid], columns)
         distance_quantile = normalized_ranks(columns.distance_km)
-        time_quantile = normalized_ranks(columns.elapsed_ms)
+        time_quantile = normalized_ranks(columns.elapsed_h)
         columns = merge(columns, (value=distance_quantile .- time_quantile,
                                  distance_quantile=distance_quantile, time_quantile=time_quantile))
     end
@@ -338,13 +338,14 @@ function arrow_result(graph, labels, origin, ready, encoding; distance_km=nothin
         insert!(elapsed, searchsortedfirst(cells, origin), UInt32(0))
         insert!(cells, searchsortedfirst(cells, origin), origin)
     end
-    table = (value=Float64.(elapsed) ./ 60_000, elapsed_ms=elapsed)
+    elapsed_h = Float64.(elapsed) ./ 3_600_000
+    table = (value=elapsed_h, elapsed_h=elapsed_h)
     isnothing(distances) || (table = merge(table, (distance_km=distances,)))
     return arrow_table(cells, table, encoding; metric)
 end
 
 function window_arrow(graph, result, origin, encoding; metric="time")
-    reached = findall(>(0), result.reachable_samples)
+    reached = findall(==(result.sample_count), result.reachable_samples)
     cells = (hasproperty(result, :h3) ? result.h3 : graph.h3)[reached]
     elapsed = result.elapsed_ms[reached]
     conditional = result.reachable_elapsed_ms[reached]
@@ -358,8 +359,9 @@ function window_arrow(graph, result, origin, encoding; metric="time")
         end
         insert!(counts, at, result.sample_count)
     end
-    return arrow_table(cells, (value=elapsed ./ 60_000, elapsed_ms=elapsed,
-        distance_km=distances, reachable_elapsed_ms=conditional,
+    elapsed_h = elapsed ./ 3_600_000
+    return arrow_table(cells, (value=elapsed_h, elapsed_h=elapsed_h,
+        distance_km=distances, reachable_elapsed_h=conditional ./ 3_600_000,
         reachable_fraction=Float64.(counts) ./ result.sample_count,
         reachable_samples=counts, sample_count=fill(result.sample_count, length(cells))), encoding; metric)
 end
@@ -368,16 +370,16 @@ end
 function make_handler(graph::Graph; route=(h, t, b) -> route_cpu(graph, h, t, b),
                       window_route=(h, t, b, w, s) -> route_window_cached(graph, h, t, b, w; step_ms=s),
                       walking_window_route=(h, t, b, w, s, m, index) -> route_window_walking_cached(
-                          graph, h, t, b, w; step_ms=s, max_walk_s=m, walking_index=index),
+                          graph, h, t, b, w; step_ms=s, max_walk_ms=m, walking_index=index),
                       straight_window_route=(h, t, b, w, s, m, index) -> m > 0 ?
-                          route_window_walking_cached(graph, h, t, b, w; step_ms=s, max_walk_s=m,
+                          route_window_walking_cached(graph, h, t, b, w; step_ms=s, max_walk_ms=m,
                               walking_index=index, distance_mode=:straight_line) :
                           route_window_cached(graph, h, t, b, w; step_ms=s, distance_mode=:straight_line))
     walking_index = prepare_walking(WalkingIndex(graph))
     request_lock = ReentrantLock()
     return function (request)
         headers = ["Access-Control-Allow-Origin" => "*", "Cache-Control" => "no-store",
-                   "Access-Control-Expose-Headers" => "X-Router-Backend, X-Router-Distance, X-Router-Distance-Mode, X-Router-Searches, X-Router-Reused-Samples, X-Router-Metric, X-Router-Window-Strategy, X-Router-Full-Searches, X-Router-Repair-Searches, X-Router-Profile-Lookups, X-Router-Batches, X-Router-Rounds, X-Router-Workers, X-Router-Max-Walk-S"]
+                   "Access-Control-Expose-Headers" => "X-Router-Backend, X-Router-Distance, X-Router-Distance-Mode, X-Router-Searches, X-Router-Reused-Samples, X-Router-Metric, X-Router-Window-Strategy, X-Router-Full-Searches, X-Router-Repair-Searches, X-Router-Profile-Lookups, X-Router-Batches, X-Router-Rounds, X-Router-Workers, X-Router-Max-Walk-H"]
         query = try
             uri = HTTP.URI(request.target)
             uri.path == "/reachable" || return HTTP.Response(404, headers, "not found")
@@ -392,16 +394,16 @@ function make_handler(graph::Graph; route=(h, t, b) -> route_cpu(graph, h, t, b)
             error isa Union{ArgumentError,EOFError} || rethrow()
             return HTTP.Response(400, [headers; "Content-Type" => "text/plain"], sprint(showerror, error))
         end
-        origin, ready, budget, encoding, window, step, metric, max_walk_s, distance_mode = query
+        origin, ready, budget, encoding, window, step, metric, max_walk_ms, distance_mode = query
         straight = distance_mode == :straight_line
         push!(headers, "X-Router-Distance-Mode" => string(distance_mode))
-        push!(headers, "X-Router-Max-Walk-S" => string(max_walk_s))
+        push!(headers, "X-Router-Max-Walk-H" => string(max_walk_ms / 3_600_000))
         return lock(request_lock) do
             body = begin
                 if window > 0
-                    result = straight ? straight_window_route(origin, ready, budget, window, step, max_walk_s, walking_index) :
-                        max_walk_s > 0 ? walking_window_route(origin, ready, budget, window,
-                        step, max_walk_s, walking_index) : window_route(origin, ready, budget, window, step)
+                    result = straight ? straight_window_route(origin, ready, budget, window, step, max_walk_ms, walking_index) :
+                        max_walk_ms > 0 ? walking_window_route(origin, ready, budget, window,
+                        step, max_walk_ms, walking_index) : window_route(origin, ready, budget, window, step)
                     strategy = hasproperty(result, :backend) ? result.backend : "origin"
                     backend = strategy in ("origin", "catchup", "walking_reference", "walking_catchup") ? "reference" : strategy
                     append!(headers, ["X-Router-Backend" => backend,
@@ -413,14 +415,14 @@ function make_handler(graph::Graph; route=(h, t, b) -> route_cpu(graph, h, t, b)
                         hasproperty(result, field) && push!(headers, "X-Router-$header" => string(getproperty(result, field)))
                     end
                     window_arrow(graph, result, origin, encoding; metric)
-                elseif straight && max_walk_s == 0
+                elseif straight && max_walk_ms == 0
                     labels = route_cpu(graph, origin, ready, budget)
                     ids = findall(!=(INF), labels)
                     push!(headers, "X-Router-Backend" => "reference")
                     arrow_result(graph, labels[ids], origin, ready, encoding;
                         distance_km=_od_distances(origin, graph.h3[ids]), metric, h3=graph.h3[ids])
-                elseif max_walk_s > 0 || !isnothing(graph.distance_km)
-                    result = max_walk_s > 0 ? route_walking(graph, origin, ready, budget; max_walk_s, walking_index, distance_mode) :
+                elseif max_walk_ms > 0 || !isnothing(graph.distance_km)
+                    result = max_walk_ms > 0 ? route_walking(graph, origin, ready, budget; max_walk_ms, walking_index, distance_mode) :
                         route_details(graph, origin, ready, budget)
                     push!(headers, "X-Router-Backend" => "reference")
                     arrow_result(graph, result.arrival, origin, ready, encoding;
@@ -432,7 +434,7 @@ function make_handler(graph::Graph; route=(h, t, b) -> route_cpu(graph, h, t, b)
             end
             distance = if straight
                 "origin-destination-great-circle-km"
-            elseif max_walk_s > 0
+            elseif max_walk_ms > 0
                 isnothing(graph.distance_km) ? "partial-estimated-walk-km" : "connection-sum+estimated-walk-km"
             else
                 isnothing(graph.distance_km) ? "unavailable" : "connection-sum-km"

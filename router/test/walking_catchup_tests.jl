@@ -71,7 +71,7 @@ end
         origin = trial % 3 == 0 ? first(setdiff(disk(a, 1), cells)) : a
         step = max(1, span ÷ 5)
         check_window(graph, origin, ready, rand(rng, (0, span ÷ 2, 3span, DAY + span, 7DAY)),
-                     8step + 1; step_ms=step, max_walk_s=seconds, walking_index=WalkingIndex(graph))
+                     8step + 1; step_ms=step, max_walk_ms=1000seconds, walking_index=WalkingIndex(graph))
     end
 
     @testset "Earlier walk, later eligibility and equal-time km res$res" for res in (7, 9)
@@ -81,18 +81,18 @@ end
             graph = pack_graph(raw_table([a, b, c], [(1, 2, 2, ab.ms + delay, 7.0),
                                                     (3, 3, DAY ÷ 2, 0, 0.0)]))
             budget = ab.ms + 2 + delay + bc.ms
-            result = check_window(graph, a, 0, budget, 3; step_ms=1, max_walk_s=seconds)
+            result = check_window(graph, a, 0, budget, 3; step_ms=1, max_walk_ms=1000seconds)
             @test at(result, c, :reachable_samples) == 3
             @test at(result, c, :distance_km) == 7.0 + bc.km
             @test at(result, c, :elapsed_sum_ms) == 3budget - 3
-            last = route_walking(graph, a, 2, budget; max_walk_s=seconds)
+            last = route_walking(graph, a, 2, budget; max_walk_ms=1000seconds)
             @test at(last, b, :arrival) == ab.ms + 2
             @test at(last, b, :distance_km) == (delay == 0 ? 7.0 : ab.km)
         end
         # A self-transit resets eligibility even when its arrival only ties the walk.
         graph = pack_graph(raw_table([a, b, c], [(2, 2, ab.ms + 2, 0, 3.0),
                                                 (3, 3, DAY ÷ 2, 0, 0.0)]))
-        result = check_window(graph, a, 0, ab.ms + 2 + bc.ms, 4; step_ms=1, max_walk_s=seconds)
+        result = check_window(graph, a, 0, ab.ms + 2 + bc.ms, 4; step_ms=1, max_walk_ms=1000seconds)
         @test !(a in graph.h3)
         @test at(result, c, :reachable_samples) == 3
         @test at(result, c, :distance_km) == ab.km + 3.0 + bc.km
@@ -108,17 +108,17 @@ end
         budget = ab.ms + 17 + de.ms
         step = 1 + ab.ms ÷ 8
         result = check_window(graph, a, DAY - ab.ms - 1, budget + 2step, ab.ms + 3;
-                              step_ms=step, max_walk_s=seconds)
+                              step_ms=step, max_walk_ms=1000seconds)
         @test !(a in graph.h3) && !(egress in graph.h3)
         @test 0 < at(result, egress, :reachable_samples) < result.sample_count
         @test at(result, egress, :reachable_elapsed_ms) < at(result, egress, :elapsed_ms)
         @test at(result, egress, :distance_km) == ab.km + 4.0 + de.km
         # The first sample misses by exactly 1 ms; repair must mask the later label.
-        boundary = check_window(graph, a, DAY - ab.ms - 1, budget, 2; step_ms=1, max_walk_s=seconds)
+        boundary = check_window(graph, a, DAY - ab.ms - 1, budget, 2; step_ms=1, max_walk_ms=1000seconds)
         @test at(boundary, egress, :reachable_samples) == 1
         @test at(boundary, egress, :elapsed_sum_ms) == 2budget
         @test at(boundary, egress, :reachable_elapsed_ms) == budget
-        check_window(graph, a, DAY - 1, 2DAY, 13; step_ms=2, max_walk_s=seconds)
+        check_window(graph, a, DAY - 1, 2DAY, 13; step_ms=2, max_walk_ms=1000seconds)
     end
 
     @testset "Zero cycles, disabled walking, empty graphs and NaN means" begin
@@ -128,29 +128,29 @@ end
                 (1, 2, 2, 0, 8.0), (2, 3, 2, 0, 7.0), (1, 1, 2, 0, 5.0)]
         for distances in (false, true), max_walk_s in (0, seconds)
             graph = pack_graph(raw_table(cells, rows; distances))
-            result = check_window(graph, cells[3], 0, 2, 4; step_ms=1, max_walk_s)
+            result = check_window(graph, cells[3], 0, 2, 4; step_ms=1, max_walk_ms=1000max_walk_s)
             @test at(result, cells[1], :reachable_samples) == 3
             @test isequal(at(result, cells[1], :distance_km), distances ? 6.0 : NaN)
         end
         empty = pack_graph(raw_table(UInt64[], []; distances=false))
         origin = cell_at(51.5, -0.1, empty.resolution)
-        result = check_window(empty, origin, DAY - 1, 7DAY, 65; step_ms=1, max_walk_s=0)
+        result = check_window(empty, origin, DAY - 1, 7DAY, 65; step_ms=1, max_walk_ms=0)
         @test result.h3 == [origin] && result.distance_km == [0.0]
-        check_window(empty, origin, 0, 0, 1; step_ms=DAY, max_walk_s=3600)
+        check_window(empty, origin, 0, 0, 1; step_ms=DAY, max_walk_ms=3600000)
         neighbor = first(setdiff(disk(origin, 1), [origin]))
         radius = cld(walk(origin, neighbor).ms, 1000)
-        geographic = check_window(empty, origin, 0, 1000radius, 3; step_ms=1, max_walk_s=radius)
+        geographic = check_window(empty, origin, 0, 1000radius, 3; step_ms=1, max_walk_ms=1000radius)
         @test neighbor in geographic.h3
         for departure in (0, 1)
             duration = departure == 0 ? 0 : walk(a, b).ms
             graph = pack_graph(raw_table([a, b], [(1, 2, departure, duration, 0.0)]; distances=false))
-            result = check_window(graph, a, 0, walk(a, b).ms, 3; step_ms=1, max_walk_s=seconds)
+            result = check_window(graph, a, 0, walk(a, b).ms, 3; step_ms=1, max_walk_ms=1000seconds)
             @test at(result, b, :reachable_samples) == 3
             @test isnan(at(result, b, :distance_km))
             @test at(result, a, :distance_km) == 0.0
-            first = route_walking(graph, a, 0, walk(a, b).ms; max_walk_s=seconds)
+            first = route_walking(graph, a, 0, walk(a, b).ms; max_walk_ms=1000seconds)
             @test isnan(at(first, b, :distance_km)) == (departure == 0)
-            @test isfinite(at(route_walking(graph, a, 2, walk(a, b).ms; max_walk_s=seconds), b, :distance_km))
+            @test isfinite(at(route_walking(graph, a, 2, walk(a, b).ms; max_walk_ms=1000seconds), b, :distance_km))
         end
     end
 
@@ -163,17 +163,17 @@ end
         graph = pack_graph(raw_table(cells, rows))
         index = WalkingIndex(graph)
         budget = ab.ms + 300 + 1000seconds
-        check_window(graph, a, 0, budget, 65; step_ms=1, max_walk_s=seconds, walking_index=index)
-        early = route_walking(graph, a, 0, budget; max_walk_s=seconds)
-        late = route_walking(graph, a, 64, budget; max_walk_s=seconds)
+        check_window(graph, a, 0, budget, 65; step_ms=1, max_walk_ms=1000seconds, walking_index=index)
+        early = route_walking(graph, a, 0, budget; max_walk_ms=1000seconds)
+        late = route_walking(graph, a, 64, budget; max_walk_ms=1000seconds)
         @test !(a in graph.h3)
         @test [at(early, h, :arrival) for h in cells[3:end]] == [at(late, h, :arrival) for h in cells[3:end]]
         @test all(h -> at(early, h, :distance_km) != at(late, h, :distance_km), cells[3:end])
         for workers in (1, 4)
             independent = route_window_walking_cached(graph, a, 0, budget, 65;
-                step_ms=1, max_walk_s=seconds, walking_index=index, chunk_size=1, workers)
+                step_ms=1, max_walk_ms=1000seconds, walking_index=index, chunk_size=1, workers)
             cached = route_window_walking_cached(graph, a, 0, budget, 65;
-                step_ms=1, max_walk_s=seconds, walking_index=index, chunk_size=64, workers)
+                step_ms=1, max_walk_ms=1000seconds, walking_index=index, chunk_size=64, workers)
             @test cached.profile_lookups * 2 < independent.profile_lookups
             @test cached.routing_expansions < independent.routing_expansions
             @test cached.full_searches > 1 && cached.repair_searches > 0
@@ -193,26 +193,26 @@ end
         eligible = pack_graph(raw_table([a, b, c], [(1, 2, 0, 1, huge), (2, 3, 2, ac, huge)]))
         for (graph, budget, limit) in ((transient, 20, seconds), (eligible, ac + 2, cld(ac, 1000)))
             @test_throws r"accumulated route distance" route_window_walking(graph, a, 0, budget, 4;
-                                                                          step_ms=1, max_walk_s=limit)
+                                                                          step_ms=1, max_walk_ms=1000limit)
             for chunk_size in (1, 2, 8, 64), workers in (1, 4)
                 @test_throws r"accumulated route distance" route_window_walking_cached(graph, a, 0, budget, 4;
-                    step_ms=1, max_walk_s=limit, chunk_size, workers)
+                    step_ms=1, max_walk_ms=1000limit, chunk_size, workers)
             end
         end
         # Keep both graph and index resident across a failing wave and later requests.
         function recover(graph)
             index, snapshot = WalkingIndex(graph), deepcopy(graph)
             expected = route_window_walking_cached(graph, a, 1, 20, 4;
-                step_ms=1, max_walk_s=seconds, walking_index=index, chunk_size=1, workers=4)
+                step_ms=1, max_walk_ms=1000seconds, walking_index=index, chunk_size=1, workers=4)
             for _ in 1:3
                 @test_throws ArgumentError route_window_walking_cached(graph, a, 0, 20, 4;
-                    step_ms=1, max_walk_s=seconds, walking_index=index, chunk_size=1, workers=4)
+                    step_ms=1, max_walk_ms=1000seconds, walking_index=index, chunk_size=1, workers=4)
                 actual = route_window_walking_cached(graph, a, 1, 20, 4;
-                    step_ms=1, max_walk_s=seconds, walking_index=index, chunk_size=1, workers=4)
+                    step_ms=1, max_walk_ms=1000seconds, walking_index=index, chunk_size=1, workers=4)
                 @test isequal(actual, expected)
             end
             @test all(f -> isequal(getfield(graph, f), getfield(snapshot, f)), fieldnames(Graph))
-            check_window(graph, a, 1, 20, 4; step_ms=1, max_walk_s=seconds, walking_index=index)
+            check_window(graph, a, 1, 20, 4; step_ms=1, max_walk_ms=1000seconds, walking_index=index)
         end
         recover(transient)
     end
@@ -248,7 +248,7 @@ end
         a, b = chain(9)
         graph = pack_graph(raw_table([a, b], [(1, 2, 0, 0, 1.0)]))
         for kwargs in ((chunk_size=0,), (chunk_size=-1,), (workers=0,), (workers=-1,),
-                       (max_walk_s=-1,), (max_walk_s=604801,), (max_walk_s=typemax(UInt64),),
+                       (max_walk_ms=-1,), (max_walk_ms=604801000,), (max_walk_ms=typemax(UInt64),),
                        (step_ms=0,), (step_ms=-1,))
             @test_throws ArgumentError route_window_walking_cached(graph, a, 0, 0, 1; kwargs...)
         end

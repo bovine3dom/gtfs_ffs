@@ -7,7 +7,7 @@ instead of rediscovering graph-vertex neighborhoods in each request.
 ## Implementation
 
 `WalkingIndex(graph)` remains an inexpensive, unprepared spatial snapshot.
-`prepare_walking(index; max_walk_s=3600, workers=min(4, Threads.nthreads(:default)))`
+`prepare_walking(index; max_walk_ms=3_600_000, workers=min(4, Threads.nthreads(:default)))`
 returns a new index containing read-only packed adjacency. Each graph vertex runs
 the existing exact `walking_cells` once. Workers own separate vertex lists; packing
 is deterministic in vertex order. The geographic list retains canonical H3 order,

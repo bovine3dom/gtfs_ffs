@@ -11,10 +11,10 @@ timed_call(f) = @timed f()
 function main(args)
     gpu = "--gpu" in args
     args = filter(!=("--gpu"), args)
-    1 <= length(args) <= 4 || error("usage: julia --project=router router/benchmark-window-engines.jl <input.arrow> [origin_hex] [window_s=86400] [repetitions=3] [--gpu]")
+    1 <= length(args) <= 4 || error("usage: julia --project=router router/benchmark-window-engines.jl <input.arrow> [origin_hex] [window_h=24] [repetitions=3] [--gpu]")
     graph = @time pack_graph(args[1]; skip_invalid_durations=true)
     origin = length(args) >= 2 ? parse(UInt64, args[2]; base=16) : graph.h3[argmax(diff(graph.out_ptr))]
-    window = length(args) >= 3 ? parse(Int, args[3]) * 1000 : 86_400_000
+    window = Reachability._hours_ms(length(args) >= 3 ? args[3] : "24", "window_h", 24; positive=true)
     repetitions = length(args) >= 4 ? parse(Int, args[4]) : 3
     repetitions > 0 || error("repetitions must be positive")
     chunks = parse.(Int, split(get(ENV, "ROUTER_BENCH_CHUNKS", "32,64,128"), ','))
@@ -28,7 +28,7 @@ function main(args)
         parent = KernelRouter(graph, oneAPI.oneAPIBackend())
         gpu_routers = [WindowKernelRouter(parent; batch_size=b, check_every) for b in batches]
     end
-    @info "Window engine comparison" origin=H3.API.h3ToString(origin) window_s=window÷1000 resolution=graph.resolution nodes=length(graph.h3) distance_available=!isnothing(graph.distance_km)
+    @info "Window engine comparison" origin=H3.API.h3ToString(origin) window_h=window/3_600_000 resolution=graph.resolution nodes=length(graph.h3) distance_available=!isnothing(graph.distance_km)
     for budget in (10_800_000, 604_800_000)
         names = ["origin"; ["catchup_$(c)_workers$w" for c in chunks for w in workers]; ["gpu_$(r.batch_size)_check$(r.check_every)" for r in gpu_routers]]
         functions = Any[() -> route_window(graph, origin, 0, budget, window)]

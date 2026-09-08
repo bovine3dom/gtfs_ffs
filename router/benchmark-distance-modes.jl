@@ -22,7 +22,7 @@ end
 function main(args)
     isempty(args) && error("usage: julia --project=router --threads=8 router/benchmark-distance-modes.jl input.arrow [origin_hex]")
     origin = parse(UInt64, length(args) > 1 ? args[2] : "871fb4662ffffff"; base=16)
-    println("ENV threads=$(Threads.nthreads()) input=$(abspath(args[1])) bytes=$(filesize(args[1])) origin=$(string(origin; base=16)) departure=00:00:00 budget_s=604800 window_s=86400 step_s=900 max_walk_s=3600")
+    println("ENV threads=$(Threads.nthreads()) input=$(abspath(args[1])) bytes=$(filesize(args[1])) origin=$(string(origin; base=16)) departure_h=0.0 budget_h=168.0 window_h=24.0 step_h=0.25 max_walk_h=1.0")
     flush(stdout)
     packed = @timed pack_graph(args[1]; skip_invalid_durations=true)
     graph = packed.value

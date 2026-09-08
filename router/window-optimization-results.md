@@ -87,7 +87,7 @@ Scratch memory grows with active workers, not the entire window: approximately
 limit scaling; four workers are not expected to produce a fourfold speedup.
 
 ```sh
-env ROUTER_BENCH_CHUNKS=64 ROUTER_BENCH_WORKERS=1,2,4 julia --project=router --threads=4 router/benchmark-window-engines.jl data/rail_and_friends_dist_res5.arrow 851fb467fffffff 86400 5
+env ROUTER_BENCH_CHUNKS=64 ROUTER_BENCH_WORKERS=1,2,4 julia --project=router --threads=4 router/benchmark-window-engines.jl data/rail_and_friends_dist_res5.arrow 851fb467fffffff 24 5
 ```
 
 Timings exclude graph loading and HTTP/Arrow serialization. They are a representative
@@ -199,10 +199,10 @@ env ZE_ENABLE_ALT_DRIVERS=/usr/lib/libze_intel_gpu_legacy1.so.1 ROUTER_BACKEND=r
 ```
 
 The `router/benchmark-window-engines.jl` harness accepts
-`input.arrow [origin_hex] [window_s] [repetitions] [--gpu]`:
+`input.arrow [origin_hex] [window_h] [repetitions] [--gpu]` (commands updated for the hour-based interface; measurements below are historical):
 
 ```sh
-env ZE_ENABLE_ALT_DRIVERS=/usr/lib/libze_intel_gpu_legacy1.so.1 julia --project=router --threads=4 router/benchmark-window-engines.jl data/rail_and_friends_dist_res5.arrow 851fb467fffffff 86400 3 --gpu
+env ZE_ENABLE_ALT_DRIVERS=/usr/lib/libze_intel_gpu_legacy1.so.1 julia --project=router --threads=4 router/benchmark-window-engines.jl data/rail_and_friends_dist_res5.arrow 851fb467fffffff 24 3 --gpu
 ```
 
 Omit `--gpu` and the legacy-driver prefix for CPU-only runs. The comma-separated

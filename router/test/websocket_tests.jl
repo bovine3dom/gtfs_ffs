@@ -30,7 +30,7 @@ socket_id(bytes) = foldl((a, b) -> (a << 8) | UInt32(b), bytes[1:4]; init=UInt32
     socket_test(handler) do url, http
         for origin in ("http://localhost:8000", "https://maps.example.org", "null")
             WS.open(url; headers=["Origin" => origin]) do ws
-                path = "/reachable?index=85075dd7fffffff&departure=08:00:00&budget_s=3600&max_walk_s=0"
+                path = "/reachable?index=85075dd7fffffff&departure_h=8&budget_h=1&max_walk_h=0"
                 socket_query(ws, 1, path)
                 bytes = socket_receive(ws)
                 @test socket_id(bytes) == 1
@@ -49,7 +49,7 @@ socket_id(bytes) = foldl((a, b) -> (a << 8) | UInt32(b), bytes[1:4]; init=UInt32
             for encoding in ("split", "string"), metric in ("time", "distance_time_quantile"),
                     mode in ("itinerary", "straight_line"), walk in (0, 3600), window in (0, 120),
                     cell in (DEMO_ORIGIN, DEMO_CELLS[7])
-                path = "/reachable?index=$(H3.API.h3ToString(cell))&departure=08:00:00&budget_s=3600&encoding=$encoding&metric=$metric&distance_mode=$mode&max_walk_s=$walk&window_s=$window"
+                path = "/reachable?index=$(H3.API.h3ToString(cell))&departure_h=8&budget_h=1&encoding=$encoding&metric=$metric&distance_mode=$mode&max_walk_h=$(walk / 3600)&window_h=$(window / 3600)"
                 socket_query(ws, id, path)
                 bytes = socket_receive(ws)
                 @test bytes isa Vector{UInt8}
@@ -58,6 +58,9 @@ socket_id(bytes) = foldl((a, b) -> (a << 8) | UInt32(b), bytes[1:4]; init=UInt32
                 @test bytes[5:end] == expected
                 table = Arrow.Table(bytes[5:end])
                 @test :value in propertynames(table)
+                @test eltype(table.elapsed_h) == Float64
+                @test all(!endswith(string(f), "_ms") for f in propertynames(table))
+                window == 0 || @test all(==(1.0), table.reachable_fraction)
                 id += 1
             end
         end
@@ -66,7 +69,7 @@ end
 
 @testset "WebSocket validation and recovery" begin
     handler = make_handler(pack_graph(fixture_table()))
-    good = "/reachable?index=85075dd7fffffff&departure=08:00:00&budget_s=3600&max_walk_s=0"
+    good = "/reachable?index=85075dd7fffffff&departure_h=8&budget_h=1&max_walk_h=0"
     socket_test(handler) do url, http
         WS.open(url) do ws
             for (id, path) in enumerate(("https://secret@example.org/reachable", "/reachable#secret",
@@ -167,7 +170,7 @@ end
         take!(release)
         route_cpu(graph, h, t, b)
     end)
-    path = "/reachable?index=85075dd7fffffff&departure=08:00:00&budget_s=3600&max_walk_s=0"
+    path = "/reachable?index=85075dd7fffffff&departure_h=8&budget_h=1&max_walk_h=0"
     socket_test(handler) do url, http
         http_task = @async HTTP.get(http * path)
         @test timedwait(() -> isready(entered), 20) == :ok

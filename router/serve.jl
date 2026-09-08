@@ -57,18 +57,18 @@ else
 end
 
 walking_window_route = (h, t, b, w, s, m, index) -> if window_backend == "origin"
-    route_window_walking(graph, h, t, b, w; step_ms=s, max_walk_s=m, walking_index=index)
+    route_window_walking(graph, h, t, b, w; step_ms=s, max_walk_ms=m, walking_index=index)
 else
-    route_window_walking_cached(graph, h, t, b, w; step_ms=s, max_walk_s=m,
+    route_window_walking_cached(graph, h, t, b, w; step_ms=s, max_walk_ms=m,
                                 walking_index=index, chunk_size=chunk, workers)
 end
 
 straight_window_route = (h, t, b, w, s, m, index) -> if m == 0
     route_window_cached(graph, h, t, b, w; step_ms=s, chunk_size=chunk, workers, distance_mode=:straight_line)
 elseif window_backend == "origin"
-    route_window_walking(graph, h, t, b, w; step_ms=s, max_walk_s=m, walking_index=index, distance_mode=:straight_line)
+    route_window_walking(graph, h, t, b, w; step_ms=s, max_walk_ms=m, walking_index=index, distance_mode=:straight_line)
 else
-    route_window_walking_cached(graph, h, t, b, w; step_ms=s, max_walk_s=m,
+    route_window_walking_cached(graph, h, t, b, w; step_ms=s, max_walk_ms=m,
         walking_index=index, chunk_size=chunk, workers, distance_mode=:straight_line)
 end
 
@@ -77,8 +77,8 @@ port = parse(Int, get(ENV, "ROUTER_PORT", "1988"))
 @info "Starting router" host port backend=backend_name resolution=graph.resolution distance_available=!isnothing(graph.distance_km) nodes=length(graph.h3) edges=length(graph.edge_to) profiles=length(graph.departure)
 @info "Window routing" window_backend
 @info "Single-departure route distances use CPU Dijkstra"
-@info "Walking uses CPU routing; window catch-up unless ROUTER_WINDOW_BACKEND=origin" default_max_walk_s=3600 workers chunk
-@info "Preparing resident walking adjacency before accepting requests" max_walk_s=3600 preparation_workers=min(4, Threads.nthreads(:default))
+@info "Walking uses CPU routing; window catch-up unless ROUTER_WINDOW_BACKEND=origin" default_max_walk_h=1.0 workers chunk
+@info "Preparing resident walking adjacency before accepting requests" max_walk_h=1.0 preparation_workers=min(4, Threads.nthreads(:default))
 @info "Straight-line distance uses CPU arrival-only routing, including transit-only requests"
 origins = filter(!isempty, strip.(split(get(ENV, "ROUTER_WS_ORIGINS", ""), ',')))
 @info "Query WebSocket browser origins" policy=isempty(origins) ? "allow all" : "allowlist" origins

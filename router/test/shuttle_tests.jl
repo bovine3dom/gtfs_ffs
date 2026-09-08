@@ -65,12 +65,12 @@
         end
         # In-process handler only: no server or network connection.
         handler = make_handler(graph)
-        for mode in ("itinerary", "straight_line"), window in ("", "&window_s=120&step_s=60")
-            response = handler(HTTP.Request("GET", "/reachable?index=$(string(elvas; base=16))&departure=08:00:00&budget_s=900&max_walk_s=0&encoding=string&metric=distance_time_quantile&distance_mode=$mode$window"))
+        for mode in ("itinerary", "straight_line"), window in ("", "&window_h=0.03333333333333333&step_h=0.016666666666666666")
+            response = handler(HTTP.Request("GET", "/reachable?index=$(string(elvas; base=16))&departure_h=8&budget_h=0.25&max_walk_h=0&encoding=string&metric=distance_time_quantile&distance_mode=$mode$window"))
             @test response.status == 200
             output = Arrow.Table(response.body)
             at = findfirst(==(string(badajoz; base=16)), output.index)
-            @test output.elapsed_ms[at] == 900_000
+            @test output.elapsed_h[at] == 0.25
             @test output.distance_km[at] ≈ (mode == "itinerary" ? 13.88 : only(Reachability._od_distances(elvas, [badajoz])))
             @test mode != "straight_line" || output.distance_km[at] != 13.88
         end
@@ -84,11 +84,11 @@
             @test km(elvas, target) * 720_000 > seconds * 1000
             arrival = cld(START + access, 60_000) * 60_000 + 900_000 + egress
             budget = arrival - START
-            walked = route_walking(graph, origin, START, budget; max_walk_s=seconds)
+            walked = route_walking(graph, origin, START, budget; max_walk_ms=1000seconds)
             at = findfirst(==(target), walked.h3)
             @test walked.arrival[at] == arrival
             @test walked.distance_km[at] ≈ km(origin, elvas) + 13.88 + km(badajoz, target)
-            @test !(target in route_walking(plain, origin, START, budget; max_walk_s=seconds).h3)
+            @test !(target in route_walking(plain, origin, START, budget; max_walk_ms=1000seconds).h3)
         end
     end
     # Coalesced stations retain a scheduled transit self-edge, just like source self-edges.
