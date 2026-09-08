@@ -1,5 +1,22 @@
 using Logging
 
+@testset "Synthetic server warmup" begin
+    logger = Test.TestLogger()
+    count = with_logger(logger) do
+        warmup_server()
+    end
+    @test count == 190
+    record = only(filter(r -> r.message == "Synthetic routing warmup", logger.logs))
+    @test record.kwargs[:queries] == count
+    @test last(logger.logs).message == "Startup complete: Compiling routing and Arrow responses"
+    @test !isdefined(Reachability, :KernelRouter)
+    graph = pack_graph(Reachability._warmup_table())
+    result = route_window_cached(graph, first(graph.h3), 0, 3_960_000, 129 * 60_000)
+    @test result.searches == 129
+    @test result.full_searches == 3
+    @test result.workers == min(3, Threads.nthreads(:default))
+end
+
 @testset "Startup profile determinism" begin
     rng = MersenneTwister(912)
     for res in 5:7, distances in (false, true), shuttle in (false, true)

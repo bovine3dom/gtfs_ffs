@@ -351,17 +351,17 @@ function parse_query(uri, graph)
     encoding = get(params, "encoding", "split")
     encoding in ("string", "split") || throw(ArgumentError("encoding must be string or split"))
     metric = get(params, "metric", "time")
-    metric in ("time", "distance_time_quantile") || throw(ArgumentError("metric must be time or distance_time_quantile"))
+    metric in ("time", "time_distance_quantile") || throw(ArgumentError("metric must be time or time_distance_quantile"))
     distance_mode = _distance_mode(get(params, "distance_mode", "itinerary"))
     ready, _ = query_times(graph, origin, departure_ms, budget_ms)
     window_ms = _hours_ms(get(params, "window_h", "0"), "window_h", MAX_TIME_MS / 3_600_000; nonzero=true)
     step_ms = _hours_ms(get(params, "step_h", 1 / 60), "step_h", MAX_TIME_MS / 3_600_000; nonzero=true)
     step_ms == 0 && (window_ms = 0)
     window_mode = window_ms > 0 ? _window_mode(get(params, "window_mode", "mean_intersection")) : :mean_intersection
-    window_ms > 0 && window_mode == :reachable_union && metric == "distance_time_quantile" &&
-        throw(ArgumentError("reachable_union is incompatible with distance_time_quantile for window queries"))
-    metric == "distance_time_quantile" && distance_mode == :itinerary && isnothing(graph.distance_km) &&
-        throw(ArgumentError("distance_time_quantile requires an input distance_km column"))
+    window_ms > 0 && window_mode == :reachable_union && metric == "time_distance_quantile" &&
+        throw(ArgumentError("reachable_union is incompatible with time_distance_quantile for window queries"))
+    metric == "time_distance_quantile" && distance_mode == :itinerary && isnothing(graph.distance_km) &&
+        throw(ArgumentError("time_distance_quantile requires an input distance_km column"))
     window_ms > 0 && _window_times(ready, budget_ms, window_ms, step_ms)
     return origin, ready, budget_ms, encoding, window_ms, step_ms, metric, max_walk_ms, distance_mode, window_mode
 end
@@ -377,13 +377,14 @@ function normalized_ranks(values)
 end
 
 function arrow_table(cells, columns, encoding; metric="time")
-    if metric == "distance_time_quantile"
+    metric in ("time", "time_distance_quantile") || throw(ArgumentError("metric must be time or time_distance_quantile"))
+    if metric == "time_distance_quantile"
         valid = findall(i -> isfinite(columns.distance_km[i]) && isfinite(columns.elapsed_h[i]), eachindex(cells))
         cells = cells[valid]
         columns = map(column -> column[valid], columns)
         distance_quantile = normalized_ranks(columns.distance_km)
         time_quantile = normalized_ranks(columns.elapsed_h)
-        columns = merge(columns, (value=distance_quantile .- time_quantile,
+        columns = merge(columns, (value=time_quantile .- distance_quantile,
                                  distance_quantile=distance_quantile, time_quantile=time_quantile))
     end
     indices = if encoding == "string"
@@ -415,8 +416,8 @@ end
 
 function window_arrow(graph, result, origin, encoding; metric="time", window_mode=:mean_intersection)
     mode = _window_mode(window_mode)
-    mode == :reachable_union && metric == "distance_time_quantile" &&
-        throw(ArgumentError("reachable_union is incompatible with distance_time_quantile for window queries"))
+    mode == :reachable_union && metric == "time_distance_quantile" &&
+        throw(ArgumentError("reachable_union is incompatible with time_distance_quantile for window queries"))
     reached = findall(mode in (:mean_intersection, :max_intersection, :diff_intersection) ? ==(result.sample_count) : !iszero, result.reachable_samples)
     cells = (hasproperty(result, :h3) ? result.h3 : graph.h3)[reached]
     elapsed = result.elapsed_ms[reached]
@@ -543,5 +544,6 @@ function make_resolution_handler(handlers::AbstractDict{Int})
 end
 
 include("websocket.jl")
+include("warmup.jl")
 
 end

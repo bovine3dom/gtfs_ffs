@@ -54,7 +54,7 @@ end
     @test raw.reachable_samples[graph.node_id[DEMO_CELLS[2]]] == 1
     @test raw.reachable_samples[graph.node_id[DEMO_CELLS[3]]] == 0
     handler = make_handler(graph)
-    for mode in ("itinerary", "straight_line"), encoding in ("string", "split"), metric in ("time", "distance_time_quantile")
+    for mode in ("itinerary", "straight_line"), encoding in ("string", "split"), metric in ("time", "time_distance_quantile")
         path = "/reachable?index=$(string(DEMO_ORIGIN; base=16))&departure_h=0&budget_h=$(100/3600)&max_walk_h=0&encoding=$encoding&metric=$metric&distance_mode=$mode"
         response = handler(HTTP.Request("GET", "$path&window_h=$(61/3600)&step_h=$(1/60)"))
         @test response.status == 200

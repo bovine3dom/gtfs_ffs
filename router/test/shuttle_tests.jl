@@ -64,7 +64,7 @@
         # In-process handler only: no server or network connection.
         handler = make_handler(graph)
         for mode in ("itinerary", "straight_line"), window in ("", "&window_h=0.03333333333333333&step_h=0.016666666666666666")
-            response = handler(HTTP.Request("GET", "/reachable?index=$(string(elvas; base=16))&departure_h=8&budget_h=0.25&max_walk_h=0&encoding=string&metric=distance_time_quantile&distance_mode=$mode$window"))
+            response = handler(HTTP.Request("GET", "/reachable?index=$(string(elvas; base=16))&departure_h=8&budget_h=0.25&max_walk_h=0&encoding=string&metric=time_distance_quantile&distance_mode=$mode$window"))
             @test response.status == 200
             output = Arrow.Table(response.body)
             at = findfirst(==(string(badajoz; base=16)), output.index)

@@ -81,7 +81,7 @@ od(origin, cells) = [h == origin ? 0.0 : H3.Lib.greatCircleDistanceKm(
         @testset "HTTP mode and metric" begin
             handler = make_handler(graph)
             for origin in (a, offgraph), walking in (0, seconds), window in (0, 86400),
-                metric in ("time", "distance_time_quantile"), encoding in ("string", "split")
+                metric in ("time", "time_distance_quantile"), encoding in ("string", "split")
                 query = "/reachable?index=$(string(origin; base=16))&departure_h=0&budget_h=168&max_walk_h=$(walking / 3600)&metric=$metric&encoding=$encoding"
                 window > 0 && (query *= "&window_h=$(window / 3600)&step_h=0.25")
                 old = handler(HTTP.Request("GET", query))

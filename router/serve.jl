@@ -26,6 +26,7 @@ end
 if abspath(PROGRAM_FILE) == @__FILE__
     ARGS == ["--demo"] && include("fixture.jl")
     handler = load_handlers(ARGS)
+    warmup_server()
     host = get(ENV, "ROUTER_HOST", "127.0.0.1")
     port = parse(Int, get(ENV, "ROUTER_PORT", "1988"))
     @info "Starting router" host port

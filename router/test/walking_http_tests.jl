@@ -64,7 +64,7 @@ function check_arrow(response, expected, ready, encoding, metric; window=false)
     else
         @test table.distance_quantile == ranks(expected.distance_km)
         @test table.time_quantile == ranks(elapsed)
-        @test table.value == table.distance_quantile .- table.time_quantile
+        @test table.value == table.time_quantile .- table.distance_quantile
     end
     return table
 end
@@ -91,7 +91,7 @@ end
         words = "index_lower=$(a % UInt32)&index_upper=$((a >> 32) % UInt32)"
         base = "$index&departure_h=0&budget_h=0.16666666666666666"
         @test !(a in graph.h3) && !(remote in graph.h3[graph.edge_from])
-        for encoding in ("string", "split"), metric in ("time", "distance_time_quantile"), window in (false, true)
+        for encoding in ("string", "split"), metric in ("time", "time_distance_quantile"), window in (false, true)
             suffix = "encoding=$encoding&metric=$metric" * (window ? "&window_h=0.03361111111111111&step_h=0.008333333333333333" : "")
             for seconds in (3600, 300)
                 explicit = request(handler, "$base&$suffix&max_walk_h=$(seconds / 3600)")
@@ -130,7 +130,7 @@ end
         @test propertynames(default)[1:2] == [:index_lower, :index_upper]
         @test length(ids(shorter)) < length(ids(default))
         zero_handler = handler
-        for encoding in ("string", "split"), metric in ("time", "distance_time_quantile"), window in (false, true)
+        for encoding in ("string", "split"), metric in ("time", "time_distance_quantile"), window in (false, true)
             response = request(zero_handler, "$base&max_walk_h=0&encoding=$encoding&metric=$metric" * (window ? "&window_h=0.03361111111111111&step_h=0.008333333333333333" : ""))
             expected = window ? route_window_walking(graph, a, 0, 600_000, 121_000; step_ms=30_000, max_walk_ms=0) :
                 route_walking(graph, a, 0, 600_000; max_walk_ms=0)
@@ -156,7 +156,7 @@ end
             @test isfinite(table.distance_km[findfirst(==(b), ids(table))])
             @test isnan(table.distance_km[findfirst(==(remote), ids(table))])
             @test any(h -> !(h in graph.h3), ids(table)[findall(isnan, table.distance_km)])
-            @test request(handler, "$base&$suffix&metric=distance_time_quantile").status == 400
+            @test request(handler, "$base&$suffix&metric=time_distance_quantile").status == 400
         end
         transit = handler
         response = request(transit, "$base&max_walk_h=0")
@@ -176,8 +176,8 @@ end
         handler = make_handler(graph)
         targets = ["/reachable?index=$(H3.API.h3ToString(origin))&departure_h=0&budget_h=0.16666666666666666&window_h=0.03361111111111111&step_h=0.008333333333333333&encoding=$encoding&metric=$metric&max_walk_h=$(seconds / 3600)"
                    for (origin, encoding, metric, seconds) in
-                   ((a, "string", "time", 3600), (b, "split", "distance_time_quantile", 300),
-                    (a, "split", "time", 300), (a, "string", "distance_time_quantile", 3600))]
+                   ((a, "string", "time", 3600), (b, "split", "time_distance_quantile", 300),
+                    (a, "split", "time", 300), (a, "string", "time_distance_quantile", 3600))]
         server = HTTP.serve!(handler, "127.0.0.1", 0; listenany=true, verbose=-1)
         try
             tasks = [@async HTTP.get("http://127.0.0.1:$(HTTP.port(server))$target") for target in targets]

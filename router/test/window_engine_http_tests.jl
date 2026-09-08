@@ -3,7 +3,7 @@
     handler = make_handler(graph)
     server = HTTP.serve!(handler, "127.0.0.1", 0; listenany=true, verbose=-1)
     try
-        for origin in DEMO_CELLS[[1, 2, 7]], encoding in ("string", "split"), metric in ("time", "distance_time_quantile")
+        for origin in DEMO_CELLS[[1, 2, 7]], encoding in ("string", "split"), metric in ("time", "time_distance_quantile")
             target = "/reachable?index=$(H3.API.h3ToString(origin))&departure_h=0&budget_h=$(200/3600)&window_h=$(129/3600)&step_h=$(1/3600)&encoding=$encoding&metric=$metric&max_walk_h=0"
             response = HTTP.get("http://127.0.0.1:$(HTTP.port(server))$target")
             expected = route_window(graph, origin, 0, 200_000, 129_000; step_ms=1000)

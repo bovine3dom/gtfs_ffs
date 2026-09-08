@@ -22,7 +22,7 @@ loaded resolution. Unknown, duplicate and malformed parameters are rejected.
 | `encoding` | `split` or `string`, independent of input representation | `split` |
 | `distance_mode` | `itinerary` or `straight_line` | `itinerary` |
 | `window_mode` | One of the six modes below | `mean_intersection` |
-| `metric` | `time` or `distance_time_quantile` | `time` |
+| `metric` | `time` or `time_distance_quantile` | `time` |
 
 Times are finite Float64 hours, accepting decimal and scientific notation. They
 round once to integer milliseconds, ties to even. Negative values (including
@@ -89,15 +89,16 @@ Counts describe the entire window. Distance values remain kilometres.
 Straight-line kilometres are independent of departure samples. Point queries ignore
 `window_mode` with either metric and omit all window-only columns.
 
-For `distance_time_quantile`, rows with non-finite time or distance are removed,
-then distance rank minus time rank becomes `value`. Ranks use upper ECDF ties,
+For `time_distance_quantile`, rows with non-finite time or distance are removed,
+then `time_quantile - distance_quantile` becomes `value`. Higher scores mean slower travel relative to itinerary or straight-line distance. Ranks use upper ECDF ties,
 normalized so the minimum is zero and the maximum one; constant sets rank zero.
 Extra columns are `distance_quantile` and `time_quantile`. Window coverage filtering
 happens **before** ranking. Itinerary quantiles require an input `distance_km` column.
-`reachable_union` with an active window (both width and step positive) rejects `distance_time_quantile` with HTTP 400;
+`reachable_union` with an active window (both width and step positive) rejects `time_distance_quantile` with HTTP 400;
 other modes rank their selected elapsed statistic and associated distance. Union modes
 retain partial coverage except for the non-finite time/distance filter above.
 Rank differences are dimensionless, not hours; use an appropriate frontend title.
+The former `distance_time_quantile` name is rejected with HTTP 400, including point queries; there is no alias.
 
 The exposed `X-Router-*` headers describe metric, distance mode/meaning, window mode,
 walking limit and engine diagnostics. `X-Router-Backend` is `reference` for

@@ -43,7 +43,7 @@ using HTTP
         end
         if distances
             handler = make_handler(graph)
-            for metric in ("time", "distance_time_quantile"), origin in (a, offgraph, remote)
+            for metric in ("time", "time_distance_quantile"), origin in (a, offgraph, remote)
                 query = "/reachable?index=$(string(origin; base=16))&departure_h=0&budget_h=168&window_h=24&step_h=0.25&metric=$metric"
                 actual = handler(HTTP.Request("GET", query))
                 expected = route_window_walking(graph, origin, 0, 7DAY, DAY; step_ms=900_000, walking_index=bare)

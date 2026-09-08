@@ -39,7 +39,7 @@ function main(args)
     open("/tmp/opencode/walking-output-baseline-profile.txt", "w") do io
         Profile.print(io; format=:flat, sortedby=:count, mincount=10, C=true)
     end
-    for metric in ("time", "distance_time_quantile")
+    for metric in ("time", "time_distance_quantile")
         body, _ = Historical.measure(() -> Old.window_arrow(graph, expected, origin, "split"; metric), "baseline serialization $metric")
         println("PAYLOAD metric=$metric bytes=$(length(body))")
     end
@@ -67,7 +67,7 @@ function compare(old_graph, old_index, origin)
         for workers in (4, 8)
             result, _ = Historical.measure(() -> R.route_window_walking_cached(graph, origin, 0, budget, window;
                 step_ms=step, walking_index=index, workers), "$label new$workers"; expected=baseline)
-            for metric in ("time", "distance_time_quantile")
+            for metric in ("time", "time_distance_quantile")
                 body, _ = Historical.measure(() -> R.window_arrow(graph, result, origin, "split"; metric), "$label new$workers serialization $metric")
                 @assert body == Old.window_arrow(old_graph, baseline, origin, "split"; metric)
             end

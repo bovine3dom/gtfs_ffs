@@ -109,7 +109,7 @@ end
     socket_test(handler) do url, http
         socket_open(url) do ws
             id = 0
-            for distance in ("itinerary", "straight_line"), encoding in ("string", "split"), metric in ("time", "distance_time_quantile")
+            for distance in ("itinerary", "straight_line"), encoding in ("string", "split"), metric in ("time", "time_distance_quantile")
                 path = "/reachable?index=$(string(DEMO_ORIGIN; base=16))&departure_h=0&budget_h=1&window_h=2&step_h=1&max_walk_h=0&window_mode=diff_intersection&distance_mode=$distance&encoding=$encoding&metric=$metric"
                 response = HTTP.get(http * path)
                 id += 1
@@ -133,7 +133,7 @@ end
                 else
                     @test table.time_quantile[order] == [0, 1, 2/3, 1/3]
                     @test table.distance_quantile[order] == Reachability.normalized_ranks(km)
-                    @test table.value == table.distance_quantile - table.time_quantile
+                    @test table.value == table.time_quantile - table.distance_quantile
                 end
             end
         end

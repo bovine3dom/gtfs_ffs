@@ -135,7 +135,7 @@ end
     handler = make_handler(graph)
     base = "/reachable?index=$(string(DEMO_ORIGIN; base=16))&departure_h=0&budget_h=$(60/3_600_000)"
     window = "&window_h=$(61/3_600_000)&step_h=$(30/3_600_000)"
-    for encoding in ("string", "split"), metric in ("time", "distance_time_quantile"),
+    for encoding in ("string", "split"), metric in ("time", "time_distance_quantile"),
             distance_mode in ("itinerary", "straight_line"), walk in (0, 1)
         path = "$base$window&encoding=$encoding&metric=$metric&distance_mode=$distance_mode&max_walk_h=$walk"
         default = handler(HTTP.Request("GET", path))
@@ -156,7 +156,7 @@ end
         else
             @test table.time_quantile == Reachability.normalized_ranks(table.elapsed_h)
             @test table.distance_quantile == Reachability.normalized_ranks(table.distance_km)
-            @test table.value == table.distance_quantile - table.time_quantile
+            @test table.value == table.time_quantile - table.distance_quantile
         end
     end
     for flag in ("unknown", "", "min_union&window_mode=min_union", "MIN_UNION", "min_union&budget_s=1",
@@ -168,17 +168,17 @@ end
     end
     legacy = make_handler(pack_graph(window_table([(1, 2, 0, 0, 0.0)]; distances=false)))
     for mode in ("mean_intersection", "min_union", "max_intersection", "diff_union", "diff_intersection")
-        path = "$base$window&window_mode=$mode&max_walk_h=0&metric=distance_time_quantile"
+        path = "$base$window&window_mode=$mode&max_walk_h=0&metric=time_distance_quantile"
         @test legacy(HTTP.Request("GET", path)).status == 400
         @test legacy(HTTP.Request("GET", "$path&distance_mode=straight_line")).status == 200
     end
     for target in (handler, legacy), distance in ("itinerary", "straight_line")
-        response = target(HTTP.Request("GET", "$base$window&window_mode=reachable_union&metric=distance_time_quantile&distance_mode=$distance"))
+        response = target(HTTP.Request("GET", "$base$window&window_mode=reachable_union&metric=time_distance_quantile&distance_mode=$distance"))
         @test response.status == 400
-        @test occursin("reachable_union is incompatible with distance_time_quantile", String(response.body))
+        @test occursin("reachable_union is incompatible with time_distance_quantile", String(response.body))
     end
     for mode in ("reachable_union", "diff_intersection", "unknown", "")
-        path = "$base&window_h=1&step_h=0&window_mode=$mode&metric=distance_time_quantile"
+        path = "$base&window_h=1&step_h=0&window_mode=$mode&metric=time_distance_quantile"
         @test legacy(HTTP.Request("GET", path)).status == 400
         @test legacy(HTTP.Request("GET", "$path&distance_mode=straight_line")).status == 200
     end
@@ -206,13 +206,13 @@ end
             id = 5
             for origin in (DEMO_ORIGIN, coarse_cells[1], DEMO_CELLS[7]),
                     mode in ("min_union", "mean_intersection", "max_intersection", "diff_union", "diff_intersection", "reachable_union"), encoding in ("string", "split"),
-                    metric in ("time", "distance_time_quantile"), distance in ("itinerary", "straight_line"), walk in (0, 1)
+                    metric in ("time", "time_distance_quantile"), distance in ("itinerary", "straight_line"), walk in (0, 1)
                 id += 1
                 index = "index_lower=$(origin % UInt32)&index_upper=$((origin >> 32) % UInt32)"
                 path = "/reachable?$index&departure_h=0&budget_h=$(60/3_600_000)$window&max_walk_h=$walk&window_mode=$mode&encoding=$encoding&metric=$metric&distance_mode=$distance"
                 socket_query(ws, id, path)
                 reply = socket_receive(ws)
-                if mode == "reachable_union" && metric == "distance_time_quantile"
+                if mode == "reachable_union" && metric == "time_distance_quantile"
                     @test JSON.parse(reply)["id"] == id
                     @test JSON.parse(reply)["type"] == "error"
                     @test (origin == coarse_cells[1] ? coarse_handler : handler)(HTTP.Request("GET", path)).status == 400
@@ -224,9 +224,10 @@ end
                 table = Arrow.Table(expected.body)
                 if mode == "reachable_union"
                     @test table.value == table.reachable_fraction == table.reachable_samples ./ table.sample_count
-                elseif metric == "distance_time_quantile"
+                elseif metric == "time_distance_quantile"
                     @test table.time_quantile == Reachability.normalized_ranks(table.elapsed_h)
                     @test table.distance_quantile == Reachability.normalized_ranks(table.distance_km)
+                    @test table.value == table.time_quantile - table.distance_quantile
                 end
                 mode in ("mean_intersection", "max_intersection", "diff_intersection") && @test all(table.reachable_samples .== table.sample_count)
             end
@@ -236,7 +237,7 @@ end
                 "window_h=0e0&step_h=0.0", "window_h=1193&step_h=0")
             modes = ("mean_intersection", "min_union", "max_intersection", "diff_union", "diff_intersection", "reachable_union", "unknown", "")
             id = 0xf0000000
-            for encoding in ("string", "split"), metric in ("time", "distance_time_quantile"),
+            for encoding in ("string", "split"), metric in ("time", "time_distance_quantile"),
                     distance in ("itinerary", "straight_line"), walk in (0, 1)
                 for (i, mode) in enumerate(modes)
                     origin = isodd(i) ? DEMO_ORIGIN : coarse_cells[1]

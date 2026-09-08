@@ -26,6 +26,10 @@ julia --threads=8 --project=. serve.jl --demo
 `--demo` cannot be combined with files. `ROUTER_HOST` and `ROUTER_PORT` default to
 `127.0.0.1` and `1988`. Walking preparation and window routing use Julia's available
 default-pool workers. Graphs and walking indexes stay in memory.
+Before opening the public listener, startup warms routing, Arrow, HTTP and WebSocket
+paths on a tiny synthetic graph, once for all resolutions. Its temporary loopback
+listener is closed afterwards. This does not query the loaded datasets or cache
+their results; startup logs report the warmup duration.
 
 ## Input
 
@@ -73,8 +77,8 @@ curl --fail --show-error 'http://127.0.0.1:1988/reachable?index=85075dd7fffffff&
 # Best elapsed time across a two-hour window, sampled every 15 minutes
 curl --fail --show-error 'http://127.0.0.1:1988/reachable?index=85075dd7fffffff&departure_h=8&budget_h=3&window_h=2&step_h=0.25&max_walk_h=0.5&window_mode=min_union' -o window.arrow
 
-# Distance rank minus time rank, using straight-line kilometres
-curl --fail --show-error 'http://127.0.0.1:1988/reachable?index=85075dd7fffffff&departure_h=8&budget_h=3&distance_mode=straight_line&metric=distance_time_quantile' -o ranks.arrow
+# Time rank minus distance rank, using straight-line kilometres
+curl --fail --show-error 'http://127.0.0.1:1988/reachable?index=85075dd7fffffff&departure_h=8&budget_h=3&distance_mode=straight_line&metric=time_distance_quantile' -o ranks.arrow
 ```
 
 | `window_mode` | Included cells | Time statistic / displayed value |
@@ -93,7 +97,7 @@ is the default; itinerary quantiles require an input `distance_km` column.
 HTTP `/reachable` and WebSocket `/query` share the [query contract](docs/api.md).
 Arrow results contain `value`, `elapsed_h` and split H3 indices; use
 `encoding=string` for hexadecimal `index` instead. Time values are hours;
-`reachable_union` values are fractions, and `distance_time_quantile` values are
+`reachable_union` values are fractions, and `time_distance_quantile` values are
 dimensionless rank differences. `window_h=0` (default) or `step_h=0` selects a single departure without averaging; `window_mode` is ignored, even unknown or empty values.
 
 [H3-MON](https://github.com/bovine3dom/H3-MON) can display these responses directly.

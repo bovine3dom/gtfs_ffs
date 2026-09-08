@@ -55,7 +55,7 @@ socket_id(bytes) = foldl((a, b) -> (a << 8) | UInt32(b), bytes[1:4]; init=UInt32
         end
         socket_open(url; headers=["Origin" => "http://localhost:8000"]) do ws
             id = UInt32(0xfedcba98)
-            for encoding in ("split", "string"), metric in ("time", "distance_time_quantile"),
+            for encoding in ("split", "string"), metric in ("time", "time_distance_quantile"),
                     mode in ("itinerary", "straight_line"), walk in (0, 3600), window in (0, 120),
                     cell in (DEMO_ORIGIN, DEMO_CELLS[7])
                 path = "/reachable?index=$(H3.API.h3ToString(cell))&departure_h=8&budget_h=1&encoding=$encoding&metric=$metric&distance_mode=$mode&max_walk_h=$(walk / 3600)&window_h=$(window / 3600)"
@@ -68,9 +68,44 @@ socket_id(bytes) = foldl((a, b) -> (a << 8) | UInt32(b), bytes[1:4]; init=UInt32
                 table = Arrow.Table(bytes[5:end])
                 @test :value in propertynames(table)
                 @test eltype(table.elapsed_h) == Float64
+                metric == "time_distance_quantile" && @test table.value == table.time_quantile - table.distance_quantile
                 @test all(!endswith(string(f), "_ms") for f in propertynames(table))
                 window == 0 || @test all(==(1.0), table.reachable_fraction)
                 id += 1
+            end
+        end
+    end
+end
+
+@testset "WebSocket rank sign and removed metric" begin
+    graph = pack_graph(distance_table([(1, 2, 0, 30, 10.0), (1, 2, 60, 0, 1.0),
+                                      (1, 3, 0, 40, 2.0), (1, 3, 60, 20, 2.0)]))
+    socket_test(make_handler(graph)) do url, http
+        socket_open(url) do ws
+            id = 0
+            for encoding in ("string", "split"), window in ("window_h=0&window_mode=unknown", "window_h=1&step_h=0&window_mode=unknown", "window_h=$(61/3600)&step_h=$(60/3600)")
+                index = encoding == "string" ? "index=$(string(DEMO_ORIGIN; base=16))" :
+                    "index_lower=$(DEMO_ORIGIN % UInt32)&index_upper=$((DEMO_ORIGIN >> 32) % UInt32)"
+                path = "/reachable?$index&departure_h=0&budget_h=$(100/3600)&max_walk_h=0&encoding=$encoding&$window"
+                for metric in ("time_distance_quantile", "distance_time_quantile")
+                    socket_query(ws, id += 1, "$path&metric=$metric")
+                    reply = socket_receive(ws)
+                    response = HTTP.get("$http$path&metric=$metric"; status_exception=false)
+                    if metric == "distance_time_quantile"
+                        @test response.status == 400
+                        @test JSON.parse(reply)["type"] == "error"
+                        @test JSON.parse(reply)["id"] == id
+                    else
+                        @test response.status == 200
+                        @test socket_id(reply) == id
+                        @test reply[5:end] == response.body
+                        table = Arrow.Table(reply[5:end])
+                        cells = encoding == "string" ? parse.(UInt64, table.index; base=16) : UInt64.(table.index_lower) .| (UInt64.(table.index_upper) .<< 32)
+                        at = [findfirst(==(h), cells) for h in DEMO_CELLS[1:3]]
+                        @test table.value[at] == [0, -0.5, 0.5]
+                        @test table.value == table.time_quantile - table.distance_quantile
+                    end
+                end
             end
         end
     end

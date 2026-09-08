@@ -323,7 +323,7 @@ function benchmark(graph, index, old_graph, old_index, origin, budget, window, s
     short && probe_f()
     probe(probe_f, "$case reference", expected)
     short && sample_profile(reference_f, "$case-reference", reference_s, output)
-    body, _ = measure(() -> R.window_arrow(graph, reference, origin, "split"; metric="distance_time_quantile"), "$case arrow_ranks")
+    body, _ = measure(() -> R.window_arrow(graph, reference, origin, "split"; metric="time_distance_quantile"), "$case arrow_ranks")
     println("PAYLOAD $case bytes=$(length(body))")
     return times
 end
