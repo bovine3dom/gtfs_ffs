@@ -2,16 +2,20 @@ using Printf, Statistics
 include("src/Reachability.jl")
 using .Reachability
 import H3
-if "--gpu" in ARGS
+if "--backend=cuda" in ARGS
+    import CUDA
+elseif "--gpu" in ARGS
     import oneAPI
 end
 
 timed_call(f) = @timed f()
 
 function main(args)
-    gpu = "--gpu" in args
-    args = filter(!=("--gpu"), args)
-    1 <= length(args) <= 4 || error("usage: julia --project=router router/benchmark-window-engines.jl <input.arrow> [origin_hex] [window_h=24] [repetitions=3] [--gpu]")
+    cuda = "--backend=cuda" in args
+    cuda && "--gpu" in args && error("select --backend=cuda OR --gpu (oneAPI)")
+    gpu = cuda || "--gpu" in args
+    args = filter(a -> !(a in ("--gpu", "--backend=cuda")), args)
+    1 <= length(args) <= 4 || error("usage: julia --project=router router/benchmark-window-engines.jl <input.arrow> [origin_hex] [window_h=24] [repetitions=3] [--backend=cuda | --gpu]")
     graph = @time pack_graph(args[1]; skip_invalid_durations=true)
     origin = length(args) >= 2 ? parse(UInt64, args[2]; base=16) : graph.h3[argmax(diff(graph.out_ptr))]
     window = Reachability._hours_ms(length(args) >= 3 ? args[3] : "24", "window_h", 24; positive=true)
@@ -23,9 +27,10 @@ function main(args)
     check_every = parse(Int, get(ENV, "ROUTER_BENCH_CHECK_EVERY", "4"))
     gpu_routers = []
     if gpu
-        oneAPI.functional() || error("oneAPI requested but unavailable")
-        oneAPI.versioninfo()
-        parent = KernelRouter(graph, oneAPI.oneAPIBackend())
+        device = cuda ? CUDA : oneAPI
+        device.functional() || error("requested GPU backend is unavailable")
+        device.versioninfo()
+        parent = KernelRouter(graph, cuda ? CUDA.CUDABackend() : oneAPI.oneAPIBackend())
         gpu_routers = [WindowKernelRouter(parent; batch_size=b, check_every) for b in batches]
     end
     @info "Window engine comparison" origin=H3.API.h3ToString(origin) window_h=window/3_600_000 resolution=graph.resolution nodes=length(graph.h3) distance_available=!isnothing(graph.distance_km)

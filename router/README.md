@@ -638,6 +638,19 @@ Nine real-network queries across three origins and three horizons matched Dijkst
 on both KA CPU and oneAPI. These are correctness checks, not performance benchmarks.
 
 **CPU/GPU Benchmarks**
+For NVIDIA, the window benchmark accepts `--backend=cuda`; `--gpu` retains Intel
+oneAPI. CUDA is an optional benchmark dependency: install it on the NVIDIA machine.
+For a GTX 1080 Ti, select CUDA 12.9 (CUDA 13 cannot target Pascal):
+
+```sh
+julia --project=router -e 'using Pkg; Pkg.add("CUDA")'
+julia --project=router -e 'using CUDA; CUDA.set_runtime_version!(v"12.9")'
+env ROUTER_BENCH_WORKERS=1,8 julia --project=router --threads=8 router/benchmark-window-engines.jl data/rail_and_friends_res6.arrow --backend=cuda
+```
+
+This compares warmed CPU and GPU transit-only windows, excluding graph loading and
+upload from query timing. Walking and server backend selection are unchanged.
+
 See [`benchmark-results.md`](benchmark-results.md) for the 2026-09-06 measurements.
 Packed CPU Dijkstra was faster than the current one-query GPU router in every tested
 case by median, including Arrow output. For interactive use, select
