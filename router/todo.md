@@ -1,5 +1,13 @@
 # Backend TODO
 
+## Runtime Window Mode (2026-09-08)
+
+- [x] Add `window_mode=mean_intersection|min_union` to HTTP/WebSocket queries, preserving default mean/intersection Arrow output and accepting a validated no-op for point queries.
+- [x] Propagate minimum aggregation through origin grouping, CPU catch-up, batched kernel host aggregation, walking reference, prepared integer output and fallback dictionaries. Keep capped-sum diagnostics and actual full-window coverage.
+- [x] Select itinerary kilometres from the minimum-elapsed sample, with chronological ties and unknown-distance preservation. Keep straight-line arrival-only routing without canonical replay.
+- [x] Verify independent point-query minima, grouped latest-departure minima, midnight/full-day windows, zero cutoffs, partial coverage, distance ties, overflow behavior, walking fallback, runtime HTTP/WebSocket selection, resolution switching and configured backend parity. Full one/four-thread suites each pass 90,013 checks; hardware GPU and full-size performance were not tested.
+- [x] Document API URLs, duration statistics, final-population ranks and callback keywords. Backend-only: no frontend, dataset, benchmark or live-server changes.
+
 ## All-Departure Coverage And Hours (2026-09-07)
 
 - [x] Exclude partial cells before transport encoding and quantile ranks, including geographic walking egress and both distance modes. Keep raw engine diagnostics unchanged.

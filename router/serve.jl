@@ -30,10 +30,10 @@ function configured_handler(graph; request_lock=ReentrantLock())
     workers = Threads.nthreads(:default)
     chunk > 0 || error("ROUTER_WINDOW_CHUNK must be positive")
     window_route = if window_backend == "origin"
-        (h, t, b, w, s) -> route_window(graph, h, t, b, w; step_ms=s)
+        (h, t, b, w, s; window_mode=:mean_intersection) -> route_window(graph, h, t, b, w; step_ms=s, window_mode)
     elseif window_backend == "catchup"
         1 <= chunk <= 256 || error("ROUTER_WINDOW_CHUNK must be between 1 and 256")
-        (h, t, b, w, s) -> route_window_cached(graph, h, t, b, w; step_ms=s, chunk_size=chunk, workers=workers)
+        (h, t, b, w, s; window_mode=:mean_intersection) -> route_window_cached(graph, h, t, b, w; step_ms=s, chunk_size=chunk, workers=workers, window_mode)
     elseif window_backend in ("oneapi", "ka_cpu")
         if window_backend == "oneapi"
             oneAPI.functional() || error("oneAPI window backend requested but unavailable")
@@ -46,25 +46,25 @@ function configured_handler(graph; request_lock=ReentrantLock())
         batch = parse(Int, get(ENV, "ROUTER_WINDOW_BATCH", "32"))
         checks = parse(Int, get(ENV, "ROUTER_WINDOW_CHECK_EVERY", "4"))
         window_workspace = WindowKernelRouter(graph_workspace; batch_size=batch, check_every=checks)
-        (h, t, b, w, s) -> route_window_kernel!(window_workspace, h, t, b, w; step_ms=s)
+        (h, t, b, w, s; window_mode=:mean_intersection) -> route_window_kernel!(window_workspace, h, t, b, w; step_ms=s, window_mode)
     else
         error("ROUTER_WINDOW_BACKEND must be origin, catchup, oneapi, or ka_cpu")
     end
 
-    walking_window_route = (h, t, b, w, s, m, index) -> if window_backend == "origin"
-        route_window_walking(graph, h, t, b, w; step_ms=s, max_walk_ms=m, walking_index=index)
+    walking_window_route = (h, t, b, w, s, m, index; window_mode=:mean_intersection) -> if window_backend == "origin"
+        route_window_walking(graph, h, t, b, w; step_ms=s, max_walk_ms=m, walking_index=index, window_mode)
     else
         route_window_walking_cached(graph, h, t, b, w; step_ms=s, max_walk_ms=m,
-                                    walking_index=index, chunk_size=chunk, workers)
+                                    walking_index=index, chunk_size=chunk, workers, window_mode)
     end
 
-    straight_window_route = (h, t, b, w, s, m, index) -> if m == 0
-        route_window_cached(graph, h, t, b, w; step_ms=s, chunk_size=chunk, workers, distance_mode=:straight_line)
+    straight_window_route = (h, t, b, w, s, m, index; window_mode=:mean_intersection) -> if m == 0
+        route_window_cached(graph, h, t, b, w; step_ms=s, chunk_size=chunk, workers, distance_mode=:straight_line, window_mode)
     elseif window_backend == "origin"
-        route_window_walking(graph, h, t, b, w; step_ms=s, max_walk_ms=m, walking_index=index, distance_mode=:straight_line)
+        route_window_walking(graph, h, t, b, w; step_ms=s, max_walk_ms=m, walking_index=index, distance_mode=:straight_line, window_mode)
     else
         route_window_walking_cached(graph, h, t, b, w; step_ms=s, max_walk_ms=m,
-            walking_index=index, chunk_size=chunk, workers, distance_mode=:straight_line)
+            walking_index=index, chunk_size=chunk, workers, distance_mode=:straight_line, window_mode)
     end
 
     @info "Preparing graph" backend=backend_name resolution=graph.resolution distance_available=!isnothing(graph.distance_km) nodes=length(graph.h3) edges=length(graph.edge_to) profiles=length(graph.departure)

@@ -262,6 +262,12 @@ All query times are finite floating-point **hours**, accepting decimals and scie
 | `step_h` | `0 < h <= 24`; explicit use requires a positive window | `1/60` hour |
 | `max_walk_h` | `0..168`, per walking hop; zero disables walking | `1` hour |
 
+`window_mode=mean_intersection|min_union` selects window aggregation at runtime;
+the default is `mean_intersection`. It is validated but has no operational effect
+when `window_h` is zero or omitted. Unknown values and duplicate parameters return
+HTTP 400 or the WebSocket's safe query error. `X-Router-Window-Mode` reports the
+selected mode and is exposed to browser clients. No frontend change is required.
+
 This is a breaking rename: `departure=HH:MM:SS`, `budget_s`, `window_s`, `step_s`
 and `max_walk_s` are rejected, not interpreted as aliases. Values are parsed as
 Float64, range-checked, then rounded once to integer milliseconds using Julia
@@ -403,8 +409,9 @@ explicitly use `index = prepare_walking(WalkingIndex(graph); max_walk_ms=3_600_0
 and pass `walking_index=index` to reuse prepared adjacency across point/window calls.
 These low-level engine APIs use integer milliseconds for all time arguments,
 including `max_walk_ms` (default `3_600_000`, formerly `max_walk_s=3600`).
-Raw window diagnostics retain partial cells, capped `elapsed_ms` and conditional
-`reachable_elapsed_ms`; strict coverage filtering and hour conversion occur at export.
+Raw window diagnostics retain partial cells. By default `elapsed_ms` is capped mean
+time and `reachable_elapsed_ms` is conditional mean time; in `min_union` both contain
+minimum successful elapsed time. Coverage filtering and hour conversion occur at export.
 Treat indices and their arrays as read-only and rebuild after vertex/resolution changes.
 Preparation returns a new index without modifying the original. The HTTP service always
 prepares the fixed default radius; larger requests never grow the resident adjacency.
@@ -419,7 +426,7 @@ See [indexed output results](walking-output-results.md) for the actual all-modes
 96-sample, seven-day workload, phase profile and exact same-graph comparisons.
 
 **Departure Windows**
-Add `window_h` to average departures in `[departure_h, departure_h + window_h)`.
+Add `window_h` to sample departures in `[departure_h, departure_h + window_h)`.
 The window may cross midnight and lasts at most 24 hours. `step_h` defaults to
 1/60 hour and explicitly specifying it requires a positive window. `window_h=0`
 or omission retains single-departure behavior. A step longer than the window produces
@@ -436,23 +443,45 @@ Window output retains `value` in hours for `metric=time` and adds these statisti
 
 | Column | Meaning |
 | --- | --- |
-| `elapsed_h Float64` | Mean elapsed hours across all sampled departures |
-| `reachable_elapsed_h Float64` | Successful-departure mean hours; equals `elapsed_h` for returned cells |
-| `distance_km Float64` | Itinerary: mean selected-route length over successful departures. Straight-line: origin-to-destination H3-centre distance |
-| `reachable_fraction Float64` | Successful samples divided by all samples; always `1.0` |
+| `elapsed_h Float64` | `mean_intersection`: mean elapsed hours; `min_union`: minimum successful elapsed hours |
+| `reachable_elapsed_h Float64` | Selected successful-duration statistic (mean or minimum); equals `elapsed_h` for returned cells |
+| `distance_km Float64` | Itinerary: mean selected-route length, or length of the minimum-time sample. Straight-line: origin-to-destination H3-centre distance |
+| `reachable_fraction Float64` | Successful samples divided by all samples; `1.0` in mean mode, possibly less in minimum mode |
 | `reachable_samples UInt32` | Number of departures reaching the cell within budget |
 | `sample_count UInt32` | Total sampled departures |
 
-The response contains only cells reachable from **every sampled departure** within
+With the default `window_mode=mean_intersection`, the response contains only cells reachable from **every sampled departure** within
 that departure's budget, plus the origin. Partial cells are excluded **before**
 quantile ranks are computed, for both distance modes and geographic walking egress.
 Counts are integer counts, not time units. The origin has
 zero time/distance and full coverage. Unknown itinerary distance is `NaN`, not zero.
 A window distance mean is `NaN` if any successful sample has unknown kilometres;
-unknown samples are not excluded from that mean. With walking disabled,
+unknown samples are not excluded from that mean.
 In transit-only itinerary mode, `X-Router-Distance` reports `unavailable` or `connection-sum-km`.
-The internal `route_window` result includes every graph node and charges the budget
-for failed samples; HTTP and WebSocket output exclude any cell with a failed sample.
+Opt in to `window_mode=min_union` to return cells reachable from **at least one
+sampled departure**, using the minimum of `arrival - sampled_departure`, not the
+earliest absolute arrival. Each sample keeps its own budget; unreachable samples
+never contribute a penalty to the minimum. Coverage counts still describe the
+entire window, not just the winning sample. In itinerary distance mode, kilometres
+come from the sample achieving minimum elapsed time. Equal elapsed times select
+the chronologically earliest sample, not the shortest distance. An unknown winning
+distance stays `NaN` even if a later tied sample has known kilometres. Straight-line
+distance is unchanged and is computed once per final reachable destination without
+per-sample kilometre propagation or canonical replay.
+
+```text
+http://127.0.0.1:1988/reachable?index=85075dd7fffffff&departure_h=8&budget_h=1&window_h=1&step_h=0.25&max_walk_h=0&window_mode=min_union
+```
+
+All Julia window engines accept `window_mode=:mean_intersection` (default) or
+`:min_union`, also as strings, including origin grouping, CPU catch-up, walking
+reference/prepared/fallback paths and batched kernel host aggregation. The internal
+`route_window` result still includes every graph node. Its `elapsed_sum_ms` remains
+the legacy capped sum (failed samples charged the full budget) in both modes, purely
+as a diagnostic, not the basis of minimum output. Never-reached graph nodes have
+`Float64(INF)` minimum `elapsed_ms` and `NaN` `reachable_elapsed_ms`; transport omits
+them. Walking results contain only the reachable union. Mean mode's calculations
+and Arrow bodies are unchanged.
 
 Walking windows process chronological chunks backward, repairing both arrival and
 walking-eligible labels and caching selected transit connections. Fresh canonical km
@@ -509,6 +538,10 @@ Distance-bearing point queries still use CPU Dijkstra regardless of backend sele
 with all available default-pool threads. Its `walking_window_route(h, t, b, w, s, max_walk_ms,
 walking_index)` callback defaults to walking catch-up and receives the resident index.
 All callback time arguments, including the walking limit, are integer milliseconds.
+Window callbacks receive `window_mode=:min_union` as a keyword only for opt-in
+minimum queries and must pass it to their routing engine. Default queries retain
+the existing positional callback convention. Configured server callbacks support
+both modes; there is no mode-specific backend substitution.
 CPU `origin` and `catchup` windows retain `X-Router-Backend: reference`;
 `X-Router-Window-Strategy` distinguishes `origin`, `catchup`, `gpu_batched`, and
 `ka_cpu_batched`. `X-Router-Searches` and `X-Router-Reused-Samples` retain their
@@ -573,8 +606,9 @@ distances. `distance_mode=straight_line` requires no input kilometres.
 /reachable?index=851fb467fffffff&departure_h=0&window_h=24&step_h=0.016666666666666666&budget_h=3&metric=distance_time_quantile
 ```
 
-For windows, time aggregation and strict all-departures filtering happen first.
-The router ranks the selected `distance_km` and mean `elapsed_h`, then returns:
+For windows, the selected time aggregation and coverage filtering happen first:
+all-departures intersection for `mean_intersection`, reachable union for `min_union`.
+The router ranks the selected `distance_km` and mean or minimum `elapsed_h`, then returns:
 
 ```text
 value = distance_quantile - time_quantile
@@ -585,7 +619,8 @@ This is not the average of per-departure rank differences. For returned cells,
 distance and time, including the origin, not just cells visible in the viewport.
 Ties share a rank; the empirical-CDF ranks are rescaled to 0..1 as in the old plotting
 helper. Constant columns and singleton results receive rank zero. No rounding is
-applied to the input means before ranking.
+applied to the input durations before ranking. Missing-itinerary-data validation is
+unchanged; straight-line distance remains available without input kilometres.
 
 The result retains the underlying time, distance and coverage columns and adds
 `distance_quantile` and `time_quantile`. `value` is now dimensionless, in -1..1:

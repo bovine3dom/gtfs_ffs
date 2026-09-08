@@ -41,8 +41,15 @@ function _window_plan(graph::Graph, origin::UInt64, departure_ms::Integer,
     return (; source, ready, budget=UInt32(budget), step, samples=Int(samples), cutoff, groups)
 end
 
-function _window_accumulator(graph, plan, track_distance=true)
+function _window_mode(mode)
+    mode isa Union{Symbol,AbstractString} && mode in (:mean_intersection, :min_union, "mean_intersection", "min_union") ||
+        throw(ArgumentError("window_mode must be mean_intersection or min_union"))
+    return Symbol(mode)
+end
+
+function _window_accumulator(graph, plan, track_distance=true; window_mode=:mean_intersection)
     return (elapsed_sum_ms=fill(UInt64(plan.samples) * UInt64(plan.budget), length(graph.h3)),
+            elapsed_min_ms=_window_mode(window_mode) == :min_union ? fill(INF, length(graph.h3)) : nothing,
             reachable_samples=zeros(UInt32, length(graph.h3)),
             distance_km=track_distance ? fill(NaN, length(graph.h3)) : nothing)
 end
@@ -62,7 +69,14 @@ function _accumulate_window!(acc, plan, group, arrivals, distances)
         acc.elapsed_sum_ms[vertex] -= n * UInt64(plan.budget) + sum_ready - n * UInt64(arrival)
         previous_count = acc.reachable_samples[vertex]
         acc.reachable_samples[vertex] += UInt32(reached)
-        if !isnothing(distances)
+        if !isnothing(acc.elapsed_min_ms)
+            # Shared absolute arrival: the group's latest departure has minimum elapsed time.
+            elapsed = UInt32(Int64(arrival) - (first_time + (count - 1) * plan.step))
+            if elapsed < acc.elapsed_min_ms[vertex]
+                acc.elapsed_min_ms[vertex] = elapsed
+                isnothing(distances) || (acc.distance_km[vertex] = distances[vertex])
+            end
+        elseif !isnothing(distances)
             acc.distance_km[vertex] = previous_count == 0 ? distances[vertex] :
                 acc.distance_km[vertex] + (distances[vertex] - acc.distance_km[vertex]) * (reached / acc.reachable_samples[vertex])
         end
@@ -73,16 +87,17 @@ end
 function _finish_window(acc, plan; searches::Int, origin=nothing, cells=nothing, kwargs...)
     if plan.source != 0
         acc.elapsed_sum_ms[plan.source] = 0
+        isnothing(acc.elapsed_min_ms) || (acc.elapsed_min_ms[plan.source] = 0)
         acc.reachable_samples[plan.source] = UInt32(plan.samples)
         isnothing(acc.distance_km) || (acc.distance_km[plan.source] = 0.0)
     end
-    elapsed_ms = Float64.(acc.elapsed_sum_ms) ./ plan.samples
+    elapsed_ms = isnothing(acc.elapsed_min_ms) ? Float64.(acc.elapsed_sum_ms) ./ plan.samples : Float64.(acc.elapsed_min_ms)
     reachable_elapsed_ms = fill(NaN, length(elapsed_ms))
     for vertex in eachindex(acc.reachable_samples)
         reached = acc.reachable_samples[vertex]
         reached == 0 && continue
         conditional_sum = acc.elapsed_sum_ms[vertex] - UInt64(plan.samples - reached) * UInt64(plan.budget)
-        reachable_elapsed_ms[vertex] = conditional_sum / reached
+        reachable_elapsed_ms[vertex] = isnothing(acc.elapsed_min_ms) ? conditional_sum / reached : elapsed_ms[vertex]
     end
     distance_km = acc.distance_km
     if isnothing(distance_km)
@@ -98,10 +113,12 @@ end
 """Reference window routing with origin-only grouping and chronological aggregation."""
 function route_window(graph::Graph, origin::UInt64, departure_ms::Integer,
                       budget_ms::Integer, window_ms::Integer;
-                      step_ms::Integer=60_000, reuse::Bool=true)
+                      step_ms::Integer=60_000, reuse::Bool=true, window_mode=:mean_intersection,
+                      distance_mode="itinerary")
+    track = _distance_mode(distance_mode) == :itinerary
     plan = _window_plan(graph, origin, departure_ms, budget_ms, window_ms; step_ms, reuse)
-    acc = _window_accumulator(graph, plan)
-    distances = isnothing(graph.distance_km) ? nothing : Vector{Float64}(undef, length(graph.h3))
+    acc = _window_accumulator(graph, plan, track; window_mode)
+    distances = !track || isnothing(graph.distance_km) ? nothing : Vector{Float64}(undef, length(graph.h3))
     for group in plan.groups
         first, count = group
         ready = UInt32(Int64(plan.ready) + first * plan.step)
@@ -109,7 +126,7 @@ function route_window(graph::Graph, origin::UInt64, departure_ms::Integer,
         arrivals = _route_at(graph, plan.source, ready, cutoff, distances)
         _accumulate_window!(acc, plan, group, arrivals, distances)
     end
-    return _finish_window(acc, plan; searches=length(plan.groups))
+    return _finish_window(acc, plan; searches=length(plan.groups), origin, cells=graph.h3)
 end
 
 """Replay canonical Dijkstra discoveries using cached connections and final arrivals."""

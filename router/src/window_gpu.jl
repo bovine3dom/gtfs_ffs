@@ -99,19 +99,21 @@ WindowKernelRouter(graph::Graph, backend; kwargs...) =
 
 function route_window_kernel!(router::WindowKernelRouter, origin::UInt64,
                               departure_ms::Integer, budget_ms::Integer,
-                              window_ms::Integer; step_ms::Integer=60_000)
+                              window_ms::Integer; step_ms::Integer=60_000,
+                              window_mode=:mean_intersection, distance_mode="itinerary")
+    track = _distance_mode(distance_mode) == :itinerary
     parent = router.parent
     graph, backend = parent.graph, parent.backend
     started = time_ns()
     plan = _window_plan(graph, origin, departure_ms, budget_ms, window_ms; step_ms)
     planning_s = (time_ns() - started) / 1e9
-    acc = _window_accumulator(graph, plan)
+    acc = _window_accumulator(graph, plan, track; window_mode)
     groups = length(plan.groups)
     batches = rounds = 0
     device_s = download_s = host_replay_s = aggregation_s = 0.0
     b, v, e = router.batch_size, length(graph.h3), length(graph.edge_to)
     shift = ispow2(b) ? Int32(trailing_zeros(b)) : Int32(-1)
-    record = !isnothing(graph.distance_km)
+    record = track && !isnothing(graph.distance_km)
     labels = fill(INF, v)
     distances = record ? Vector{Float64}(undef, v) : nothing
     seen = record ? Vector{UInt32}(undef, v) : UInt32[]
@@ -192,7 +194,7 @@ function route_window_kernel!(router::WindowKernelRouter, origin::UInt64,
             end
         end
     end
-    return _finish_window(acc, plan; searches=groups, full_searches=groups,
+    return _finish_window(acc, plan; searches=groups, full_searches=groups, origin, cells=graph.h3,
         repair_searches=0, batches, rounds, planning_s, device_s, download_s, host_replay_s, aggregation_s,
         backend=backend isa KA.CPU ? "ka_cpu_batched" : "gpu_batched")
 end

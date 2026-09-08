@@ -8,7 +8,7 @@ function route_window_walking_cached(graph::Graph, origin::UInt64, departure_ms:
                                      walking_index::Union{Nothing,WalkingIndex}=nothing,
                                      chunk_size::Integer=64,
                                       workers::Integer=Threads.nthreads(:default),
-                                      distance_mode="itinerary")
+                                      distance_mode="itinerary", window_mode=:mean_intersection)
     chunk_size > 0 || throw(ArgumentError("chunk_size must be positive"))
     workers > 0 || throw(ArgumentError("workers must be positive"))
     plan = _walking_window_plan(graph, origin, departure_ms, budget_ms, window_ms;
@@ -21,9 +21,8 @@ function route_window_walking_cached(graph::Graph, origin::UInt64, departure_ms:
     output = _walking_output_plan(plan, origin)
     workspaces = [_walking_catchup_workspace(graph, plan, width, shared, output) for _ in 1:worker_count]
     outcomes = Vector{Any}(undef, worker_count)
-    acc = isnothing(output) ? (plan.track_distance ? Dict{UInt64,Tuple{UInt64,UInt32,Float64}}() :
-          Dict{UInt64,Tuple{UInt64,UInt32}}()) :
-          WalkingOutputAccumulator(output.cells, plan.samples, plan.budget, plan.track_distance)
+    acc = isnothing(output) ? _walking_window_accumulator(plan.track_distance, window_mode) :
+          WalkingOutputAccumulator(output.cells, plan.samples, plan.budget, plan.track_distance; window_mode)
     profile_lookups = routing_expansions = 0
     for wave in 1:worker_count:full_searches
         active = min(worker_count, full_searches - wave + 1)

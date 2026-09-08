@@ -91,22 +91,30 @@ function _walking_indexed_result!(point, out, ready, cutoff, limit, arrival, eli
     return point
 end
 
-struct WalkingOutputAccumulator{D}
+struct WalkingOutputAccumulator{D,M}
     cells::Vector{UInt64}
     total::Vector{UInt64}
     reached::Vector{UInt32}
     km::D
+    minimum::M
 end
-WalkingOutputAccumulator(cells, samples, budget, track_distance=true) = WalkingOutputAccumulator(cells,
+WalkingOutputAccumulator(cells, samples, budget, track_distance=true; window_mode=:mean_intersection) = WalkingOutputAccumulator(cells,
     fill(UInt64(samples) * UInt64(budget), length(cells)), zeros(UInt32, length(cells)),
-    track_distance ? Vector{Float64}(undef, length(cells)) : nothing)
+    track_distance ? Vector{Float64}(undef, length(cells)) : nothing,
+    _window_mode(window_mode) == :min_union ? fill(INF, length(cells)) : nothing)
 
 function _accumulate_walking!(acc::WalkingOutputAccumulator, point, ready, budget, samples)
     @inbounds for i in eachindex(point.ids)
         v = point.ids[i]
         acc.total[v] -= UInt64(budget - (point.arrival[i] - ready))
         reached = acc.reached[v] += UInt32(1)
-        if !isnothing(acc.km)
+        if !isnothing(acc.minimum)
+            elapsed = point.arrival[i] - ready
+            if elapsed < acc.minimum[v]
+                acc.minimum[v] = elapsed
+                isnothing(acc.km) || (acc.km[v] = point.distance_km[i])
+            end
+        elseif !isnothing(acc.km)
             acc.km[v] = reached == 1 ? point.distance_km[i] :
                 acc.km[v] + (point.distance_km[i] - acc.km[v]) * (1 / reached)
         end
@@ -117,8 +125,8 @@ function _finish_walking_window(acc::WalkingOutputAccumulator, samples; budget, 
     ids = sort!(findall(!iszero, acc.reached); by=i -> acc.cells[i])
     h3, elapsed_sum_ms, reachable_samples = acc.cells[ids], acc.total[ids], acc.reached[ids]
     distance_km = isnothing(acc.km) ? _od_distances(origin, h3) : acc.km[ids]
-    elapsed_ms = Float64.(elapsed_sum_ms) ./ samples
-    reachable_elapsed_ms = [(elapsed_sum_ms[i] - UInt64(samples - reachable_samples[i]) * UInt64(budget)) /
+    elapsed_ms = isnothing(acc.minimum) ? Float64.(elapsed_sum_ms) ./ samples : Float64.(acc.minimum[ids])
+    reachable_elapsed_ms = !isnothing(acc.minimum) ? copy(elapsed_ms) : [(elapsed_sum_ms[i] - UInt64(samples - reachable_samples[i]) * UInt64(budget)) /
                             reachable_samples[i] for i in eachindex(h3)]
     return (; h3, elapsed_ms, reachable_elapsed_ms, distance_km, reachable_samples,
             sample_count=UInt32(samples), elapsed_sum_ms, kwargs...)

@@ -6,12 +6,12 @@ function route_window_cached(graph::Graph, origin::UInt64, departure_ms::Integer
                              budget_ms::Integer, window_ms::Integer;
                              step_ms::Integer=60_000, chunk_size::Integer=64,
                              workers::Integer=Threads.nthreads(:default),
-                             distance_mode="itinerary")
+                             distance_mode="itinerary", window_mode=:mean_intersection)
     track = _distance_mode(distance_mode) == :itinerary
     1 <= chunk_size <= 256 || throw(ArgumentError("chunk_size must be between 1 and 256"))
     workers > 0 || throw(ArgumentError("workers must be positive"))
     plan = _window_plan(graph, origin, departure_ms, budget_ms, window_ms; step_ms)
-    acc = _window_accumulator(graph, plan, track)
+    acc = _window_accumulator(graph, plan, track; window_mode)
     groups = length(plan.groups)
     width = min(Int(chunk_size), groups)
     full_searches = cld(groups, Int(chunk_size))

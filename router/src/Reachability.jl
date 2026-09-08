@@ -287,7 +287,7 @@ end
 
 function parse_query(uri, graph)
     params = _query_params(uri)
-    allowed = ("index", "index_lower", "index_upper", "departure_h", "budget_h", "encoding", "window_h", "step_h", "metric", "max_walk_h", "distance_mode")
+    allowed = ("index", "index_lower", "index_upper", "departure_h", "budget_h", "encoding", "window_h", "step_h", "metric", "max_walk_h", "distance_mode", "window_mode")
     all(k -> k in allowed, keys(params)) || throw(ArgumentError("unknown query parameter"))
     origin = _query_origin(params)
     departure_ms = _hours_ms(get(params, "departure_h", ""), "departure_h", 24; clock=true)
@@ -298,6 +298,7 @@ function parse_query(uri, graph)
     metric = get(params, "metric", "time")
     metric in ("time", "distance_time_quantile") || throw(ArgumentError("metric must be time or distance_time_quantile"))
     distance_mode = _distance_mode(get(params, "distance_mode", "itinerary"))
+    window_mode = _window_mode(get(params, "window_mode", "mean_intersection"))
     metric == "distance_time_quantile" && distance_mode == :itinerary && isnothing(graph.distance_km) &&
         throw(ArgumentError("distance_time_quantile requires an input distance_km column"))
     ready, _ = query_times(graph, origin, departure_ms, budget_ms)
@@ -305,7 +306,7 @@ function parse_query(uri, graph)
     step_ms = _hours_ms(get(params, "step_h", 1 / 60), "step_h", 24; positive=true)
     haskey(params, "step_h") && window_ms == 0 && throw(ArgumentError("step_h requires a positive window_h"))
     cld(window_ms, step_ms) <= 86_400 || throw(ArgumentError("window must contain at most 86400 samples"))
-    return origin, ready, budget_ms, encoding, window_ms, step_ms, metric, max_walk_ms, distance_mode
+    return origin, ready, budget_ms, encoding, window_ms, step_ms, metric, max_walk_ms, distance_mode, window_mode
 end
 
 function normalized_ranks(values)
@@ -355,8 +356,8 @@ function arrow_result(graph, labels, origin, ready, encoding; distance_km=nothin
     return arrow_table(cells, table, encoding; metric)
 end
 
-function window_arrow(graph, result, origin, encoding; metric="time")
-    reached = findall(==(result.sample_count), result.reachable_samples)
+function window_arrow(graph, result, origin, encoding; metric="time", window_mode=:mean_intersection)
+    reached = findall(_window_mode(window_mode) == :min_union ? !iszero : ==(result.sample_count), result.reachable_samples)
     cells = (hasproperty(result, :h3) ? result.h3 : graph.h3)[reached]
     elapsed = result.elapsed_ms[reached]
     conditional = result.reachable_elapsed_ms[reached]
@@ -379,13 +380,13 @@ end
 
 """An in-process HTTP handler with a resident walking index and locked routing workspaces."""
 function make_handler(graph::Graph; route=(h, t, b) -> route_cpu(graph, h, t, b),
-                      window_route=(h, t, b, w, s) -> route_window_cached(graph, h, t, b, w; step_ms=s),
-                      walking_window_route=(h, t, b, w, s, m, index) -> route_window_walking_cached(
-                          graph, h, t, b, w; step_ms=s, max_walk_ms=m, walking_index=index),
-                      straight_window_route=(h, t, b, w, s, m, index) -> m > 0 ?
+                      window_route=((h, t, b, w, s; window_mode=:mean_intersection) -> route_window_cached(graph, h, t, b, w; step_ms=s, window_mode)),
+                      walking_window_route=((h, t, b, w, s, m, index; window_mode=:mean_intersection) -> route_window_walking_cached(
+                          graph, h, t, b, w; step_ms=s, max_walk_ms=m, walking_index=index, window_mode)),
+                      straight_window_route=((h, t, b, w, s, m, index; window_mode=:mean_intersection) -> m > 0 ?
                           route_window_walking_cached(graph, h, t, b, w; step_ms=s, max_walk_ms=m,
-                              walking_index=index, distance_mode=:straight_line) :
-                          route_window_cached(graph, h, t, b, w; step_ms=s, distance_mode=:straight_line),
+                              walking_index=index, distance_mode=:straight_line, window_mode) :
+                          route_window_cached(graph, h, t, b, w; step_ms=s, distance_mode=:straight_line, window_mode)),
                       request_lock=ReentrantLock())
     walking_index = prepare_walking(WalkingIndex(graph))
     return function (request)
@@ -404,16 +405,19 @@ function make_handler(graph::Graph; route=(h, t, b) -> route_cpu(graph, h, t, b)
             error isa Union{ArgumentError,EOFError} || rethrow()
             return HTTP.Response(400, [headers; "Content-Type" => "text/plain"], sprint(showerror, error))
         end
-        origin, ready, budget, encoding, window, step, metric, max_walk_ms, distance_mode = query
+        origin, ready, budget, encoding, window, step, metric, max_walk_ms, distance_mode, window_mode = query
         straight = distance_mode == :straight_line
         push!(headers, "X-Router-Distance-Mode" => string(distance_mode))
+        push!(headers, "X-Router-Window-Mode" => string(window_mode))
         push!(headers, "X-Router-Max-Walk-H" => string(max_walk_ms / 3_600_000))
         return lock(request_lock) do
             body = begin
                 if window > 0
-                    result = straight ? straight_window_route(origin, ready, budget, window, step, max_walk_ms, walking_index) :
+                    # Existing injected callbacks need no new keyword for default requests.
+                    options = window_mode == :mean_intersection ? (;) : (; window_mode)
+                    result = straight ? straight_window_route(origin, ready, budget, window, step, max_walk_ms, walking_index; options...) :
                         max_walk_ms > 0 ? walking_window_route(origin, ready, budget, window,
-                        step, max_walk_ms, walking_index) : window_route(origin, ready, budget, window, step)
+                        step, max_walk_ms, walking_index; options...) : window_route(origin, ready, budget, window, step; options...)
                     strategy = hasproperty(result, :backend) ? result.backend : "origin"
                     backend = strategy in ("origin", "catchup", "walking_reference", "walking_catchup") ? "reference" : strategy
                     append!(headers, ["X-Router-Backend" => backend,
@@ -424,7 +428,7 @@ function make_handler(graph::Graph; route=(h, t, b) -> route_cpu(graph, h, t, b)
                                             (:profile_lookups, "Profile-Lookups"), (:batches, "Batches"), (:rounds, "Rounds"), (:workers, "Workers"))
                         hasproperty(result, field) && push!(headers, "X-Router-$header" => string(getproperty(result, field)))
                     end
-                    window_arrow(graph, result, origin, encoding; metric)
+                    window_arrow(graph, result, origin, encoding; metric, window_mode)
                 elseif straight && max_walk_ms == 0
                     labels = route_cpu(graph, origin, ready, budget)
                     ids = findall(!=(INF), labels)
@@ -458,7 +462,7 @@ function make_handler(graph::Graph; route=(h, t, b) -> route_cpu(graph, h, t, b)
 end
 
 _response_headers() = ["Access-Control-Allow-Origin" => "*", "Cache-Control" => "no-store",
-    "Access-Control-Expose-Headers" => "X-Router-Backend, X-Router-Distance, X-Router-Distance-Mode, X-Router-Searches, X-Router-Reused-Samples, X-Router-Metric, X-Router-Window-Strategy, X-Router-Full-Searches, X-Router-Repair-Searches, X-Router-Profile-Lookups, X-Router-Batches, X-Router-Rounds, X-Router-Workers, X-Router-Max-Walk-H"]
+    "Access-Control-Expose-Headers" => "X-Router-Backend, X-Router-Distance, X-Router-Distance-Mode, X-Router-Window-Mode, X-Router-Searches, X-Router-Reused-Samples, X-Router-Metric, X-Router-Window-Strategy, X-Router-Full-Searches, X-Router-Repair-Searches, X-Router-Profile-Lookups, X-Router-Batches, X-Router-Rounds, X-Router-Workers, X-Router-Max-Walk-H"]
 
 """Dispatch unchanged reachable requests by origin H3 resolution to resident handlers."""
 function make_resolution_handler(handlers::AbstractDict{Int})
