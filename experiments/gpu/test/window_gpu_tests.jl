@@ -31,12 +31,35 @@ end
         (2, 3, 10, 1, 2.0), (1, 4, 0, 0, 4.0)]))
     router = WindowKernelRouter(graph, backend; batch_size=2)
     for distance_mode in (:itinerary, :straight_line),
-            window_mode in (:mean_intersection, :min_union, :max_intersection, :diff_union, :reachable_union)
+            window_mode in (:mean_intersection, :min_union, :max_intersection, :diff_union, :diff_intersection, :reachable_union)
         options = (; step_ms=1, window_mode, distance_mode)
         expected = route_window(graph, DEMO_ORIGIN, 0, 10, 2; options...)
         actual = route_window_kernel!(router, DEMO_ORIGIN, 0, 10, 2; options...)
         for field in (:elapsed_ms, :reachable_elapsed_ms, :distance_km, :reachable_samples, :sample_count, :elapsed_sum_ms)
             @test isequal(getproperty(actual, field), getproperty(expected, field))
+        end
+        points = [route_details(graph, DEMO_ORIGIN, ready, 10) for ready in 0:1]
+        for i in eachindex(graph.h3)
+            reached = [ready for ready in 0:1 if points[ready + 1].arrival[i] != INF]
+            times = [Float64(points[ready + 1].arrival[i] - ready) for ready in reached]
+            n = length(times)
+            total = sum(times) + (2 - n) * 10
+            elapsed, conditional, km = total / 2, NaN, NaN
+            if n > 0
+                best, worst = argmin(times), argmax(times)
+                elapsed = window_mode == :min_union ? times[best] : window_mode == :max_intersection ? times[worst] :
+                    window_mode in (:diff_union, :diff_intersection) ? (n < 2 ? 10 : times[worst]) - times[best] : elapsed
+                conditional = window_mode in (:mean_intersection, :reachable_union) ? sum(times) / n : elapsed
+                distances = [points[ready + 1].distance_km[i] for ready in reached]
+                km = distance_mode == :straight_line ? only(Reachability._od_distances(DEMO_ORIGIN, [graph.h3[i]])) :
+                    window_mode in (:min_union, :diff_union, :diff_intersection) ? distances[best] :
+                    window_mode == :max_intersection ? distances[worst] : sum(distances) / n
+            end
+            @test actual.reachable_samples[i] == n
+            @test actual.elapsed_sum_ms[i] == total
+            @test actual.elapsed_ms[i] == elapsed
+            @test isequal(actual.reachable_elapsed_ms[i], conditional)
+            @test isequal(actual.distance_km[i], km)
         end
     end
 end

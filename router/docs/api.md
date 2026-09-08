@@ -21,7 +21,7 @@ loaded resolution. Unknown, duplicate and malformed parameters are rejected.
 | `step_h` | Nonnegative sampling interval; zero requests a single departure | `1/60` |
 | `encoding` | `split` or `string`, independent of input representation | `split` |
 | `distance_mode` | `itinerary` or `straight_line` | `itinerary` |
-| `window_mode` | One of the five modes below | `mean_intersection` |
+| `window_mode` | One of the six modes below | `mean_intersection` |
 | `metric` | `time` or `distance_time_quantile` | `time` |
 
 Times are finite Float64 hours, accepting decimal and scientific notation. They
@@ -55,7 +55,7 @@ origins can walk; with walking disabled they return only themselves.
 | --- | --- | --- |
 | `index_lower`, `index_upper` | `UInt32` | Split H3 output, when `encoding=split` |
 | `index` | UTF-8 string | Canonical lowercase H3, when `encoding=string` |
-| `value` | `Float64` | Elapsed hours for `metric=time`, except coverage percent for `reachable_union`; otherwise rank difference |
+| `value` | `Float64` | Elapsed hours for `metric=time`, except coverage fraction for `reachable_union`; otherwise rank difference |
 | `elapsed_h` | `Float64` | Elapsed hours including waiting |
 | `distance_km` | `Float64` | Selected distance, when available |
 
@@ -72,19 +72,20 @@ Windows sample `departure + k*step`, strictly before `departure + window`:
 | `min_union` | Any sample reaches | Minimum elapsed | Best sample |
 | `max_intersection` | Every sample reaches | Maximum elapsed | Worst sample |
 | `diff_union` | Any sample reaches | `(count < samples ? budget : maximum elapsed) - minimum elapsed` | Best sample |
+| `diff_intersection` | Every sample reaches | Maximum elapsed minus minimum elapsed | Best sample |
 | `reachable_union` | Any sample reaches | Capped mean over all samples | Conditional mean over reachable samples |
 
 Extrema use elapsed time within each sample's budget, not absolute arrival time.
 Ties select the earliest chronological departure, even if its distance is NaN.
 `diff_union` deliberately uses **best-sample kilometres**: an unreachable, budget-capped
 worst sample has no itinerary. Differences remain hours. For `reachable_union`,
-`value = 100.0 * reachable_samples / sample_count` is **percent (0..100)**, not a fraction.
+`value = reachable_samples / sample_count` is a **fraction (0..1)**, equal to `reachable_fraction`.
 
 Window rows also include `reachable_elapsed_h Float64`, `reachable_fraction Float64`,
 `reachable_samples UInt32`, and `sample_count UInt32`. `reachable_elapsed_h` equals
 the selected elapsed statistic, except in `reachable_union`, where it is the conditional
 mean over reachable samples; its `elapsed_h` instead counts each missing sample at budget.
-`reachable_fraction` is always 0..1; counts describe the entire window. Kilometres never become percentages.
+Counts describe the entire window. Distance values remain kilometres.
 Straight-line kilometres are independent of departure samples. Point queries ignore
 `window_mode` with either metric and omit all window-only columns.
 

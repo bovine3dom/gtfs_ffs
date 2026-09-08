@@ -102,8 +102,8 @@ end
 WalkingOutputAccumulator(cells, samples, budget, track_distance=true; window_mode=:mean_intersection) = WalkingOutputAccumulator(cells,
     fill(UInt64(samples) * UInt64(budget), length(cells)), zeros(UInt32, length(cells)),
     track_distance ? Vector{Float64}(undef, length(cells)) : nothing,
-    _window_mode(window_mode) in (:min_union, :diff_union) ? fill(INF, length(cells)) : nothing,
-    _window_mode(window_mode) in (:max_intersection, :diff_union) ? zeros(UInt32, length(cells)) : nothing)
+    _window_mode(window_mode) in (:min_union, :diff_union, :diff_intersection) ? fill(INF, length(cells)) : nothing,
+    _window_mode(window_mode) in (:max_intersection, :diff_union, :diff_intersection) ? zeros(UInt32, length(cells)) : nothing)
 
 function _accumulate_walking!(acc::WalkingOutputAccumulator, point, ready, budget, samples)
     @inbounds for i in eachindex(point.ids)

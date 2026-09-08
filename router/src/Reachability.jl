@@ -417,7 +417,7 @@ function window_arrow(graph, result, origin, encoding; metric="time", window_mod
     mode = _window_mode(window_mode)
     mode == :reachable_union && metric == "distance_time_quantile" &&
         throw(ArgumentError("reachable_union is incompatible with distance_time_quantile for window queries"))
-    reached = findall(mode in (:mean_intersection, :max_intersection) ? ==(result.sample_count) : !iszero, result.reachable_samples)
+    reached = findall(mode in (:mean_intersection, :max_intersection, :diff_intersection) ? ==(result.sample_count) : !iszero, result.reachable_samples)
     cells = (hasproperty(result, :h3) ? result.h3 : graph.h3)[reached]
     elapsed = result.elapsed_ms[reached]
     conditional = result.reachable_elapsed_ms[reached]
@@ -432,10 +432,11 @@ function window_arrow(graph, result, origin, encoding; metric="time", window_mod
         insert!(counts, at, result.sample_count)
     end
     elapsed_h = elapsed ./ 3_600_000
-    value = mode == :reachable_union ? 100.0 .* counts ./ result.sample_count : elapsed_h
+    reachable_fraction = Float64.(counts) ./ result.sample_count
+    value = mode == :reachable_union ? reachable_fraction : elapsed_h
     return arrow_table(cells, (value=value, elapsed_h=elapsed_h,
         distance_km=distances, reachable_elapsed_h=conditional ./ 3_600_000,
-        reachable_fraction=Float64.(counts) ./ result.sample_count,
+        reachable_fraction=reachable_fraction,
         reachable_samples=counts, sample_count=fill(result.sample_count, length(cells))), encoding; metric)
 end
 

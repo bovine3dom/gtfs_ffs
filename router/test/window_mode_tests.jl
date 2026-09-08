@@ -167,7 +167,7 @@ end
         @test handler(HTTP.Request("GET", "$base$suffix&window_mode=$flag")).status == 400
     end
     legacy = make_handler(pack_graph(window_table([(1, 2, 0, 0, 0.0)]; distances=false)))
-    for mode in ("mean_intersection", "min_union", "max_intersection", "diff_union")
+    for mode in ("mean_intersection", "min_union", "max_intersection", "diff_union", "diff_intersection")
         path = "$base$window&window_mode=$mode&max_walk_h=0&metric=distance_time_quantile"
         @test legacy(HTTP.Request("GET", path)).status == 400
         @test legacy(HTTP.Request("GET", "$path&distance_mode=straight_line")).status == 200
@@ -177,7 +177,7 @@ end
         @test response.status == 400
         @test occursin("reachable_union is incompatible with distance_time_quantile", String(response.body))
     end
-    for mode in ("reachable_union", "unknown", "")
+    for mode in ("reachable_union", "diff_intersection", "unknown", "")
         path = "$base&window_h=1&step_h=0&window_mode=$mode&metric=distance_time_quantile"
         @test legacy(HTTP.Request("GET", path)).status == 400
         @test legacy(HTTP.Request("GET", "$path&distance_mode=straight_line")).status == 200
@@ -205,7 +205,7 @@ end
             end
             id = 5
             for origin in (DEMO_ORIGIN, coarse_cells[1], DEMO_CELLS[7]),
-                    mode in ("min_union", "mean_intersection", "max_intersection", "diff_union", "reachable_union"), encoding in ("string", "split"),
+                    mode in ("min_union", "mean_intersection", "max_intersection", "diff_union", "diff_intersection", "reachable_union"), encoding in ("string", "split"),
                     metric in ("time", "distance_time_quantile"), distance in ("itinerary", "straight_line"), walk in (0, 1)
                 id += 1
                 index = "index_lower=$(origin % UInt32)&index_upper=$((origin >> 32) % UInt32)"
@@ -223,18 +223,18 @@ end
                 @test reply[5:end] == HTTP.get(http * path).body == expected.body
                 table = Arrow.Table(expected.body)
                 if mode == "reachable_union"
-                    @test table.value == 100.0 .* table.reachable_samples ./ table.sample_count
+                    @test table.value == table.reachable_fraction == table.reachable_samples ./ table.sample_count
                 elseif metric == "distance_time_quantile"
                     @test table.time_quantile == Reachability.normalized_ranks(table.elapsed_h)
                     @test table.distance_quantile == Reachability.normalized_ranks(table.distance_km)
                 end
-                mode in ("mean_intersection", "max_intersection") && @test all(table.reachable_samples .== table.sample_count)
+                mode in ("mean_intersection", "max_intersection", "diff_intersection") && @test all(table.reachable_samples .== table.sample_count)
             end
             # Rotate zero forms and resolutions rather than multiplying the output-option matrix.
             zeros = ("step_h=1", "window_h=0&step_h=1", "window_h=1&step_h=0",
                 "window_h=0&step_h=0", "window_h=0.0&step_h=1", "window_h=1&step_h=0e0",
                 "window_h=0e0&step_h=0.0", "window_h=1193&step_h=0")
-            modes = ("mean_intersection", "min_union", "max_intersection", "diff_union", "reachable_union", "unknown", "")
+            modes = ("mean_intersection", "min_union", "max_intersection", "diff_union", "diff_intersection", "reachable_union", "unknown", "")
             id = 0xf0000000
             for encoding in ("string", "split"), metric in ("time", "distance_time_quantile"),
                     distance in ("itinerary", "straight_line"), walk in (0, 1)
@@ -244,6 +244,7 @@ end
                     index = encoding == "string" ? "index=$(string(origin; base=16))" :
                         "index_lower=$(origin % UInt32)&index_upper=$((origin >> 32) % UInt32)"
                     suffix = zeros[mod1(Int(id), length(zeros))]
+                    mode == "diff_intersection" && (suffix = walk == 0 ? "window_h=1&step_h=0" : "window_h=0&step_h=1")
                     times = startswith(suffix, "window_h=1193") ? "departure_h=12&budget_h=3" : "departure_h=0&budget_h=$(60/3_600_000)"
                     path = "/reachable?$index&$times&encoding=$encoding&metric=$metric&distance_mode=$distance&max_walk_h=$walk"
                     expected = target(HTTP.Request("GET", path))

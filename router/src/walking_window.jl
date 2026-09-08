@@ -16,10 +16,10 @@ end
 
 function _walking_window_accumulator(track, window_mode)
     mode = _window_mode(window_mode)
-    if mode in (:max_intersection, :diff_union)
+    if mode in (:max_intersection, :diff_union, :diff_intersection)
         stats = track ? Dict{UInt64,Tuple{UInt64,UInt32,Float64,UInt32,UInt32}}() :
             Dict{UInt64,Tuple{UInt64,UInt32,Nothing,UInt32,UInt32}}()
-        return (; stats, best=Val(mode == :diff_union))
+        return (; stats, best=Val(mode in (:diff_union, :diff_intersection)))
     elseif mode == :min_union
         return track ? Dict{UInt64,Tuple{UInt64,UInt32,Float64,UInt32}}() :
             Dict{UInt64,Tuple{UInt64,UInt32,Nothing,UInt32}}()

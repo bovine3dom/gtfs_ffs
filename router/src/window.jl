@@ -48,17 +48,17 @@ end
 
 function _window_mode(mode)
     mode isa Union{Symbol,AbstractString} && mode in
-        (:mean_intersection, :min_union, :max_intersection, :diff_union, :reachable_union,
-         "mean_intersection", "min_union", "max_intersection", "diff_union", "reachable_union") ||
-        throw(ArgumentError("window_mode must be mean_intersection, min_union, max_intersection, diff_union or reachable_union"))
+        (:mean_intersection, :min_union, :max_intersection, :diff_union, :diff_intersection, :reachable_union,
+         "mean_intersection", "min_union", "max_intersection", "diff_union", "diff_intersection", "reachable_union") ||
+        throw(ArgumentError("window_mode must be mean_intersection, min_union, max_intersection, diff_union, diff_intersection or reachable_union"))
     return Symbol(mode)
 end
 
 function _window_accumulator(graph, plan, track_distance=true; window_mode=:mean_intersection)
     mode = _window_mode(window_mode)
     return (elapsed_sum_ms=fill(UInt64(plan.samples) * UInt64(plan.budget), length(graph.h3)),
-            elapsed_min_ms=mode in (:min_union, :diff_union) ? fill(INF, length(graph.h3)) : nothing,
-            elapsed_max_ms=mode in (:max_intersection, :diff_union) ? zeros(UInt32, length(graph.h3)) : nothing,
+            elapsed_min_ms=mode in (:min_union, :diff_union, :diff_intersection) ? fill(INF, length(graph.h3)) : nothing,
+            elapsed_max_ms=mode in (:max_intersection, :diff_union, :diff_intersection) ? zeros(UInt32, length(graph.h3)) : nothing,
             reachable_samples=zeros(UInt32, length(graph.h3)),
             distance_km=track_distance ? fill(NaN, length(graph.h3)) : nothing)
 end

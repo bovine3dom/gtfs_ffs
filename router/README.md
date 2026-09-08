@@ -83,7 +83,8 @@ curl --fail --show-error 'http://127.0.0.1:1988/reachable?index=85075dd7fffffff&
 | `min_union` | Any sample reaches | Minimum elapsed; best-sample itinerary km |
 | `max_intersection` | Every sample reaches | Maximum elapsed; worst-sample itinerary km |
 | `diff_union` | Any sample reaches | Worst minus best elapsed; missing worst capped at budget; best-sample itinerary km |
-| `reachable_union` | Any sample reaches | Reachable percentage (0..100); capped mean elapsed as context |
+| `diff_intersection` | Every sample reaches | Worst minus best elapsed; best-sample itinerary km |
+| `reachable_union` | Any sample reaches | Reachable fraction (0..1); capped mean elapsed as context |
 
 Extrema ties select the earliest departure. Coverage mode retains conditional mean
 itinerary km and rejects quantiles for active windows. `distance_mode=itinerary`
@@ -92,7 +93,7 @@ is the default; itinerary quantiles require an input `distance_km` column.
 HTTP `/reachable` and WebSocket `/query` share the [query contract](docs/api.md).
 Arrow results contain `value`, `elapsed_h` and split H3 indices; use
 `encoding=string` for hexadecimal `index` instead. Time values are hours;
-`reachable_union` values are percentages, and `distance_time_quantile` values are
+`reachable_union` values are fractions, and `distance_time_quantile` values are
 dimensionless rank differences. `window_h=0` (default) or `step_h=0` selects a single departure without averaging; `window_mode` is ignored, even unknown or empty values.
 
 [H3-MON](https://github.com/bovine3dom/H3-MON) can display these responses directly.
