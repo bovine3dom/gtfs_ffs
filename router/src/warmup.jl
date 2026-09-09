@@ -18,7 +18,7 @@ function warmup_server(; progress::Bool=true)
     jobs = Tuple{Any,String}[]
     for distances in (true, false)
         graph = pack_graph(distances ? table : Base.structdiff(table, NamedTuple{(:distance_km,)}))
-        handler = make_resolution_handler(Dict{Int,Any}(8 => make_handler(graph)))
+        handler = make_network_handler(Dict(("warmup", 8) => make_handler(graph)); default_network="warmup")
         modes = distances ? ("point", "mean_intersection", "min_union", "max_intersection", "diff_union", "diff_intersection", "reachable_union") :
                             ("point", "mean_intersection")
         for mode in modes, distance in ("itinerary", "straight_line"), walk in (0, 0.25, 2),

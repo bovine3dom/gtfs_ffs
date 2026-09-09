@@ -6,7 +6,7 @@ import ProgressMeter
 export Graph, pack_graph, route_cpu, route_details, route_window_cached,
        make_handler,
        WalkingIndex, prepare_walking, walking_neighbors, walking_cells, route_walking,
-       route_window_walking_cached, make_resolution_handler
+       route_window_walking_cached, make_network_handler
 
 const RESOLUTION = 5
 const PERIOD = UInt32(86_400_000)
@@ -342,7 +342,7 @@ end
 
 function parse_query(uri, graph)
     params = _query_params(uri)
-    allowed = ("index", "index_lower", "index_upper", "departure_h", "budget_h", "encoding", "window_h", "step_h", "metric", "max_walk_h", "distance_mode", "window_mode")
+    allowed = ("network", "index", "index_lower", "index_upper", "departure_h", "budget_h", "encoding", "window_h", "step_h", "metric", "max_walk_h", "distance_mode", "window_mode")
     all(k -> k in allowed, keys(params)) || throw(ArgumentError("unknown query parameter"))
     origin = _query_origin(params)
     departure_ms = _hours_ms(get(params, "departure_h", ""), "departure_h", 24; clock=true)
@@ -520,9 +520,11 @@ end
 _response_headers() = ["Access-Control-Allow-Origin" => "*", "Cache-Control" => "no-store",
     "Access-Control-Expose-Headers" => "X-Router-Backend, X-Router-Distance, X-Router-Distance-Mode, X-Router-Window-Mode, X-Router-Searches, X-Router-Reused-Samples, X-Router-Metric, X-Router-Window-Strategy, X-Router-Full-Searches, X-Router-Repair-Searches, X-Router-Profile-Lookups, X-Router-Batches, X-Router-Rounds, X-Router-Workers, X-Router-Max-Walk-H"]
 
-"""Dispatch unchanged reachable requests by origin H3 resolution to resident handlers."""
-function make_resolution_handler(handlers::AbstractDict{Int})
+"""Dispatch by network (default explicitly supplied) and origin H3 resolution."""
+function make_network_handler(handlers::AbstractDict{Tuple{String,Int}}; default_network::String)
     isempty(handlers) && throw(ArgumentError("at least one graph handler is required"))
+    any(key -> key[1] == default_network, keys(handlers)) ||
+        throw(ArgumentError("default network $(repr(default_network)) has no graph handlers"))
     handlers = copy(handlers)
     fallback = first(values(handlers))
     return function (request)
@@ -531,10 +533,13 @@ function make_resolution_handler(handlers::AbstractDict{Int})
             if uri.path != "/reachable" || request.method != "GET"
                 return fallback(request)
             end
-            origin = _query_origin(_query_params(uri))
+            params = _query_params(uri)
+            network = get(params, "network", default_network)
+            any(key -> key[1] == network, keys(handlers)) || throw(ArgumentError("unknown network $(repr(network))"))
+            origin = _query_origin(params)
             resolution = Int(H3.API.getResolution(origin))
-            haskey(handlers, resolution) || throw(ArgumentError("no graph loaded for H3 resolution $resolution"))
-            handlers[resolution]
+            haskey(handlers, (network, resolution)) || throw(ArgumentError("no graph loaded for H3 resolution $resolution in network $(repr(network))"))
+            handlers[(network, resolution)]
         catch error
             error isa Union{ArgumentError,EOFError} || rethrow()
             return HTTP.Response(400, [_response_headers(); "Content-Type" => "text/plain"], sprint(showerror, error))

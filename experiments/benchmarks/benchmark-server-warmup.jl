@@ -10,7 +10,7 @@ transport, state, scenario = ARGS
 transport in ("http", "ws") && state in ("cold", "warm") && scenario in ("walking", "transit") ||
     error("expected http|ws cold|warm walking|transit")
 graph = pack_graph(Reachability._warmup_table())
-handler = make_resolution_handler(Dict{Int,Any}(8 => make_handler(graph)))
+handler = make_network_handler(Dict(("warmup", 8) => make_handler(graph)); default_network="warmup")
 warmup_s = state == "warm" ? @elapsed(warmup_server()) : 0.0
 walk, samples = scenario == "walking" ? (0.25, 16) : (0.0, 129)
 url = "/reachable?index=$(string(first(graph.h3); base=16))&departure_h=0&budget_h=0.5&max_walk_h=$walk&window_h=$(samples/60)&step_h=$(1/60)&distance_mode=straight_line&metric=time_distance_quantile&encoding=split"

@@ -186,7 +186,7 @@ end
     coarse = pack_graph((from_h3=[coarse_cells[1]], to_h3=[coarse_cells[2]],
         departure_ms=UInt32[0], duration_ms=Int64[0], distance_km=[2.0]))
     coarse_handler = make_handler(coarse)
-    dispatch = make_resolution_handler(Dict(graph.resolution => handler, coarse.resolution => coarse_handler))
+    dispatch = make_network_handler(Dict(("test", graph.resolution) => handler, ("test", coarse.resolution) => coarse_handler); default_network="test")
     socket_test(dispatch) do url, http
         socket_open(url) do ws
             for (id, mode) in enumerate(("min_union", "mean_intersection", "secret", "min_union&window_mode=min_union", "min_union"))
