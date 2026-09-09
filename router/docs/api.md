@@ -28,7 +28,8 @@ The server rejects unknown parameters, duplicate parameters, and invalid paramet
 | `encoding` | `split` or `string`, independent of input representation | `split` |
 | `distance_mode` | `itinerary` or `straight_line` | `itinerary` |
 | `window_mode` | One of the six modes below | `mean_intersection` |
-| `metric` | `time` or `time_distance_quantile` | `time` |
+| `metric` | `time`, `time_distance_quantile`, or `accessible_population` | `time` |
+| `origin_radius` | Nonnegative integer H3 grid steps; population metric only | `0` |
 
 For example, add `&network=everything` to select files named `everything_resN.arrow`.
 Names can include underscores, hyphens, spaces, and UTF-8 characters. Use percent encoding in query values where necessary.
@@ -73,7 +74,55 @@ The server checks these conditions before it allocates routing memory or starts 
 A sampling interval greater than the window length gives one sample.
 Memory use grows with the number of samples and destination cells.
 
-## Results
+## Population Metric
+
+Add `--population data/kontur_h3.arrow` to the server command to load population data.
+The form `--population=data/kontur_h3.arrow` is also permitted.
+Supply this option only once, with one path. You can use it with `--demo` instead of network files.
+The server rejects a missing path or a repeated option before it loads data.
+The file requires unique, valid `h3::UInt64` cells at resolution 8 and finite, nonnegative numeric `population`.
+Both columns require a value in every row. The loader rejects duplicate cells after validation.
+Fractional values are retained in `Float64` weights. Rows are summed by logical H3 parent at the routing resolution.
+Startup reports validation and aggregation progress. Population maps are shared across networks at the same resolution.
+Population queries support routing resolutions 0 through 8. Finer resolutions return HTTP 400 for this metric.
+Other metrics can use those graphs. An absent population cell has zero population.
+A population query without loaded population data returns HTTP 400. Other metrics remain available.
+
+`metric=accessible_population` examines each independent origin in the H3 disk
+specified by `index` and `origin_radius`. The disk includes cells without population or transit.
+You can also specify the centre with `index_lower` and `index_upper`. Radius zero selects only that origin.
+The radius uses grid steps, not walking distance. It must fit the H3 library's signed C integer
+and allocation size. There is no additional origin-count limit.
+Other metrics ignore all `origin_radius` values. Duplicate parameters return HTTP 400.
+
+Rows are sorted by origin H3 value. Columns are the selected origin H3 encoding and `value::Float64` in people.
+The response contains one cell per origin with a positive final total after window aggregation.
+Zero totals are omitted, including the query origin. An origin with zero local population is included if its total is positive.
+If all totals are zero, the response is an empty Arrow table with the same columns and types.
+There are no elapsed-time or distance columns. `distance_mode` must be valid but has no effect.
+The router does not calculate route or origin-destination distances for this metric.
+An input distance column is not required.
+
+Each reached routing cell contributes its whole population once per origin and sample.
+The origin's own cell counts at zero time. Duplicate paths and overlapping walks do not add population twice.
+Walking, time limits, network selection, encoding, and parameter validation follow the common query rules.
+HTTP and WebSocket queries use the same parameters, constraints, and result schema.
+
+| Window modes | Population value |
+| --- | --- |
+| `mean_intersection`, `max_intersection`, `diff_intersection` | Sum over cells reached in every sample |
+| `min_union`, `diff_union` | Sum over cells reached in at least one sample |
+| `reachable_union` | Sum of each cell's population multiplied by its reachable sample count, divided by the total sample count |
+
+`reachable_union` is mean accessible population in people, not a fraction.
+All modes give the same value for one sample.
+Setting `window_h=0` or `step_h=0` selects one departure and ignores `window_mode`.
+Fractional weights and sample weighting can produce small floating-point differences when reduction order changes.
+
+Origin and departure queries share routing work at equivalent timed states, with a separate deadline for each query.
+The server processes batches on the available CPU threads and calculates one value per origin.
+
+## Time Results
 
 Each result cell occurs once. Rows are sorted by H3 cell value.
 The origin is included with zero elapsed time.
@@ -150,8 +199,12 @@ Other union modes can include partially reachable cells, subject to the finite-v
 ## Response Headers
 
 The `X-Router-*` headers report the metric, distance mode, window mode, walking limit, and engine statistics.
-`X-Router-Backend` is `reference` for the CPU engine.
-The window strategy is `catchup` or `walking_catchup`.
+`X-Router-Backend` is `reference` for time and quantile queries.
+For population queries, it is `shared-population` and `X-Router-Distance` is `not-computed`.
+`X-Router-Origin-Count` reports origins examined, not rows returned. `X-Router-Shared-Expansions` reports
+timed-state expansions. `X-Router-Query-Expansions` counts the independent origin/sample states
+served by those expansions. A lower shared count shows reuse.
+For time and quantile window queries, the window strategy is `catchup` or `walking_catchup`.
 Headers report search, reuse, full-search, repair, lookup, and worker counts where applicable.
 
 ## WebSocket
@@ -203,6 +256,7 @@ For remote access, use a trusted proxy that provides TLS, authentication, and ac
 ## Use from Julia
 
 Create a handler with `make_handler(graph; progress=false, request_lock=ReentrantLock())`.
+For population queries, pass `population=load_population(path)` to `make_handler`.
 Pass `make_stream_handler(handler)` to HTTP.jl with `stream=true`.
 
 For named networks, create a dictionary such as `Dict(("rail", 5) => handler, ...)`.

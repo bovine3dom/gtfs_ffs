@@ -1,192 +1,118 @@
 # Kontur Population Integration
 
-Status: proposal only. Implementation is deferred until the dataset and metric
-semantics are confirmed.
+## Implemented Contract
 
-## Goal
+The CPU router supports `metric=accessible_population` through HTTP and WebSockets.
+Both transports use the same [query contract](router/docs/api.md), including network
+selection, time limits, walking rules, encoding, and parameter validation.
 
-Add accessible population as a routing metric, initially on the CPU and eventually
-as an on-device reduction for many-origin accessibility or centrality calculations.
+Load population with `--population data/kontur_h3.arrow` or
+`--population=data/kontur_h3.arrow`. Supply one path and use the option once.
+The Arrow input requires unique, valid resolution-8 `h3::UInt64` cells and numeric
+`population` values. Both columns require a value in every row. Values must be finite
+and zero or more, including after conversion to `Float64`. Fractional values are retained.
+The loader validates rows, then checks uniqueness in sorted cell order and rejects duplicates.
 
-The user has a dataset mapping resolution-8 H3 cells to population. An Arrow file is
-a suitable input format. Its location, schema and geographic coverage are not yet
-confirmed.
+Population is summed by logical H3 parent at each loaded routing resolution from 0
+through 8. An absent cell has zero population. Population queries at finer resolutions,
+or without loaded population data, return HTTP 400. Other metrics remain available.
+Each reached routing cell contributes its whole population, including the origin at
+zero time. Logical parent aggregation conserves population; it is not a geometric
+polygon overlay. Coarse cells can overstate local walking access.
 
-## Counting Population
+`origin_radius` selects all cells within an H3 grid distance of the query cell as
+independent origins. It includes cells without population or transit. It is independent
+of walking. The default, zero, selects only the query origin. Each response row contains
+an origin H3 index in the requested encoding and `value::Float64` in people.
+The router calculates all origin totals. The public response contains one cell per origin
+with a positive final total after window aggregation. It omits zero totals, including the query origin.
+An origin with zero local population is included if its accessible total is positive.
+All-zero results contain an empty Arrow table with the same schema.
+`X-Router-Origin-Count` reports origins examined, not rows returned.
+Internal `route_population` results retain all generated origins, including zero totals.
+Other metrics ignore `origin_radius` values. Duplicate parameters return HTTP 400.
+Rows are sorted by H3 value. Population routing calculates neither itinerary nor
+origin-destination distances. A valid `distance_mode` is accepted but has no effect.
 
-Attach population to unique destination cells, not to stops or individual walking
-edges:
+Let `P(c)` be a cell's population, `k(c)` its reachable sample count, and `N` the total
+sample count. Multiple paths and overlapping walks count each cell once per sample.
+Each final walk must fit the remaining time budget and start from a walk-eligible state.
 
-```text
-accessible_population = sum(population[cell] for each qualifying destination cell)
-```
+| Window modes | Population total |
+| --- | --- |
+| `mean_intersection`, `max_intersection`, `diff_intersection` | Sum `P(c)` where `k(c) = N` |
+| `min_union`, `diff_union` | Sum `P(c)` where `k(c) > 0` |
+| `reachable_union` | Sum `P(c) * k(c) / N`, the mean accessible population |
 
-A destination qualifies only after applying the journey budget and walking rules.
-Membership in a stop's prepared walking neighbourhood is not sufficient: the final
-walk must fit the remaining journey time and start from a walk-eligible arrival.
+`window_h=0` or `step_h=0` selects one departure and ignores `window_mode`.
+All three families give the same total for one sample. Union totals can include cells
+reached at different departures. Intersection totals apply to sampled departures.
 
-Collapse all routes and overlapping walking radii to one reachability result per
-destination before summing population. Otherwise residents near several stops would
-be counted repeatedly. Preserve the existing prohibition on consecutive walks.
+## Resident Data
 
-## Resolution Options
+`serve.jl` calls `load_population(...; progress=true)`. Handler construction prepares
+each required resolution once. Startup reports file loading,
+row validation, uniqueness checks, and aggregation progress. Preparation keeps the
+maps in memory and leaves the source file unchanged.
 
-### Aggregate to Graph Resolution
+Population maps are H3-keyed `Dict{UInt64,Float64}` objects, shared across networks at
+the same resolution. Workers reuse the existing packed, immutable walking adjacency.
+Population weights are looked up by H3 key; alignment with compact destination IDs
+is a remaining optimization.
 
-For each loaded graph at resolution 8 or coarser, aggregate source population by H3
-parent and align the resulting weights with the existing prepared destination IDs.
+The [benchmark report](experiments/benchmarks/population-results.md) records these
+facts for `data/kontur_h3.arrow`:
 
-Advantages:
+| Property | Value |
+| --- | ---: |
+| File size | 234,395,250 bytes |
+| Unique resolution-8 rows | 32,957,699 |
+| Source values | `Float64`, all positive integers |
+| Global population | 8,031,924,024 |
+| Resolution-6 map | 2,016,971 cells |
+| Resolution-7 map | 9,012,014 cells |
 
-- Smallest implementation; reuses the current geographic destination set.
-- Population preparation happens once per loaded resolution.
-- Query-time counting becomes a reduction over resident weights.
+Both parent maps retain the global total. These integer values and their union and
+intersection sums are exactly representable in `Float64`. Generic fractional weights
+and sample-weighted sums can differ with reduction order. The benchmark compares
+results with `rtol=1e-12` and `atol=1e-6`.
 
-Limitations:
+## Shared CPU Engine
 
-- Reaching a coarse cell credits its entire assigned population, including at zero
-  walking time. The current router treats movement within a graph cell as free.
-- Resolution-5 cells can substantially overstate fine-grained walking access.
-- H3 parent aggregation conserves population by logical hierarchy; it is not an
-  exact geometric polygon overlay, since boundaries are not perfectly nested.
-- Resolution-8 totals do not determine population at finer resolutions. Do not
-  silently distribute those totals uniformly among children.
+The engine shares work across origins and departure samples. A job uses up to 64
+query lanes, each one an `(origin, sample)` pair. With one sample, a tile holds up to
+64 origins. With multiple samples, it holds up to eight origins. Each time block holds
+up to `floor(64 / tile_size)` samples. Flat worker waves use up to all default threads.
 
-### Keep Population Destinations at Resolution 8
+Masks share an expansion at any matching cell, time, and walking-eligibility state.
+Each query lane keeps its own deadline. Union and intersection coverage is retained
+only for unfinished tiles. Weighted means are accumulated as blocks finish. Output
+storage is scalar per origin, rather than a full origin-by-sample-by-cell history.
 
-Keep transit routing at the loaded graph's resolution, but count resolution-8
-population cells reached by direct walking or final walking from the network.
+Startup compiles synthetic routing queries, including all three population families,
+Arrow responses, HTTP, and WebSockets. This uses synthetic graphs and population.
 
-This is the recommended direction if the metric is intended to represent walking
-access to residents, rather than population assigned to the current map cells.
-It is a recommendation, not an agreed decision.
+## Verification
 
-Consequences:
+Tests include an independent population oracle based on existing routing results.
+The benchmark report compares all three families with independent walking routes.
+The final daytime case uses `everything` at resolution 6, a Paris origin, departure
+at 08:00, a three-hour journey budget, and eight threads.
 
-- Requires a separate population-destination mapping and finer egress adjacency;
-  it is not just a join onto the current coarse output cells.
-- Reachability must be deduplicated at resolution 8 before counting.
-- Transit-only arrival at a coarse cell must not automatically credit its entire
-  population. The zero-walk and origin-cell conventions need to be specified.
-- Geometry still uses current H3-centre estimates, not actual stop coordinates,
-  roads or pedestrian barriers. Finer population cells do not remove that source
-  approximation.
+For seven origins and 96 samples, the weighted population query took 149.02 ms,
+compared with 316.67 ms for independent cached windows. The single-origin weighted
+query took 251.89 ms versus 42.10 ms. The reference includes distance output and three
+sums; the population path calculates one sum. These are medians of three measured calls
+on a shared machine. The report records memory use, swap activity, and earlier rail results.
 
-## Departure Windows
+The full production suites passed with one and eight threads. They include independent
+per-origin comparisons, HTTP/WebSocket parity, per-query deadlines, overlapping walks,
+partial batches, fractional population, and zero-population cells.
 
-Let C_s be the distinct destination cells reachable at sampled departure s, N the
-sample count, and p(c) the population of destination c.
+## Next Steps
 
-| Statistic | Definition | Relationship to Current Modes |
-| --- | --- | --- |
-| Reliable accessible population | Sum p(c) where c is reachable in all N samples | Matches the destination intersection of `mean_intersection` |
-| Potential accessible population | Sum p(c) where c is reachable in at least one sample | Matches the destination union of `min_union` |
-| Mean accessible population per departure | Sum p(c) times reachable_samples(c), divided by N | A separate statistic, not the current `mean_intersection` mode |
-
-Following `window_mode` is the proposed initial behavior. Confirm this before
-implementation.
-
-The union does not mean all counted residents are accessible from one common
-departure. Likewise, the intersection is over sampled departures, not a proof of
-continuous availability throughout the interval.
-
-Use the query's journey budget as the initial accessibility threshold. Means or
-coverage counts calculated at a larger budget cannot generally answer population
-queries at a smaller threshold without additional information or recalculation.
-
-## Input and Resident Data
-
-Proposed Arrow columns:
-
-- `h3`: non-null `UInt64`, valid resolution-8 H3 cells.
-- `population`: non-null, finite, nonnegative numeric values. Preserve fractional
-  estimates if present; do not round them without agreement.
-
-Before loading, establish whether missing cells mean zero population or unknown
-coverage. Also establish whether repeated H3 rows are errors or intentional additive
-records; reject duplicates by default unless their meaning is known.
-
-Prepare population weights and destination mappings once, rather than joining Arrow
-tables during each request. Share immutable weights across workers. A Float64 weight
-vector costs about 8 MB per million destinations, excluding mappings and adjacency.
-
-Current prepared output IDs are stable within each loaded graph, but final result
-rows are sorted and filtered. Do not zip resident weights against result row positions
-without resolving their IDs. Support off-network origins and larger walking-radius
-fallbacks as well as the prepared path.
-
-## Response Shape
-
-The primary proposal is one population total per origin, suitable for many-origin
-maps without downloading full destination surfaces. Population on individual map
-cells is an alternative or additional output. The response shape and frontend
-presentation remain undecided. Units are people; existing time metrics are unchanged.
-
-## CPU Implementation Sequence
-
-1. Confirm dataset location, schema, coverage, missing-cell policy and resolution model.
-2. Prepare validated population weights and the selected destination mapping at startup.
-3. Add a CPU reduction after per-destination reachability has been deduplicated, using
-   the agreed window predicate. Do not sum all prepared candidates indiscriminately.
-4. Add the agreed response shape and document its units and approximation.
-5. Verify tiny fixtures and measure preparation time, retained memory and query cost
-   before integrating GPU reductions.
-
-Tests should cover overlapping stop radii, multiple transit paths, origins and
-zero-budget queries, off-network origins, walking-radius fallback, partial window
-coverage, missing population records, duplicate input rows and resolution handling.
-The sum should agree with an independently enumerated set of qualifying cells.
-
-## GPU Direction
-
-The current GPU window engine downloads label batches and aggregates them on the
-CPU. Population weights alone do not make that an on-device calculation, and the
-current GPU kernels do not implement walking.
-
-The eventual pipeline would:
-
-1. Keep the timetable, relevant walking adjacency and population weights resident.
-2. Compute arrival and walking-eligible states, including population-cell egress.
-3. Collapse reachability to one covered state per population destination.
-4. Maintain union/intersection masks or sample counts for the selected window metric.
-5. Reduce population weights on-device and download a scalar per origin when no
-   destination map is requested.
-
-Grouped departures must contribute their actual sample multiplicities. Running
-masks or counts suffice for these population summaries; full departure-by-cell
-histories are unnecessary. Integer population permits exact integer reductions;
-fractional estimates require an explicit numerical comparison tolerance for parallel
-floating-point sums.
-
-Benchmark origins per second against CPU many-origin execution. More origins alone
-will not fix a pipeline that still downloads every surface and performs serial host
-work. Prefer arrival-only routing: itinerary kilometre replay is not needed for this
-metric.
-
-## Existing References
-
-- `router/src/walking_geometry.jl`: resident walking adjacency and output IDs.
-- `router/src/walking_output.jl`: indexed destination reduction and window counts.
-- `router/src/walking.jl`: two-state CPU routing and dictionary geographic oracle.
-- `router/src/Reachability.jl`: HTTP/Arrow metrics and window destination filtering.
-- `experiments/gpu/window_gpu.jl`: experimental GPU download and host aggregation path.
-- `geonames/readme.md`: references `public_kontur_population_20231101`, with `h3`
-  and `population` columns.
-- `plots/walker.jl`: existing population aggregation by H3 parent.
-- `plots/plotter.jl`: historical population/accessibility estimates and map exports.
-- `tidied_up/sql/03_edgelist_sane_insert.sql`: historical edge-local population
-  weighting, not a distinct query-wide accessible-population total.
-
-These references do not establish the location or schema of the user's current
-population dataset.
-
-## Open Questions
-
-1. Where is the resolution-8 population dataset, and what are its exact columns and
-   types? Do absent rows mean zero population or missing geographic coverage?
-2. Should population remain at resolution 8 or be aggregated to graph resolution?
-   If kept at resolution 8, what are the zero-walk and origin-cell conventions?
-3. Should the response be one population total per origin, destination population
-   values, or both?
-4. Should window population follow the existing intersection/union mode, or should
-   mean accessible population per departure be available as a separate statistic?
+1. Profile and optimize single-origin queries. Compare them with the cached reference.
+2. Use compact integer destination IDs and aligned population weights to reduce dictionary work.
+3. Explore a population-only GPU path with resident data, walking-eligibility states,
+   per-query deadlines, coverage reduction, and scalar output per origin.
+4. Add resumable planet-scale runs over populated origins, with bounded batches and saved results.

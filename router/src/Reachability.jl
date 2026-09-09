@@ -298,6 +298,7 @@ include("walking.jl")
 include("walking_window.jl")
 include("walking_output.jl")
 include("walking_catchup.jl")
+include("population.jl")
 
 function _hours_ms(value, name, maximum; positive=false, nonzero=false, clock=false)
     text = string(value)
@@ -342,7 +343,7 @@ end
 
 function parse_query(uri, graph)
     params = _query_params(uri)
-    allowed = ("network", "index", "index_lower", "index_upper", "departure_h", "budget_h", "encoding", "window_h", "step_h", "metric", "max_walk_h", "distance_mode", "window_mode")
+    allowed = ("network", "index", "index_lower", "index_upper", "departure_h", "budget_h", "encoding", "window_h", "step_h", "metric", "max_walk_h", "distance_mode", "window_mode", "origin_radius")
     all(k -> k in allowed, keys(params)) || throw(ArgumentError("unknown query parameter"))
     origin = _query_origin(params)
     departure_ms = _hours_ms(get(params, "departure_h", ""), "departure_h", 24; clock=true)
@@ -351,7 +352,11 @@ function parse_query(uri, graph)
     encoding = get(params, "encoding", "split")
     encoding in ("string", "split") || throw(ArgumentError("encoding must be string or split"))
     metric = get(params, "metric", "time")
-    metric in ("time", "time_distance_quantile") || throw(ArgumentError("metric must be time or time_distance_quantile"))
+    metric in ("time", "time_distance_quantile", "accessible_population") ||
+        throw(ArgumentError("metric must be time, time_distance_quantile or accessible_population"))
+    if metric == "accessible_population" && haskey(params, "origin_radius")
+        _origin_radius(params["origin_radius"])
+    end
     distance_mode = _distance_mode(get(params, "distance_mode", "itinerary"))
     ready, _ = query_times(graph, origin, departure_ms, budget_ms)
     window_ms = _hours_ms(get(params, "window_h", "0"), "window_h", MAX_TIME_MS / 3_600_000; nonzero=true)
@@ -460,7 +465,8 @@ function _route_request(graph, walking_index, origin, ready, budget, window, ste
 end
 
 """An in-process CPU HTTP handler with a resident walking index and serialized jobs."""
-function make_handler(graph::Graph; request_lock=ReentrantLock(), progress::Bool=false)
+function make_handler(graph::Graph; request_lock=ReentrantLock(), progress::Bool=false, population=nothing)
+    isnothing(population) || graph.resolution > 8 || _population_rollup(population, graph.resolution; progress)
     walking_index = _startup_stage(progress, "Building walking spatial index") do _
         WalkingIndex(graph)
     end
@@ -476,7 +482,12 @@ function make_handler(graph::Graph; request_lock=ReentrantLock(), progress::Bool
                 return HTTP.Response(204, headers)
             end
             request.method == "GET" || return HTTP.Response(405, [headers; "Allow" => "GET, OPTIONS"], "method not allowed")
-            parse_query(uri, graph)
+            parsed = parse_query(uri, graph)
+            if parsed[7] == "accessible_population"
+                isnothing(population) && throw(ArgumentError("population data is not loaded"))
+                graph.resolution <= 8 || throw(ArgumentError("population requires a routing resolution in 0..8"))
+            end
+            parsed
         catch error
             error isa Union{ArgumentError,EOFError} || rethrow()
             return HTTP.Response(400, [headers; "Content-Type" => "text/plain"], sprint(showerror, error))
@@ -487,6 +498,21 @@ function make_handler(graph::Graph; request_lock=ReentrantLock(), progress::Bool
         push!(headers, "X-Router-Window-Mode" => string(window_mode))
         push!(headers, "X-Router-Max-Walk-H" => string(max_walk_ms / 3_600_000))
         return lock(request_lock) do
+            if metric == "accessible_population"
+                radius = _origin_radius(get(_query_params(HTTP.URI(request.target)), "origin_radius", "0"))
+                result = route_population(graph, population, origin, ready, budget;
+                    origin_radius=radius, window_ms=window, step_ms=step, max_walk_ms,
+                    window_mode, walking_index)
+                append!(headers, ["X-Router-Backend" => "shared-population",
+                    "X-Router-Metric" => metric, "X-Router-Distance" => "not-computed",
+                    "X-Router-Origin-Count" => string(length(result.h3)),
+                    "X-Router-Shared-Expansions" => string(result.shared_expansions),
+                    "X-Router-Query-Expansions" => string(result.query_expansions),
+                    "X-Router-Workers" => string(result.workers),
+                    "Content-Type" => "application/vnd.apache.arrow.file"])
+                included = findall(>(0), result.value)
+                return HTTP.Response(200, headers, arrow_table(result.h3[included], (value=result.value[included],), encoding))
+            end
             result = _route_request(graph, walking_index, origin, ready, budget, window, step, max_walk_ms, distance_mode, window_mode)
             push!(headers, "X-Router-Backend" => "reference")
             body = if window > 0
@@ -518,7 +544,7 @@ function make_handler(graph::Graph; request_lock=ReentrantLock(), progress::Bool
 end
 
 _response_headers() = ["Access-Control-Allow-Origin" => "*", "Cache-Control" => "no-store",
-    "Access-Control-Expose-Headers" => "X-Router-Backend, X-Router-Distance, X-Router-Distance-Mode, X-Router-Window-Mode, X-Router-Searches, X-Router-Reused-Samples, X-Router-Metric, X-Router-Window-Strategy, X-Router-Full-Searches, X-Router-Repair-Searches, X-Router-Profile-Lookups, X-Router-Batches, X-Router-Rounds, X-Router-Workers, X-Router-Max-Walk-H"]
+    "Access-Control-Expose-Headers" => "X-Router-Backend, X-Router-Distance, X-Router-Distance-Mode, X-Router-Window-Mode, X-Router-Searches, X-Router-Reused-Samples, X-Router-Metric, X-Router-Window-Strategy, X-Router-Full-Searches, X-Router-Repair-Searches, X-Router-Profile-Lookups, X-Router-Batches, X-Router-Rounds, X-Router-Workers, X-Router-Max-Walk-H, X-Router-Origin-Count, X-Router-Shared-Expansions, X-Router-Query-Expansions"]
 
 """Dispatch by network (default explicitly supplied) and origin H3 resolution."""
 function make_network_handler(handlers::AbstractDict{Tuple{String,Int}}; default_network::String)

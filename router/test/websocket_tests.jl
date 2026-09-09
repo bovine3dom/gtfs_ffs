@@ -33,6 +33,105 @@ end
 socket_query(ws, id, url) = WS.send(ws, JSON.json((type="query", id=id, url=url)))
 socket_id(bytes) = foldl((a, b) -> (a << 8) | UInt32(b), bytes[1:4]; init=UInt32(0))
 
+@testset "Population HTTP and WebSocket parity" begin
+    population = Reachability._population(
+        UInt64[first(H3.API.cellToChildren(DEMO_ORIGIN, 8))], [12.5])
+    handler = make_handler(pack_graph(fixture_table()); population)
+    socket_test(handler) do url, http
+        socket_open(url) do ws
+            id = 0
+            for encoding in ("split", "string"), window in ("window_h=0&window_mode=ignored",
+                    "window_h=1&step_h=0&window_mode=ignored", "window_h=0.01&window_mode=reachable_union")
+                path = "/reachable?index=$(string(DEMO_ORIGIN; base=16))&departure_h=0&budget_h=0&metric=accessible_population&origin_radius=1&encoding=$encoding&$window"
+                socket_query(ws, id += 1, path)
+                bytes = socket_receive(ws)
+                @test socket_id(bytes) == id
+                @test bytes[5:end] == HTTP.get(http * path).body
+                @test sum(Arrow.Table(bytes[5:end]).value) == 12.5
+            end
+        end
+    end
+end
+
+@testset "Population positive totals and empty Arrow parity" begin
+    seed = first(H3.API.cellToChildren(DEMO_ORIGIN, 8))
+    origins = sort!(filter(!iszero, H3.API.gridDisk(seed, 1)))
+    source = first(filter(!=(seed), origins))
+    target = first(setdiff(H3.API.gridDisk(seed, 2), origins))
+    graph = pack_graph((from_h3=[source], to_h3=[target],
+        departure_ms=UInt32[0], duration_ms=Int64[0]))
+    for weight in (0.0, 3.0)
+        population = Reachability._population([target], [weight])
+        handler = make_handler(graph; population)
+        socket_test(handler) do url, http
+            socket_open(url) do ws
+                id = 0
+                for encoding in ("string", "split"), radius in (0, 1), window in (0, 2),
+                        mode in ("mean_intersection", "max_intersection", "diff_intersection",
+                                 "min_union", "diff_union", "reachable_union")
+                    path = "/reachable?index=$(string(seed; base=16))&departure_h=0&budget_h=0&max_walk_h=0&metric=accessible_population&origin_radius=$radius&encoding=$encoding&window_h=$(window / 3600)&step_h=$(1 / 3600)&window_mode=$mode"
+                    response = HTTP.get(http * path)
+                    socket_query(ws, id += 1, path)
+                    bytes = socket_receive(ws)
+                    @test socket_id(bytes) == id
+                    @test bytes[5:end] == response.body
+                    table = Arrow.Table(response.body)
+                    positive = weight > 0 && radius == 1 && (window == 0 || endswith(mode, "_union"))
+                    @test collect(table.value) == (positive ? [window > 0 && mode == "reachable_union" ? weight / 2 : weight] : Float64[])
+                    @test eltype(table.value) == Float64
+                    @test Set(propertynames(table)) == Set(encoding == "string" ? (:index, :value) : (:index_lower, :index_upper, :value))
+                    if encoding == "string"
+                        @test eltype(table.index) <: AbstractString
+                        cells = parse.(UInt64, table.index; base=16)
+                    else
+                        @test eltype(table.index_lower) == eltype(table.index_upper) == UInt32
+                        cells = UInt64.(table.index_lower) .| (UInt64.(table.index_upper) .<< 32)
+                    end
+                    @test cells == (positive ? [source] : UInt64[])
+                    @test HTTP.header(response, "X-Router-Origin-Count") == string(radius == 0 ? 1 : length(origins))
+                    internal = route_population(graph, population, seed, 0, 0;
+                        origin_radius=radius, max_walk_ms=0, window_ms=window * 1000,
+                        step_ms=1000, window_mode=Symbol(mode))
+                    @test internal.h3 == (radius == 0 ? [seed] : origins)
+                    @test count(>(0), internal.value) == length(table.value)
+                end
+            end
+        end
+    end
+end
+
+@testset "WebSocket metric-specific radius validation" begin
+    population = Reachability._population(
+        UInt64[first(H3.API.cellToChildren(DEMO_ORIGIN, 8))], [1.0])
+    socket_test(make_handler(pack_graph(fixture_table()); population)) do url, http
+        socket_open(url) do ws
+            id = 0
+            for metric in ("time", "time_distance_quantile", "accessible_population"), window in (0, 0.01)
+                path = "/reachable?index=$(string(DEMO_ORIGIN; base=16))&departure_h=0&budget_h=0&max_walk_h=0&distance_mode=straight_line&metric=$metric&window_h=$window"
+                expected = HTTP.get(http * path).body
+                for parameter in ("origin_radius=-1", "origin_radius=", "origin_radius=not-a-number",
+                                  "origin_radius=2147483648", "origin_radius=999999999999999999999",
+                                  "origin_radius=0&origin_radius=0")
+                    query = path * "&" * parameter
+                    response = HTTP.get(http * query; status_exception=false)
+                    socket_query(ws, id += 1, query)
+                    reply = socket_receive(ws)
+                    if metric == "accessible_population" || occursin('&', parameter)
+                        @test response.status == 400
+                        error = JSON.parse(reply)
+                        @test error["type"] == "error"
+                        @test error["id"] == id
+                    else
+                        @test response.status == 200
+                        @test socket_id(reply) == id
+                        @test reply[5:end] == response.body == expected
+                    end
+                end
+            end
+        end
+    end
+end
+
 @testset "WebSocket HTTP/Arrow parity and origins" begin
     graph = pack_graph(merge(fixture_table(), (distance_km=fill(2.0, 6),)))
     handler = make_handler(graph)

@@ -49,8 +49,26 @@ Use `--demo` instead of input files to serve network `demo` at resolution 5.
 Walking preparation and window routing use the available threads in Julia's default thread pool.
 The server keeps graphs and walking indexes in memory.
 
+To enable population queries, add `--population data/kontur_h3.arrow` to the command:
+
+```sh
+julia --threads=8 --project=. serve.jl --population data/kontur_h3.arrow path/to/timetable_res*.arrow
+```
+
+You can also use `--population=data/kontur_h3.arrow` or combine the option with `--demo` instead of network files.
+Supply the option only once, with one path. The server rejects a missing path or a repeated option before it loads data.
+Without this option, population queries return HTTP 400.
+The Arrow file must contain unique, valid `h3::UInt64` cells at resolution 8 and numeric `population` values.
+Both columns require a value in every row. Duplicate cells are rejected.
+Values must be finite and zero or more. Fractional values are retained in `Float64` weights.
+The server sums population by logical H3 parent at each loaded routing resolution from 0 to 8.
+Population queries at finer resolutions return HTTP 400. Other metrics remain available.
+A cell absent from the population file has zero population.
+Startup reports validation and aggregation progress. Networks at the same resolution share one population map.
+
 Before it accepts external requests, the server runs synthetic queries to compile the routing and response code.
-This warmup includes Arrow, HTTP, and WebSockets. It runs once for all resolutions, then closes its temporary loopback listener.
+This warmup includes the three population mode families, Arrow, HTTP, and WebSockets.
+It runs once for all resolutions, then closes its temporary loopback listener.
 Startup logs show the warmup time.
 
 ## Input
@@ -125,10 +143,23 @@ If equal times occur, the server selects the earliest sampled departure.
 Itinerary quantiles require an input `distance_km` column.
 Use `metric=time` with `reachable_union` when window sampling is active.
 
+Use `metric=accessible_population&origin_radius=2` for independent origins within two H3 grid steps.
+The radius is independent of walking and includes all cells, including those without population or transit.
+The default radius of zero selects only the specified origin.
+Results contain only origin H3 indices and `value::Float64` in people. The origin's population counts at zero time.
+The response contains one cell per origin with a positive final total. Zero totals are omitted, including the query origin.
+An origin with zero local population is included if its accessible total is positive.
+`X-Router-Origin-Count` reports origins examined, not rows returned. All-zero results contain an empty Arrow table.
+Intersection modes count cells reached in every sample. `min_union` and `diff_union` count cells
+reached in any sample. `reachable_union` returns mean accessible population, not a fraction.
+Each reached cell contributes its whole population, once per origin and sample.
+Population queries ignore `distance_mode` and calculate no route or origin-destination distances.
+Other metrics ignore `origin_radius` values. Duplicate parameters return HTTP 400. See the query contract for details.
+
 HTTP `/reachable` and WebSocket `/query` use the same [query contract](docs/api.md).
-Arrow results contain `value`, `elapsed_h`, and split H3 indices.
+Time and quantile results contain `value`, `elapsed_h`, and split H3 indices.
 Set `encoding=string` to get a hexadecimal `index` column instead.
-Time values are hours. `reachable_union` values are fractions.
+Time values are hours. For `metric=time`, `reachable_union` values are fractions.
 `time_distance_quantile` values are rank differences with no unit.
 
 Set `window_h=0` or `step_h=0` to query one departure without averaging.
