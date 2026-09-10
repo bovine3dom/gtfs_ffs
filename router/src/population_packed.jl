@@ -309,14 +309,49 @@ function route_population(graph, population::Population, origin, departure_ms, b
     weights = _population_rollup(population, graph.resolution)
     values = zeros(Float64, length(origins))
     isempty(weights) && return (; h3=origins, value=values, shared_expansions=0, query_expansions=0, workers=0)
-    tile_size = min(length(origins), isnothing(origin_batch_size) ? (samples == 1 ? 64 : 16) : Int(origin_batch_size))
-    tiles = cld(length(origins), tile_size)
-    workers = min(Threads.nthreads(:default), tiles)
     sources = _population_sources(walking_index, prepared, weights, origins, limit)
     own_ids = exclude_origin_population ? Int32[
         get(weights, cell, 0.0) > 0 ? get(walking_index.prepared.output_id, cell) do
             first(sources.direct[i])
         end : 0 for (i, cell) in enumerate(origins)] : nothing
+    heavy = Int[]
+    network = walking_index.prepared.graph
+    boardable(node) = graph.out_ptr[node] < graph.out_ptr[node + 1]
+    for i in eachindex(origins)
+        node = sources.sources[i]
+        transit = if iszero(node)
+            any(hop -> boardable(first(hop)), sources.access[i])
+        else
+            boardable(node) || any(j -> network.durations[j] <= limit && boardable(network.targets[j]),
+                network.offsets[node]:(network.offsets[node + 1] - 1))
+        end
+        if transit
+            push!(heavy, i)
+            continue
+        end
+        # A connection, including a self-connection, can permit another walk.
+        # Without one, only the source and its initial geographic walk contribute.
+        own = isnothing(own_ids) ? Int32(0) : own_ids[i]
+        if iszero(node)
+            for id in sources.direct[i]
+                id == own || (values[i] += sources.weights[id])
+            end
+        else
+            node == own || (values[i] += prepared.weights[node])
+            for j in prepared.offsets[node]:(prepared.offsets[node + 1] - 1)
+                prepared.durations[j] <= limit || break
+                id = prepared.targets[j]
+                id == own || (values[i] += prepared.weights[id])
+            end
+        end
+    end
+    all(isfinite, values) || throw(ArgumentError("accessible population is not finite"))
+    isempty(heavy) && return (; h3=origins, value=values, shared_expansions=0, query_expansions=0, workers=0)
+    # Keep short windows on the one-block path; otherwise require two full tiles per worker.
+    default_tile = samples == 1 || (samples > 4 && length(heavy) >= 128 * Threads.nthreads(:default)) ? 64 : 16
+    tile_size = min(length(heavy), isnothing(origin_batch_size) ? default_tile : Int(origin_batch_size))
+    tiles = cld(length(heavy), tile_size)
+    workers = min(Threads.nthreads(:default), tiles)
     range_origins = samples > fld(64, tile_size) ? tile_size : 0
     workspaces = [PopulationWorkspace(prepared.node_count, length(sources.weights), range_origins) for _ in 1:workers]
     next_tile = Threads.Atomic{Int}(1)
@@ -330,7 +365,7 @@ function route_population(graph, population::Population, origin, departure_ms, b
                 while !failed[]
                     tile = Threads.atomic_add!(next_tile, 1)
                     tile > tiles && break
-                    ids = ((tile - 1) * tile_size + 1):min(tile * tile_size, length(origins))
+                    ids = @view heavy[((tile - 1) * tile_size + 1):min(tile * tile_size, length(heavy))]
                     result = _population_tile!(workspaces[worker], graph, walking_index.prepared.graph,
                         prepared, sources, ids, ready, UInt32(budget_ms), step, samples, limit, mode, own_ids)
                     values[ids] = result.value

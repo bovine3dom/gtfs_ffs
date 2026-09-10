@@ -5,8 +5,8 @@ population prototype is implemented. Full-network hardware comparison is pending
 
 ## Target Workload
 
-Optimize for approximately 100 to 1,000 origins per request. Use the packed shared
-CPU population engine as the performance baseline.
+The near-term CPU target is approximately 10,000 origins per request. Use the
+current CPU range engine as the performance baseline. GPU work is separate.
 
 Return one accessible-population value per qualifying origin. Keep timetable,
 walking, and population data resident. Perform population reduction on the device
@@ -24,7 +24,7 @@ and download origin totals rather than departure-by-destination surfaces.
 ## Tune CPU Batches
 
 - [x] Compare 64-query blocks containing 8 origins x 8 samples, 16 x 4, 32 x 2, and 64 x 1.
-- [x] Measure reuse across origins and departures. Select 16 origins for windows; retain the 64-origin point default.
+- [x] Measure reuse across origins and departures. Select 16 or 64 origins for windows after static-origin removal; retain the 64-origin point default.
 - [x] Use compact IDs, packed `UInt64` event keys, and reusable settled and reached arrays.
 - [x] Prepare aligned weights and duration-sorted walking CSR entries for positive population.
 - [x] Defer final-walk coverage to one scan per reached walk-eligible node in each block.
@@ -32,18 +32,33 @@ and download origin totals rather than departure-by-destination surfaces.
 - [x] Use a queue of whole tiles with private worker buffers and joined error handling.
 - [x] Retain separate arrival labels for each origin across time blocks. Rebuild coverage for every sample.
 - [x] Measure standard resolution-7 routing with 96 samples and the production one-hour walking limit.
+- [x] Calculate static walking totals before routing-buffer allocation. Put only origins with possible transit access in tiles.
+- [x] Check 9,919-origin Paris and rural requests against the frozen range engine. See the [10,000-origin report](experiments/benchmarks/population-10k-results.md).
+- [x] Test incremental population labels, static schedule bounds, and tile sizes. Keep unproven candidates outside production.
+- [x] Complete interleaved trials under measured shared load. Record wall time, process CPU time, external CPU load, and pair variation. See the [shared-host appendix](experiments/benchmarks/population-shared-results.md).
+- [x] Add an experimental expiry-bucket candidate. Update population labels on valid pops, then apply sample expiry events.
 
 Each tile uses blocks of up to `floor(64 / origin_count)` samples. One worker
 processes all time blocks for its tile. The worker count is the smaller of the
 default thread count and origin-tile count. The private `origin_batch_size`
 keyword is for benchmarks. The public API permits all valid origin disks.
 
+Windows with two to four samples retain 16 origins, avoiding an arrival matrix
+for a query that fits one 64-query block. For longer windows, the default is 64 when the transit-origin count is at least
+`128 * Threads.nthreads(:default)`; otherwise it is 16. This gives at least two
+full 64-origin tiles per worker. Eight threads require 1,024 transit origins,
+not 1,024 total origins. The 64-lane mask limits each block, not the request.
+Tile 64 needs more workspace RAM. Request allocation was 2.6-2.9 times the
+tile-16 allocation in those eight-thread trials. The rule is not an optimum
+for all machines. Expiry buckets and eight-bin schedule hints remain experimental.
+
 Workers take the next available tile without a barrier between groups of tiles.
 For tiles with multiple time blocks, routing works backward through departure
 samples and repairs only strict arrival improvements. One-block tiles retain
 the packed origin/sample search. See the [CPU range report](experiments/benchmarks/population-queue-results.md).
 
-Off-graph origins use the packed path. Reference routing handles unprepared
+Origins without possible initial transit access use one static walking total.
+Other off-graph origins use the packed path. Reference routing handles unprepared
 indexes and larger effective walking limits. Server startup prepares one hour;
 full two-hour optimized walking requires a two-hour prepared index.
 

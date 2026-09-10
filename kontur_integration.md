@@ -85,13 +85,26 @@ results with `rtol=1e-12` and `atol=1e-6`.
 ## Shared CPU Engine
 
 The packed engine shares work across origins and departure samples. Each block
-uses up to 64 query lanes, each one an `(origin, sample)` pair. The default tile
-holds up to 64 origins for one sample, or 16 origins for multiple samples. Each
+uses up to 64 query lanes, each one an `(origin, sample)` pair. The point default
+holds up to 64 origins. Windows with two to four samples retain 16 origins and the
+one-block search. For longer windows, the default is 64 if the count of
+origins with possible transit access is at least `128 * Threads.nthreads(:default)`.
+Otherwise it is 16. Classification removes static-only origins before this choice.
+The threshold gives at least two full 64-origin tiles per worker: 1,024 transit
+origins on eight threads. It does not use a regional density label. Each
 block holds up to `floor(64 / origin_count)` samples for that tile. One worker
 owns a tile and processes all its time blocks. Each worker then takes the next
 available tile, without a barrier between groups of tiles. The worker count is
-the smaller of the default thread count and origin-tile count. Each worker has
+the smaller of the default thread count and transit-origin tile count. Each worker has
 private buffers. All workers stop before a request error is returned.
+
+The 64-lane mask limits a block, not the number of origins in a request.
+The internal `origin_batch_size` override remains available for benchmarks.
+Tile 64 needs more workspace RAM. In the eight-thread paired trials, request
+allocation was 2.6-2.9 times the tile-16 allocation. These trials used explicit
+tile choices before automatic selection was added. They measure equivalent tile
+configurations, not a separate automatic-selection run. The rule does not give
+the best performance on every machine. No public flag was added.
 
 Masks share an expansion at any matching cell, time, and walking-eligibility state.
 Each query lane keeps its own deadline. `PopulationWorkspace` uses compact IDs,
@@ -114,7 +127,15 @@ kernel allocates zero bytes. Complete requests still allocate workspaces and
 outputs. Large buffers need capacity that can grow with the request. This design
 uses standard vectors and requires no StaticArrays dependency.
 
-Off-graph origins use the packed path. Graph access, direct population coverage,
+Before routing-buffer allocation, the engine checks each origin and its legal
+initial network walks for outgoing connections. A self-connection also counts:
+it can permit another walk. Origins that cannot reach a connection use one static
+population total for all samples and modes. The total counts each initial walking
+destination once and applies origin exclusion before summation. A request with
+only these origins uses no routing workers. Other origins fill compact tiles;
+their results keep the original sorted H3 order.
+
+Other off-graph origins use the packed path. Graph access, direct population coverage,
 and extra destination IDs are prepared once per request. An unprepared index or
 an effective walking limit above the prepared limit uses the reference path with
 the same semantics. The effective limit is the smaller of the walk limit and
@@ -125,6 +146,12 @@ Startup compiles synthetic routing queries, including all three population famil
 Arrow responses, HTTP, and WebSockets. This uses synthetic graphs and population.
 
 ## Verification
+
+The [10,000-origin report](experiments/benchmarks/population-10k-results.md) records
+range-baseline parity for 9,919-origin Paris and rural requests. Its
+[shared-host appendix](experiments/benchmarks/population-shared-results.md) records
+interleaved trials with measured external CPU load.
+Expiry buckets and schedule hints remain experimental.
 
 Tests cover all six modes, independent per-origin walking results, HTTP/WebSocket
 parity, deadlines, overlapping walks, partial batches, fractional population,

@@ -39,11 +39,14 @@ end
 
 @testset "Whole-tile queue ownership and joined failures" begin
     origin = H3.API.latLngToCell(H3.API.LatLng(0.5, 0.1), 7)::UInt64
-    graph = R.pack_graph((from_h3=[origin], to_h3=[origin], departure_ms=UInt32[0], duration_ms=Int64[0]))
+    cells = sort!(H3.API.gridDisk(origin, 10))
+    graph = R.pack_graph((from_h3=cells, to_h3=cells,
+        departure_ms=zeros(UInt32, length(cells)), duration_ms=zeros(Int64, length(cells))))
     population = R._population([first(H3.API.cellToChildren(origin, 8))], [1.0])
     index = R.prepare_walking(R.WalkingIndex(graph); max_walk_ms=0)
     query() = R.route_population(graph, population, origin, 0, 100;
-        walking_index=index, max_walk_ms=0, origin_radius=10, window_ms=96, step_ms=1)
+        walking_index=index, max_walk_ms=0, origin_radius=10, window_ms=96, step_ms=1,
+        origin_batch_size=16)
     result = query()
     @test result.value == Float64.(1:331)
     @test result.shared_expansions == 331
