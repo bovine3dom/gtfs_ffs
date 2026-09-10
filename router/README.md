@@ -65,6 +65,8 @@ The server sums population by logical H3 parent at each loaded routing resolutio
 Population queries at finer resolutions return HTTP 400. Other metrics remain available.
 A cell absent from the population file has zero population.
 Startup reports validation and aggregation progress. Networks at the same resolution share one population map.
+Startup aligns population weights with each prepared walking index.
+Population routing uses CPU threads and `Float64` totals. See [population integration](../kontur_integration.md) for details.
 
 Before it accepts external requests, the server runs synthetic queries to compile the routing and response code.
 This warmup includes the three population mode families, Arrow, HTTP, and WebSockets.
@@ -144,16 +146,19 @@ Itinerary quantiles require an input `distance_km` column.
 Use `metric=time` with `reachable_union` when window sampling is active.
 
 Use `metric=accessible_population&origin_radius=2` for independent origins within two H3 grid steps.
-The radius is independent of walking and includes all cells, including those without population or transit.
+The radius is independent of walking and includes cells with zero population or outside the transit graph.
 The default radius of zero selects only the specified origin.
 Results contain only origin H3 indices and `value::Float64` in people. The origin's population counts at zero time.
+Add `exclude_origin_population=true` to exclude each result origin's own routing-cell population.
+The default is `false`. Values `1` and `0` are also valid. This option applies to point queries and all window modes.
+Other metrics ignore this option, including invalid values. Population queries reject empty or invalid values with HTTP 400.
 The response contains one cell per origin with a positive final total. Zero totals are omitted, including the query origin.
 An origin with zero local population is included if its accessible total is positive.
-`X-Router-Origin-Count` reports origins examined, not rows returned. All-zero results contain an empty Arrow table.
+`X-Router-Origin-Count` reports origins examined. All-zero results contain an empty Arrow table.
 Intersection modes count cells reached in every sample. `min_union` and `diff_union` count cells
-reached in any sample. `reachable_union` returns mean accessible population, not a fraction.
+reached in any sample. `reachable_union` returns mean accessible population in people.
 Each reached cell contributes its whole population, once per origin and sample.
-Population queries ignore `distance_mode` and calculate no route or origin-destination distances.
+Population queries calculate origin totals and ignore `distance_mode`.
 Other metrics ignore `origin_radius` values. Duplicate parameters return HTTP 400. See the query contract for details.
 
 HTTP `/reachable` and WebSocket `/query` use the same [query contract](docs/api.md).
@@ -183,5 +188,7 @@ For remote access, use a proxy that provides TLS and authentication.
 julia --threads=1 --project=. test/runtests.jl
 julia --threads=8 --project=. test/runtests.jl
 ```
+
+Optional [GPU experiments](../experiments/gpu/README.md) use a separate environment outside the production server.
 
 The code uses the licence in [LICENSE](LICENSE). Timetable data uses its source licences.

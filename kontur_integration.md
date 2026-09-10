@@ -17,7 +17,11 @@ Population is summed by logical H3 parent at each loaded routing resolution from
 through 8. An absent cell has zero population. Population queries at finer resolutions,
 or without loaded population data, return HTTP 400. Other metrics remain available.
 Each reached routing cell contributes its whole population, including the origin at
-zero time. Logical parent aggregation conserves population; it is not a geometric
+zero time by default. Set `exclude_origin_population=true` to exclude each result origin's
+own routing-cell population in point queries and all window modes. Other origins can still count that cell.
+The default is `false`; `1` and `0` are also valid. Other metrics ignore all values of this option.
+Population queries reject empty or invalid values with HTTP 400. Duplicate parameters return HTTP 400.
+Logical parent aggregation conserves population; it is not a geometric
 polygon overlay. Coarse cells can overstate local walking access.
 
 `origin_radius` selects all cells within an H3 grid distance of the query cell as
@@ -51,14 +55,15 @@ reached at different departures. Intersection totals apply to sampled departures
 ## Resident Data
 
 `serve.jl` calls `load_population(...; progress=true)`. Handler construction prepares
-each required resolution once. Startup reports file loading,
-row validation, uniqueness checks, and aggregation progress. Preparation keeps the
-maps in memory and leaves the source file unchanged.
+each required resolution once. Startup reports loading, validation, uniqueness,
+aggregation, and indexed population preparation. Prepared data stays in memory.
 
-Population maps are H3-keyed `Dict{UInt64,Float64}` objects, shared across networks at
-the same resolution. Workers reuse the existing packed, immutable walking adjacency.
-Population weights are looked up by H3 key; alignment with compact destination IDs
-is a remaining optimization.
+Population maps are H3-keyed `Dict{UInt64,Float64}` objects, shared across networks
+at the same resolution. Each population object caches a `PreparedPopulation`
+sidecar for each prepared walking index. The sidecar aligns `Float64` weights
+with compact destination IDs. Its compressed sparse row (CSR) walking data
+contains positive-population destinations, sorted by duration within each node.
+Workers share the immutable walking adjacency and prepared population data.
 
 The [benchmark report](experiments/benchmarks/population-results.md) records these
 facts for `data/kontur_h3.arrow`:
@@ -79,40 +84,62 @@ results with `rtol=1e-12` and `atol=1e-6`.
 
 ## Shared CPU Engine
 
-The engine shares work across origins and departure samples. A job uses up to 64
-query lanes, each one an `(origin, sample)` pair. With one sample, a tile holds up to
-64 origins. With multiple samples, it holds up to eight origins. Each time block holds
-up to `floor(64 / tile_size)` samples. Flat worker waves use up to all default threads.
+The packed engine shares work across origins and departure samples. Each block
+uses up to 64 query lanes, each one an `(origin, sample)` pair. The default tile
+holds up to 64 origins for one sample, or 16 origins for multiple samples. Each
+block holds up to `floor(64 / origin_count)` samples for that tile. One worker
+owns a tile and processes all its time blocks. The worker count is the smaller
+of the default thread count and origin-tile count.
 
 Masks share an expansion at any matching cell, time, and walking-eligibility state.
-Each query lane keeps its own deadline. Union and intersection coverage is retained
-only for unfinished tiles. Weighted means are accumulated as blocks finish. Output
-storage is scalar per origin, rather than a full origin-by-sample-by-cell history.
+Each query lane keeps its own deadline. `PopulationWorkspace` uses compact IDs,
+packed `UInt64` event keys, and settled and reached mask arrays. Final-walk
+coverage is deferred until search ends, then scans the positive-population CSR
+once per reached walk-eligible node per block. Each lane retains its own remaining
+walking budget. Array resets visit touched entries. Typed tile results and mask
+aggregation keep reductions on the worker. Output storage holds one scalar per origin.
+
+Workers reuse vector capacity across blocks and tiles. The measured warmed inner
+kernel allocates zero bytes. Complete requests still allocate workspaces and
+outputs. Large buffers need capacity that can grow with the request. This design
+uses standard vectors and requires no StaticArrays dependency.
+
+Off-graph origins use the packed path. Graph access, direct population coverage,
+and extra destination IDs are prepared once per request. An unprepared index or
+an effective walking limit above the prepared limit uses the reference path with
+the same semantics. The effective limit is the smaller of the walk limit and
+journey budget. Server startup prepares one hour. A two-hour walk request with
+at least a two-hour budget uses reference routing unless the index covers two hours.
 
 Startup compiles synthetic routing queries, including all three population families,
 Arrow responses, HTTP, and WebSockets. This uses synthetic graphs and population.
 
 ## Verification
 
-Tests include an independent population oracle based on existing routing results.
-The benchmark report compares all three families with independent walking routes.
-The final daytime case uses `everything` at resolution 6, a Paris origin, departure
-at 08:00, a three-hour journey budget, and eight threads.
+Tests cover all six modes, independent per-origin walking results, HTTP/WebSocket
+parity, deadlines, overlapping walks, partial batches, fractional population,
+zero-population cells, and reference fallback.
 
-For seven origins and 96 samples, the weighted population query took 149.02 ms,
-compared with 316.67 ms for independent cached windows. The single-origin weighted
-query took 251.89 ms versus 42.10 ms. The reference includes distance output and three
-sums; the population path calculates one sum. These are medians of three measured calls
-on a shared machine. The report records memory use, swap activity, and earlier rail results.
+The [final CPU report](experiments/benchmarks/population-optimization-results.md#final-default-16-results)
+records the default-16 measurements for 127, 331, and 1,027 origins. Its timing
+matrix uses `mean_intersection`, four- and 96-sample windows, and three-hour and
+seven-day budgets. Union and weighted comparisons cover a selected subset.
+Every final timed output matches the frozen origin and value arrays exactly.
+The table marks single-call baselines separately from three-call medians.
 
-The full production suites passed with one and eight threads. They include independent
-per-origin comparisons, HTTP/WebSocket parity, per-query deadlines, overlapping walks,
-partial batches, fractional population, and zero-population cells.
+The three-hour profile at the one-hour walking limit traverses zero walking edges.
+Actual two-hour walking cases improve by 5.61-8.71x. Those measurements use a
+two-hour prepared index. Schedule lookup and heap/pending-event work are the main
+remaining costs; projection is below 1% of routed profile samples.
+
+The optional [GPU population experiment](experiments/gpu/README.md#population)
+performs walking, coverage, and `Float32` reduction on the device. Small-fixture
+checks cover `KA.CPU` and Intel P630. Full-network hardware comparison and CUDA
+validation are pending. The production server stays CPU-only with its existing dependencies.
 
 ## Next Steps
 
-1. Profile and optimize single-origin queries. Compare them with the cached reference.
-2. Use compact integer destination IDs and aligned population weights to reduce dictionary work.
-3. Explore a population-only GPU path with resident data, walking-eligibility states,
-   per-query deadlines, coverage reduction, and scalar output per origin.
+1. Profile transit-time lookup and queue processing across many origins and samples.
+2. Preserve shared state expansions on the GPU. Measure wider masks before adoption.
+3. Compare full-network GPU requests with the packed CPU engine at the target origin counts.
 4. Add resumable planet-scale runs over populated origins, with bounded batches and saved results.

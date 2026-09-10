@@ -1,9 +1,21 @@
 export load_population, route_population
 
+# Graph nodes are the weight prefix. The CSR contains only positive population destinations.
+struct PreparedPopulation
+    cells::Vector{UInt64}
+    weights::Vector{Float64}
+    node_count::Int
+    offsets::Vector{Int}
+    targets::Vector{Int32}
+    durations::Vector{UInt32}
+    walk_min::Vector{UInt32}
+end
+
 struct Population{H,P}
     h3::H
     weights::P
     rollups::Dict{Int,Dict{UInt64,Float64}}
+    prepared::IdDict{WalkingIndex,PreparedPopulation}
     lock::ReentrantLock
 end
 
@@ -37,7 +49,8 @@ function _population(cells, weights; progress::Bool=false)
             previous = cell
         end
     end
-    return Population(cells, weights, Dict{Int,Dict{UInt64,Float64}}(), ReentrantLock())
+    return Population(cells, weights, Dict{Int,Dict{UInt64,Float64}}(),
+                      IdDict{WalkingIndex,PreparedPopulation}(), ReentrantLock())
 end
 
 function _population_rollup(population::Population, resolution; progress::Bool=false)
@@ -60,6 +73,43 @@ function _population_rollup(population::Population, resolution; progress::Bool=f
             end
         end
     end
+end
+
+function _prepare_population(population::Population, index::WalkingIndex; progress::Bool=false)
+    adjacency = index.prepared
+    isnothing(adjacency) && return nothing
+    return lock(population.lock) do
+        get!(population.prepared, index) do
+            weights = _population_rollup(population, index.resolution; progress)
+            _startup_stage(progress, "Preparing indexed population weights and walks") do _
+                aligned = Float64[get(weights, h, 0.0) for h in adjacency.output_cells]
+                offsets, targets, durations = Int[1], Int32[], UInt32[]
+                walk_min = fill(INF, length(index.cells))
+                output, network = adjacency.output, adjacency.graph
+                for u in eachindex(index.cells)
+                    hops = [j for j in output.offsets[u]:(output.offsets[u + 1] - 1)
+                            if aligned[output.targets[j]] > 0]
+                    sort!(hops; by=j -> output.durations[j])
+                    append!(targets, output.targets[hops])
+                    append!(durations, output.durations[hops])
+                    isempty(hops) || (walk_min[u] = output.durations[first(hops)])
+                    for j in network.offsets[u]:(network.offsets[u + 1] - 1)
+                        walk_min[u] = min(walk_min[u], network.durations[j])
+                    end
+                    push!(offsets, length(targets) + 1)
+                end
+                PreparedPopulation(adjacency.output_cells, aligned, length(index.cells),
+                                   offsets, targets, durations, walk_min)
+            end
+        end
+    end
+end
+
+function _exclude_origin_population(params)
+    text = get(params, "exclude_origin_population", "false")
+    text in ("true", "false", "1", "0") ||
+        throw(ArgumentError("exclude_origin_population must be true, false, 1 or 0"))
+    return text in ("true", "1")
 end
 
 function _origin_radius(text)
@@ -152,10 +202,14 @@ function _population_totals!(values, ids, coverage, weights, divisor)
     end
 end
 
-function route_population(graph, population::Population, origin, departure_ms, budget_ms;
+const PopulationReferenceResult = @NamedTuple{tile::Int, block::Int, ids::UnitRange{Int},
+    masks::Vector{UInt64}, reached::Dict{UInt64,UInt64}, shared::Int, separate::Int}
+
+function _route_population_reference(graph, population::Population, origin, departure_ms, budget_ms;
                           origin_radius=0, window_ms=0, step_ms=60_000,
                           max_walk_ms=3_600_000, window_mode=:mean_intersection,
-                          walking_index=WalkingIndex(graph))
+                          walking_index=WalkingIndex(graph), origin_batch_size=nothing,
+                          exclude_origin_population::Bool=false)
     ready, _ = query_times(graph, origin, departure_ms, budget_ms)
     radius = _origin_radius(string(origin_radius))
     window_ms isa Integer && window_ms >= 0 || throw(ArgumentError("window must be nonnegative"))
@@ -172,7 +226,10 @@ function route_population(graph, population::Population, origin, departure_ms, b
     weights = _population_rollup(population, graph.resolution)
     values = zeros(Float64, length(origins))
     isempty(weights) && return (; h3=origins, value=values, shared_expansions=0, query_expansions=0, workers=0)
-    tile_size = samples == 1 ? 64 : min(8, length(origins))
+    isnothing(origin_batch_size) || (origin_batch_size isa Integer && 1 <= origin_batch_size <= 64) ||
+        throw(ArgumentError("origin_batch_size must be in 1..64"))
+    tile_size = isnothing(origin_batch_size) ? (samples == 1 ? 64 : min(16, length(origins))) :
+        min(Int(origin_batch_size), length(origins))
     block_samples = fld(64, tile_size)
     time_blocks = cld(samples, block_samples)
     jobs = cld(length(origins), tile_size) * time_blocks
@@ -200,9 +257,15 @@ function route_population(graph, population::Population, origin, departure_ms, b
         end
         # Reduce in tile/time order. Only unfinished tiles retain coverage.
         for task in tasks
-            (; tile, block, ids, masks, reached, shared, separate) = fetch(task)
+            (; tile, block, ids, masks, reached, shared, separate) = fetch(task)::PopulationReferenceResult
             expansions += shared
             queries += separate
+            if exclude_origin_population
+                for (i, id) in enumerate(ids)
+                    cell = origins[id]
+                    haskey(reached, cell) && (reached[cell] &= ~masks[i])
+                end
+            end
             if mode == :reachable_union
                 totals = Dict{UInt64,Float64}()
                 for (cell, bits) in reached

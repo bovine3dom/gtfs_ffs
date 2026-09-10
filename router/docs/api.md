@@ -30,6 +30,7 @@ The server rejects unknown parameters, duplicate parameters, and invalid paramet
 | `window_mode` | One of the six modes below | `mean_intersection` |
 | `metric` | `time`, `time_distance_quantile`, or `accessible_population` | `time` |
 | `origin_radius` | Nonnegative integer H3 grid steps; population metric only | `0` |
+| `exclude_origin_population` | `true` or `1` excludes each origin's own population; `false` or `0` includes it; population metric only | `false` |
 
 For example, add `&network=everything` to select files named `everything_resN.arrow`.
 Names can include underscores, hyphens, spaces, and UTF-8 characters. Use percent encoding in query values where necessary.
@@ -84,27 +85,35 @@ The file requires unique, valid `h3::UInt64` cells at resolution 8 and finite, n
 Both columns require a value in every row. The loader rejects duplicate cells after validation.
 Fractional values are retained in `Float64` weights. Rows are summed by logical H3 parent at the routing resolution.
 Startup reports validation and aggregation progress. Population maps are shared across networks at the same resolution.
+Startup aligns `Float64` weights with each prepared walking index for CPU population routing.
+Startup prepares one-hour walks. Population queries use reference routing when `min(max_walk_h, budget_h) > 1` after millisecond rounding.
 Population queries support routing resolutions 0 through 8. Finer resolutions return HTTP 400 for this metric.
 Other metrics can use those graphs. An absent population cell has zero population.
 A population query without loaded population data returns HTTP 400. Other metrics remain available.
 
 `metric=accessible_population` examines each independent origin in the H3 disk
-specified by `index` and `origin_radius`. The disk includes cells without population or transit.
+specified by `index` and `origin_radius`. The disk includes cells with zero population or outside the transit graph.
 You can also specify the centre with `index_lower` and `index_upper`. Radius zero selects only that origin.
-The radius uses grid steps, not walking distance. It must fit the H3 library's signed C integer
-and allocation size. There is no additional origin-count limit.
+The radius uses grid steps and is independent of walking distance. It must fit the H3 library's signed C integer
+and allocation size. The router processes every origin in a valid disk.
 Other metrics ignore all `origin_radius` values. Duplicate parameters return HTTP 400.
 
 Rows are sorted by origin H3 value. Columns are the selected origin H3 encoding and `value::Float64` in people.
 The response contains one cell per origin with a positive final total after window aggregation.
 Zero totals are omitted, including the query origin. An origin with zero local population is included if its total is positive.
 If all totals are zero, the response is an empty Arrow table with the same columns and types.
-There are no elapsed-time or distance columns. `distance_mode` must be valid but has no effect.
-The router does not calculate route or origin-destination distances for this metric.
-An input distance column is not required.
+The schema contains only origin indices and population values. Population routing accepts and ignores a valid `distance_mode`.
+The input distance column is optional.
 
 Each reached routing cell contributes its whole population once per origin and sample.
-The origin's own cell counts at zero time. Duplicate paths and overlapping walks do not add population twice.
+Set `exclude_origin_population=true` to exclude each result origin's own routing-cell population from its total.
+This excludes the sum of all resolution-8 population cells with that logical H3 parent, not only the query seed's population.
+The option applies to point queries and all window modes. It does not change traversal or sharing statistics.
+Own-only totals are zero and are omitted. Other origins can still count that cell's population.
+For population queries, only `true`, `false`, `1`, and `0` are valid. Empty or other values return HTTP 400.
+Other metrics ignore all values of this option. Duplicate parameters still return HTTP 400.
+The CPU `route_population` function accepts the keyword `exclude_origin_population::Bool=false`.
+Duplicate paths and overlapping walks count each cell once per sample.
 Walking, time limits, network selection, encoding, and parameter validation follow the common query rules.
 HTTP and WebSocket queries use the same parameters, constraints, and result schema.
 
@@ -114,7 +123,7 @@ HTTP and WebSocket queries use the same parameters, constraints, and result sche
 | `min_union`, `diff_union` | Sum over cells reached in at least one sample |
 | `reachable_union` | Sum of each cell's population multiplied by its reachable sample count, divided by the total sample count |
 
-`reachable_union` is mean accessible population in people, not a fraction.
+`reachable_union` is mean accessible population in people.
 All modes give the same value for one sample.
 Setting `window_h=0` or `step_h=0` selects one departure and ignores `window_mode`.
 Fractional weights and sample weighting can produce small floating-point differences when reduction order changes.

@@ -299,6 +299,7 @@ include("walking_window.jl")
 include("walking_output.jl")
 include("walking_catchup.jl")
 include("population.jl")
+include("population_packed.jl")
 
 function _hours_ms(value, name, maximum; positive=false, nonzero=false, clock=false)
     text = string(value)
@@ -343,7 +344,7 @@ end
 
 function parse_query(uri, graph)
     params = _query_params(uri)
-    allowed = ("network", "index", "index_lower", "index_upper", "departure_h", "budget_h", "encoding", "window_h", "step_h", "metric", "max_walk_h", "distance_mode", "window_mode", "origin_radius")
+    allowed = ("network", "index", "index_lower", "index_upper", "departure_h", "budget_h", "encoding", "window_h", "step_h", "metric", "max_walk_h", "distance_mode", "window_mode", "origin_radius", "exclude_origin_population")
     all(k -> k in allowed, keys(params)) || throw(ArgumentError("unknown query parameter"))
     origin = _query_origin(params)
     departure_ms = _hours_ms(get(params, "departure_h", ""), "departure_h", 24; clock=true)
@@ -357,6 +358,7 @@ function parse_query(uri, graph)
     if metric == "accessible_population" && haskey(params, "origin_radius")
         _origin_radius(params["origin_radius"])
     end
+    metric == "accessible_population" && _exclude_origin_population(params)
     distance_mode = _distance_mode(get(params, "distance_mode", "itinerary"))
     ready, _ = query_times(graph, origin, departure_ms, budget_ms)
     window_ms = _hours_ms(get(params, "window_h", "0"), "window_h", MAX_TIME_MS / 3_600_000; nonzero=true)
@@ -471,6 +473,8 @@ function make_handler(graph::Graph; request_lock=ReentrantLock(), progress::Bool
         WalkingIndex(graph)
     end
     walking_index = prepare_walking(walking_index; progress)
+    prepared_population = isnothing(population) || graph.resolution > 8 ? nothing :
+        _prepare_population(population, walking_index; progress)
     return function (request)
         headers = _response_headers()
         query = try
@@ -499,10 +503,12 @@ function make_handler(graph::Graph; request_lock=ReentrantLock(), progress::Bool
         push!(headers, "X-Router-Max-Walk-H" => string(max_walk_ms / 3_600_000))
         return lock(request_lock) do
             if metric == "accessible_population"
-                radius = _origin_radius(get(_query_params(HTTP.URI(request.target)), "origin_radius", "0"))
+                params = _query_params(HTTP.URI(request.target))
+                radius = _origin_radius(get(params, "origin_radius", "0"))
                 result = route_population(graph, population, origin, ready, budget;
                     origin_radius=radius, window_ms=window, step_ms=step, max_walk_ms,
-                    window_mode, walking_index)
+                    window_mode, walking_index, prepared_population,
+                    exclude_origin_population=_exclude_origin_population(params))
                 append!(headers, ["X-Router-Backend" => "shared-population",
                     "X-Router-Metric" => metric, "X-Router-Distance" => "not-computed",
                     "X-Router-Origin-Count" => string(length(result.h3)),

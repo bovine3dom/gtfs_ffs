@@ -14,3 +14,4 @@ const START = 28_800_000
 include("../../../router/test/window_tests.jl")
 include("kernel_tests.jl")
 include("window_gpu_tests.jl")
+include("population_gpu_tests.jl")

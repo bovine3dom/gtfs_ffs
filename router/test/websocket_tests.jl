@@ -40,14 +40,14 @@ socket_id(bytes) = foldl((a, b) -> (a << 8) | UInt32(b), bytes[1:4]; init=UInt32
     socket_test(handler) do url, http
         socket_open(url) do ws
             id = 0
-            for encoding in ("split", "string"), window in ("window_h=0&window_mode=ignored",
+            for exclude in (false, true), encoding in ("split", "string"), window in ("window_h=0&window_mode=ignored",
                     "window_h=1&step_h=0&window_mode=ignored", "window_h=0.01&window_mode=reachable_union")
-                path = "/reachable?index=$(string(DEMO_ORIGIN; base=16))&departure_h=0&budget_h=0&metric=accessible_population&origin_radius=1&encoding=$encoding&$window"
+                path = "/reachable?index=$(string(DEMO_ORIGIN; base=16))&departure_h=0&budget_h=0&metric=accessible_population&origin_radius=1&encoding=$encoding&$window&exclude_origin_population=$exclude"
                 socket_query(ws, id += 1, path)
                 bytes = socket_receive(ws)
                 @test socket_id(bytes) == id
                 @test bytes[5:end] == HTTP.get(http * path).body
-                @test sum(Arrow.Table(bytes[5:end]).value) == 12.5
+                @test sum(Arrow.Table(bytes[5:end]).value) == (exclude ? 0.0 : 12.5)
             end
         end
     end
@@ -111,7 +111,9 @@ end
                 expected = HTTP.get(http * path).body
                 for parameter in ("origin_radius=-1", "origin_radius=", "origin_radius=not-a-number",
                                   "origin_radius=2147483648", "origin_radius=999999999999999999999",
-                                  "origin_radius=0&origin_radius=0")
+                                  "origin_radius=0&origin_radius=0", "exclude_origin_population=",
+                                  "exclude_origin_population=nonsense", "exclude_origin_population=True",
+                                  "exclude_origin_population=2", "exclude_origin_population=true&exclude_origin_population=false")
                     query = path * "&" * parameter
                     response = HTTP.get(http * query; status_exception=false)
                     socket_query(ws, id += 1, query)
