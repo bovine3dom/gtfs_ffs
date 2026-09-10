@@ -1,0 +1,74 @@
+input=/home/olie/projects/gtfs_ffs/data/at_test.arrow bytes=954533394 sha256=d0136a30a7c058585e0f5cbfb6038551f4471f06970dd0520c308f2ecdbe1f43
+column=source type=String rows=6111604 missing=0 sample=["at_Linz-AG-2026.gtfs", "at_Linz-AG-2026.gtfs", "at_Linz-AG-2026.gtfs"]
+column=trip_id type=String rows=6111604 missing=0 sample=["1.TA.1-2-E-f26-1.17.R", "1.TA.1-2-E-f26-1.17.R", "1.TA.1-2-E-f26-1.17.R"]
+column=stop_sequence type=Union{Missing, UInt32} rows=6111604 missing=0 sample=Union{Missing, UInt32}[0x00000001, 0x00000002, 0x00000003]
+column=stop_id type=String rows=6111604 missing=0 sample=["at:44:41363:0:1", "at:44:42598:0:1", "at:44:41294:0:1"]
+column=stop_name type=String rows=6111604 missing=0 sample=["Linz/Donau Remise Kleinmünchen", "Linz/Donau Wimmerstraße", "Linz/Donau Wahringerstraße"]
+column=route_type type=UInt16 rows=6111604 missing=0 sample=UInt16[0x0000, 0x0000, 0x0000]
+column=h3 type=UInt64 rows=6111604 missing=0 sample=UInt64[0x08b1e334b08a0fff, 0x08b1e334b0913fff, 0x08b1e334b4284fff]
+column=arrival_epoch_ms type=Int64 rows=6111604 missing=0 sample=[1767240000000, 1767240060000, 1767240120000]
+column=departure_epoch_ms type=Int64 rows=6111604 missing=0 sample=[1767240000000, 1767240060000, 1767240120000]
+column=departure_clock_ms type=UInt32 rows=6111604 missing=0 sample=UInt32[0x00dbba00, 0x00dca460, 0x00dd8ec0]
+column=stop_lat type=Float64 rows=6111604 missing=0 sample=[48.25835, 48.261353, 48.265305]
+column=stop_lon type=Float64 rows=6111604 missing=0 sample=[14.32123, 14.319856, 14.317978]
+column=pickup_type type=Union{Missing, UInt8} rows=6111604 missing=798446 sample=Union{Missing, UInt8}[missing, missing, missing]
+column=drop_off_type type=Union{Missing, UInt8} rows=6111604 missing=800998 sample=Union{Missing, UInt8}[missing, missing, missing]
+arrival_epoch_ms extrema=(1767225600000, 1767372240000)
+departure_epoch_ms extrema=(1767225600000, 1767372240000)
+departure_clock_ms extrema=(0x00000000, 0x05262168)
+stop_lat extrema=(41.911106, 53.55309)
+stop_lon extrema=(4.3357277, 30.488739)
+feed=at_Linz-AG-2026.gtfs rows=127477 trips=6721 ambiguous_trips=0
+feed=at_PTA-Carinthia-Flex-2026.gtfs rows=1902726 trips=20323 ambiguous_trips=3642
+feed=at_PTA-Eastern-Region-Flex-2026.gtfs rows=1770766 trips=97731 ambiguous_trips=0
+feed=at_PTA-Salzburg-Flex-2026.gtfs rows=350194 trips=15173 ambiguous_trips=0
+feed=at_PTA-Styria-Flex-2026.gtfs rows=694640 trips=60269 ambiguous_trips=0
+feed=at_PTA-Tyrol-2026.gtfs rows=423743 trips=20180 ambiguous_trips=0
+feed=at_PTA-Upper-Austria-Flex-2026.gtfs rows=301681 trips=12340 ambiguous_trips=18
+feed=at_PTA-Vorarlberg-Flex-2026.gtfs rows=276129 trips=14803 ambiguous_trips=0
+feed=at_Railway-Current-Reference-Data-2026.gtfs rows=264248 trips=27225 ambiguous_trips=0
+ambiguous_sequence_groups=49138
+ambiguous_trip_raw_rows=655056
+ambiguous_trips=3660
+arrival_epoch_ms_negative=0
+arrival_epoch_ms_zero=0
+clock_offset_changes=0
+clock_rollovers=2060
+departure_epoch_ms_negative=0
+departure_epoch_ms_zero=0
+distinct_conflicting_rows=117784
+epoch_day_rollovers=2060
+exact_duplicate_rows=1632701
+h3_over_52bit=6111604
+h3_zero=0
+invalid_clock=0
+invalid_coords=0
+invalid_h3=0
+negative_dwell=0
+negative_leg_duration=0
+resolution_11=6111604
+trips=274765
+unambiguous_adjacent_legs=4069511
+unambiguous_single_stop_trips=0
+unambiguous_trips=271105
+unambiguous_unique_stop_rows=4340616
+zero_dwell=5923595
+conflict source=at_PTA-Carinthia-Flex-2026.gtfs trip=1 sequence=1 rows=[127478, 127480] differences=arrival_epoch_ms: 1767256500000 vs 1767245700000; departure_epoch_ms: 1767256500000 vs 1767245700000; departure_clock_ms: 0x01d77f20 vs 0x0132b3a0
+conflict source=at_PTA-Carinthia-Flex-2026.gtfs trip=1 sequence=2 rows=[127487, 127489] differences=arrival_epoch_ms: 1767245760000 vs 1767256560000; departure_epoch_ms: 1767245760000 vs 1767256560000; departure_clock_ms: 0x01339e00 vs 0x01d86980
+conflict source=at_PTA-Carinthia-Flex-2026.gtfs trip=1 sequence=3 rows=[127496, 127497] differences=arrival_epoch_ms: 1767256620000 vs 1767245820000; departure_epoch_ms: 1767256620000 vs 1767245820000; departure_clock_ms: 0x01d953e0 vs 0x01348860
+conflict source=at_PTA-Carinthia-Flex-2026.gtfs trip=1 sequence=4 rows=[127505, 127506] differences=arrival_epoch_ms: 1767256860000 vs 1767246060000; departure_epoch_ms: 1767256860000 vs 1767246060000; departure_clock_ms: 0x01dcfd60 vs 0x013831e0
+conflict source=at_PTA-Carinthia-Flex-2026.gtfs trip=1 sequence=5 rows=[127514, 127519] differences=arrival_epoch_ms: 1767256920000 vs 1767246120000; departure_epoch_ms: 1767256920000 vs 1767246120000; departure_clock_ms: 0x01dde7c0 vs 0x01391c40
+load_s=2.56628604 sort_s=9.850569921 inspection_s=85.485263813
+preparation_s=90.393746428
+table=adjacent rows=4069511 endpoint_pairs=61796 self_rows=1601370 column_bytes=146502396
+table=shortcuts_only rows=877556 endpoint_pairs=60710 self_rows=27392 column_bytes=31592016
+table=combined rows=4947067 endpoint_pairs=112536 self_rows=1628762 column_bytes=178094412
+novel_distinct_shortcut_rows=789674
+added_shortcuts=877556
+candidate_shortcuts=877556
+invalid_adjacent_legs=0
+valid_adjacent_legs=4069511
+output=data/austria_adjacent_res8.arrow bytes=146503498 write_s=3.39741874 sha256=1f7868950158495ad72cfc47b2d1659ffc21329805de558ac312be2a2b0b1de7
+output=data/austria_shortcuts_res8.arrow bytes=178095514 write_s=0.078482965 sha256=8617f50ed842d573797599ca17c8684528045b22b891c9a58473f6e2124d5749
+output=data/austria_excluded_trips.arrow bytes=317962 write_s=1.111343794 sha256=43ec74b72f3218110f09e0bb9d83a30ae93bc9dc4f34ee0b67932c2b02246ef0
+total_s=97.915119159

@@ -1,0 +1,44 @@
+Binary dependencies:
+- NEO: 26.18.38308+0
+- libigc: 2.34.4+1
+- gmmlib: 22.10.0+0
+- SPIRV_LLVM_Backend: 22.1.8+1
+- SPIRV_Tools: 2025.4.0+0
+- oneAPI_Support: 0.10.0+0 (oneMKL v2025.3.0)
+
+Toolchain:
+- Julia: 1.12.7
+- LLVM: 18.1.7
+
+Julia packages:
+- oneAPI.jl: 2.7.2
+- GPUArrays: 11.5.14
+- GPUCompiler: 2.5.4
+- KernelAbstractions: 0.9.42
+- LLVM: 9.13.1
+- SPIRVIntrinsics: 1.1.0
+
+1 driver:
+- 00000000-0000-0000-18d3-f13101037898 (v1.3.30872, API v1.5.0)
+
+1 device:
+- Intel(R) HD Graphics P630
+julia=1.12.7 threads=8 backend=oneapi
+graph=data/austria_adjacent_res8.arrow sha256=1f7868950158495ad72cfc47b2d1659ffc21329805de558ac312be2a2b0b1de7 load_pack_s=4.617662782 nodes=20244 edges=61796 profile_entries=4791297 packed_array_bytes=77645240 graph_summary_bytes=130902128
+graph=data/austria_shortcuts_res8.arrow sha256=8617f50ed842d573797599ca17c8684528045b22b891c9a58473f6e2124d5749 load_pack_s=2.12574995 nodes=20244 edges=112536 profile_entries=5873381 packed_array_bytes=95567464 graph_summary_bytes=131659460
+origin=881e15b467fffff Vienna_Hbf_distance_km=0.45965645677167527 centre_parent=881e15b467fffff
+point graph=adjacent median_s=0.001857158 reached=5350
+point graph=shortcuts median_s=0.003539119 reached=5350
+walking_prepare_s=1.308324702 network_walk_rows=638524 output_walk_rows=2207121 output_cells=124917
+walking_point ready=28799999 covered_cells=31215 parity=exact
+walking_point ready=28800000 covered_cells=31249 parity=exact
+walking_point ready=28800001 covered_cells=25903 parity=exact
+population_load_s=2.715791454 raw_rows=32957699 sum_population=8.031924024e9 sha256=c21eaf6c3eb65563e80f2055347ad13f979014a190f8472817c25a591f427eb3
+resident_upload_s=7.311700649 device_array_bytes=72940512 label_bytes=10364928
+resident_upload_s=0.341392531 device_array_bytes=82003104 label_bytes=10364928
+cpu graph=adjacent radius=0 origins=1 samples=1 warm_s=5.517058682 repetitions=3 median_s=0.024762243 allocation_bytes=5315616 workers=1 shared_expansions=12367 query_expansions=12367 min_population=5.785472e6 max_population=5.785472e6 encoded_bytes=618 parity=exact
+cpu graph=shortcuts radius=0 origins=1 samples=1 warm_s=0.026401663 repetitions=3 median_s=0.028724796 allocation_bytes=5315616 workers=1 shared_expansions=12367 query_expansions=12367 min_population=5.785472e6 max_population=5.785472e6 encoded_bytes=618 parity=exact
+device_warm graph=adjacent radius=0 samples=1 total_s=10.311326557 rounds=51 max_abs_error=0.0
+device graph=adjacent radius=0 origins=1 samples=1 repetitions=1 median_s=0.102587369 rounds=51 batches=1 planning_s=0.000374629 upload_s=0.003703674 device_checks_s=0.098139116 download_s=0.000178198 bytes_downloaded=208 max_abs_error=0.0 encoded_bytes=618
+device_warm graph=shortcuts radius=0 samples=1 total_s=0.056062648 rounds=23 max_abs_error=0.0
+device graph=shortcuts radius=0 origins=1 samples=1 repetitions=3 median_s=0.055394219 rounds=23 batches=1 planning_s=0.000445395 upload_s=0.002580794 device_checks_s=0.052489853 download_s=0.000220549 bytes_downloaded=96 max_abs_error=0.0 encoded_bytes=618

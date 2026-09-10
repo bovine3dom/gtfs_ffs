@@ -1,0 +1,15 @@
+julia=1.12.7 threads=8 backend=cpu
+graph=data/austria_adjacent_res8.arrow sha256=1f7868950158495ad72cfc47b2d1659ffc21329805de558ac312be2a2b0b1de7 load_pack_s=4.667565758 nodes=20244 edges=61796 profile_entries=4791297 packed_array_bytes=77645240 graph_summary_bytes=130902128
+graph=data/austria_shortcuts_res8.arrow sha256=8617f50ed842d573797599ca17c8684528045b22b891c9a58473f6e2124d5749 load_pack_s=2.127535742 nodes=20244 edges=112536 profile_entries=5873381 packed_array_bytes=95567464 graph_summary_bytes=131659460
+origin=881e15b467fffff Vienna_Hbf_distance_km=0.45965645677167527 centre_parent=881e15b467fffff
+point graph=adjacent median_s=0.002322372 reached=5350
+point graph=shortcuts median_s=0.002909171 reached=5350
+walking_prepare_s=1.403944271 network_walk_rows=638524 output_walk_rows=2207121 output_cells=124917
+walking_point ready=28799999 covered_cells=31215 parity=exact
+walking_point ready=28800000 covered_cells=31249 parity=exact
+walking_point ready=28800001 covered_cells=25903 parity=exact
+population_load_s=2.508674401 raw_rows=32957699 sum_population=8.031924024e9 sha256=c21eaf6c3eb65563e80f2055347ad13f979014a190f8472817c25a591f427eb3
+cpu graph=adjacent radius=0 origins=1 samples=1 warm_s=11.598086735 repetitions=1 median_s=0.024693294 allocation_bytes=5315616 workers=1 shared_expansions=12367 query_expansions=12367 min_population=5.785472e6 max_population=5.785472e6 encoded_bytes=618 parity=exact
+cpu graph=shortcuts radius=0 origins=1 samples=1 warm_s=0.028078355 repetitions=3 median_s=0.02802273 allocation_bytes=5315616 workers=1 shared_expansions=12367 query_expansions=12367 min_population=5.785472e6 max_population=5.785472e6 encoded_bytes=618 parity=exact
+cpu graph=adjacent radius=6 origins=127 samples=4 warm_s=0.612564954 repetitions=3 median_s=0.489262281 allocation_bytes=266729912 workers=8 shared_expansions=417325 query_expansions=5981122 min_population=4.537265e6 max_population=5.455038e6 encoded_bytes=2634 parity=exact
+cpu graph=shortcuts radius=6 origins=127 samples=4 warm_s=0.521638513 repetitions=3 median_s=0.520778217 allocation_bytes=284555824 workers=8 shared_expansions=417307 query_expansions=5981781 min_population=4.537265e6 max_population=5.455038e6 encoded_bytes=2634 parity=exact

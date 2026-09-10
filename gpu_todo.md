@@ -73,6 +73,16 @@ Union modes count cells reached in any sample. `reachable_union` sums population
 weighted by reachable fraction. Each population cell contributes once per origin
 and sample. The public response omits origins with a zero total.
 
+## Trip Shortcuts
+
+- [x] Build adjacent and sparse square-root-segment graphs from the same Austria trip set.
+- [x] Verify arrival and population parity, retaining intermediate stops and walking access.
+- [x] Measure CPU windows and P630 single-departure queries. CPU windows were slower; completed GPU queries improved by 1.34-1.85x.
+- [ ] Complete GPU window comparisons on CUDA. The P630 four-sample comparison timed out before both results were available.
+
+See [the Austria experiment](experiments/trip-shortcuts/results.md) for the approved
+trip exclusions, generated files, packed sizes, and measurement scope.
+
 ## Planet-Scale Follow-Up
 
 - [ ] Add resumable execution over populated origins.
