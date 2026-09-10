@@ -5,7 +5,7 @@ using Logging
     count = with_logger(logger) do
         warmup_server()
     end
-    @test count == 222
+    @test count == 246
     record = only(filter(r -> r.message == "Synthetic routing warmup", logger.logs))
     @test record.kwargs[:queries] == count
     @test last(logger.logs).message == "Startup complete: Compiling routing and Arrow responses"

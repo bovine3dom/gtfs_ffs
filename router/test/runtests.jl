@@ -12,6 +12,8 @@ const START = 28_800_000
 include("startup_tests.jl")
 include("population_tests.jl")
 include("population_packed_tests.jl")
+include("population_range_tests.jl")
+include("population_queue_tests.jl")
 include("population_input_tests.jl")
 
 @testset "CPU-only server surface" begin

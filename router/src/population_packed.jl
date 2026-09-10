@@ -15,14 +15,14 @@ struct PopulationWorkspace
     radii::Vector{Tuple{UInt32,UInt64}}
     projected::Dict{UInt64,UInt64}
     totals::Dict{UInt64,Float64}
+    arrivals::Matrix{UInt32}
 end
 
-PopulationWorkspace(n, destinations) = PopulationWorkspace(zeros(UInt64, 2n), Int[],
+PopulationWorkspace(n, destinations, origins=0) = PopulationWorkspace(zeros(UInt64, 2n), Int[],
     zeros(UInt64, destinations), Int32[], zeros(UInt64, destinations), Int32[],
     Dict{UInt64,UInt64}(), BinaryMinHeap{UInt64}(), zeros(Int, n), Int32[],
-    UInt32[], UInt64[], Int[], Tuple{UInt32,UInt64}[], Dict{UInt64,UInt64}(), Dict{UInt64,Float64}())
-
-const PopulationTileResult = @NamedTuple{value::Vector{Float64}, shared::Int, separate::Int}
+    UInt32[], UInt64[], Int[], Tuple{UInt32,UInt64}[], Dict{UInt64,UInt64}(), Dict{UInt64,Float64}(),
+    Matrix{UInt32}(undef, origins, 2n))
 
 @inline function _population_deadline(cutoffs, time)
     first = searchsortedfirst(cutoffs, time)
@@ -152,7 +152,12 @@ function _population_sample_packed!(w, graph, network, population, sources, ids,
             end
         end
     end
-    # Each lane settles once per node. Remove lanes as sorted walk lengths exceed their radii.
+    _population_cover!(w, population, cutoffs, limit)
+    return shared, separate
+end
+
+function _population_cover!(w, population, cutoffs, limit)
+    # Remove lanes as sorted walk lengths exceed their radii.
     for node in w.egress_nodes
         empty!(w.radii)
         event, active = w.heads[node], UInt64(0)
@@ -182,22 +187,36 @@ function _population_sample_packed!(w, graph, network, population, sources, ids,
     empty!(w.times)
     empty!(w.masks)
     empty!(w.links)
-    return shared, separate
+    return nothing
 end
 
 function _population_tile!(w, graph, network, population, sources, ids, ready, budget, step, samples, limit, mode, own_ids=nothing)
     values = zeros(Float64, length(ids))
     block_samples = fld(64, length(ids))
+    reuse = samples > block_samples && !isempty(w.arrivals)
+    labels = w.arrivals
+    if reuse
+        fill!(labels, INF)
+        for state in w.settled_ids
+            w.settled[state] = 0
+        end
+        empty!(w.settled_ids)
+    end
     union_mode = mode in (:min_union, :diff_union)
     shared = separate = 0
-    for block in 0:block_samples:(samples - 1)
+    blocks = 0:block_samples:(samples - 1)
+    for block_index in eachindex(blocks)
+        block = blocks[reuse ? length(blocks) - block_index + 1 : block_index]
         count = min(block_samples, samples - block)
         lane_ready = UInt32[ready + sample * step for sample in block:(block + count - 1) for _ in ids]
         cutoffs = lane_ready .+ budget
         masks = [sum(UInt64(1) << (sample * length(ids) + i - 1)
                      for sample in 0:(count - 1)) for i in 1:length(ids)]
-        expansions, queries = _population_sample_packed!(w, graph, network, population, sources,
-                                                        ids, lane_ready, cutoffs, limit)
+        expansions, queries = if reuse
+            _population_sample_range!(w, graph, network, population, sources, ids, lane_ready, cutoffs, limit, labels)
+        else
+            _population_sample_packed!(w, graph, network, population, sources, ids, lane_ready, cutoffs, limit)
+        end
         shared += expansions
         separate += queries
         # Exclude only this origin's credit, after traversal and before floating-point sums.
@@ -230,12 +249,12 @@ function _population_tile!(w, graph, network, population, sources, ids, ready, b
                     projected
                 end
                 w.reached[id] = bits
-                if (block == 0 || union_mode) && !iszero(bits)
+                if (block_index == 1 || union_mode) && !iszero(bits)
                     iszero(w.coverage[id]) && push!(w.coverage_ids, id)
                     w.coverage[id] |= bits
                 end
             end
-            if block != 0 && !union_mode
+            if block_index != 1 && !union_mode
                 for id in w.coverage_ids
                     w.coverage[id] &= w.reached[id]
                 end
@@ -298,26 +317,34 @@ function route_population(graph, population::Population, origin, departure_ms, b
         get(weights, cell, 0.0) > 0 ? get(walking_index.prepared.output_id, cell) do
             first(sources.direct[i])
         end : 0 for (i, cell) in enumerate(origins)] : nothing
-    workspaces = [PopulationWorkspace(prepared.node_count, length(sources.weights)) for _ in 1:workers]
-    shared = separate = 0
-    for wave in 1:workers:tiles
-        tasks = @sync map(0:min(workers - 1, tiles - wave)) do worker
-            Threads.@spawn begin
-                tile = wave + worker
-                ids = ((tile - 1) * tile_size + 1):min(tile * tile_size, length(origins))
-                _population_tile!(workspaces[worker + 1], graph, walking_index.prepared.graph,
-                    prepared, sources, ids, ready, UInt32(budget_ms), step, samples, limit, mode, own_ids)
+    range_origins = samples > fld(64, tile_size) ? tile_size : 0
+    workspaces = [PopulationWorkspace(prepared.node_count, length(sources.weights), range_origins) for _ in 1:workers]
+    next_tile = Threads.Atomic{Int}(1)
+    failed = Threads.Atomic{Bool}(false)
+    counts = Vector{Tuple{Int,Int}}(undef, workers)
+    @sync for worker in 1:workers
+        Threads.@spawn begin
+            local shared, separate
+            shared = separate = 0
+            try
+                while !failed[]
+                    tile = Threads.atomic_add!(next_tile, 1)
+                    tile > tiles && break
+                    ids = ((tile - 1) * tile_size + 1):min(tile * tile_size, length(origins))
+                    result = _population_tile!(workspaces[worker], graph, walking_index.prepared.graph,
+                        prepared, sources, ids, ready, UInt32(budget_ms), step, samples, limit, mode, own_ids)
+                    values[ids] = result.value
+                    shared += result.shared
+                    separate += result.separate
+                end
+            catch
+                failed[] = true
+                rethrow()
             end
-        end
-        for (worker, task) in enumerate(tasks)
-            result = fetch(task)::PopulationTileResult
-            all(isfinite, result.value) || throw(ArgumentError("accessible population is not finite"))
-            tile = wave + worker - 1
-            ids = ((tile - 1) * tile_size + 1):min(tile * tile_size, length(origins))
-            values[ids] = result.value
-            shared += result.shared
-            separate += result.separate
+            counts[worker] = (shared, separate)
         end
     end
+    all(isfinite, values) || throw(ArgumentError("accessible population is not finite"))
+    shared, separate = sum(first, counts), sum(last, counts)
     return (; h3=origins, value=values, shared_expansions=shared, query_expansions=separate, workers)
 end

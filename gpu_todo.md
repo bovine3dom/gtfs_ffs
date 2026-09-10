@@ -29,11 +29,19 @@ and download origin totals rather than departure-by-destination surfaces.
 - [x] Prepare aligned weights and duration-sorted walking CSR entries for positive population.
 - [x] Defer final-walk coverage to one scan per reached walk-eligible node in each block.
 - [x] Reset touched entries and use typed aggregation within worker-owned origin tiles.
+- [x] Use a queue of whole tiles with private worker buffers and joined error handling.
+- [x] Retain separate arrival labels for each origin across time blocks. Rebuild coverage for every sample.
+- [x] Measure standard resolution-7 routing with 96 samples and the production one-hour walking limit.
 
 Each tile uses blocks of up to `floor(64 / origin_count)` samples. One worker
 processes all time blocks for its tile. The worker count is the smaller of the
 default thread count and origin-tile count. The private `origin_batch_size`
 keyword is for benchmarks. The public API permits all valid origin disks.
+
+Workers take the next available tile without a barrier between groups of tiles.
+For tiles with multiple time blocks, routing works backward through departure
+samples and repairs only strict arrival improvements. One-block tiles retain
+the packed origin/sample search. See the [CPU range report](experiments/benchmarks/population-queue-results.md).
 
 Off-graph origins use the packed path. Reference routing handles unprepared
 indexes and larger effective walking limits. Server startup prepares one hour;

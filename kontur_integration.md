@@ -88,16 +88,26 @@ The packed engine shares work across origins and departure samples. Each block
 uses up to 64 query lanes, each one an `(origin, sample)` pair. The default tile
 holds up to 64 origins for one sample, or 16 origins for multiple samples. Each
 block holds up to `floor(64 / origin_count)` samples for that tile. One worker
-owns a tile and processes all its time blocks. The worker count is the smaller
-of the default thread count and origin-tile count.
+owns a tile and processes all its time blocks. Each worker then takes the next
+available tile, without a barrier between groups of tiles. The worker count is
+the smaller of the default thread count and origin-tile count. Each worker has
+private buffers. All workers stop before a request error is returned.
 
 Masks share an expansion at any matching cell, time, and walking-eligibility state.
 Each query lane keeps its own deadline. `PopulationWorkspace` uses compact IDs,
 packed `UInt64` event keys, and settled and reached mask arrays. Final-walk
 coverage is deferred until search ends, then scans the positive-population CSR
 once per reached walk-eligible node per block. Each lane retains its own remaining
-walking budget. Array resets visit touched entries. Typed tile results and mask
-aggregation keep reductions on the worker. Output storage holds one scalar per origin.
+walking budget. Mask aggregation and population sums stay on the worker.
+Output storage holds one scalar per origin.
+
+For tiles with multiple time blocks, routing starts at the latest sample and
+works backward. Each origin keeps separate transit and walking-eligible arrival
+labels across all blocks. Routing processes only strict improvements to these
+labels. Coverage includes unchanged labels that fit the current sample's cutoff.
+Coverage is rebuilt for each sample and combined in 64-lane blocks. Arrival
+buffers are reset between tiles. Other mask arrays reset only touched entries.
+Tiles with one time block retain the packed origin/sample search.
 
 Workers reuse vector capacity across blocks and tiles. The measured warmed inner
 kernel allocates zero bytes. Complete requests still allocate workspaces and
@@ -120,14 +130,18 @@ Tests cover all six modes, independent per-origin walking results, HTTP/WebSocke
 parity, deadlines, overlapping walks, partial batches, fractional population,
 zero-population cells, and reference fallback.
 
-The [final CPU report](experiments/benchmarks/population-optimization-results.md#final-default-16-results)
+The [CPU range report](experiments/benchmarks/population-queue-results.md) measures
+the current engine against the frozen packed default on the standard resolution-7
+graph. It uses the production one-hour walking limit and real walking edges.
+
+The [earlier CPU report](experiments/benchmarks/population-optimization-results.md#final-default-16-results)
 records the default-16 measurements for 127, 331, and 1,027 origins. Its timing
 matrix uses `mean_intersection`, four- and 96-sample windows, and three-hour and
 seven-day budgets. Union and weighted comparisons cover a selected subset.
 Every final timed output matches the frozen origin and value arrays exactly.
 The table marks single-call baselines separately from three-call medians.
 
-The three-hour profile at the one-hour walking limit traverses zero walking edges.
+That resolution-6 three-hour profile at the one-hour limit traverses zero walking edges.
 Actual two-hour walking cases improve by 5.61-8.71x. Those measurements use a
 two-hour prepared index. Schedule lookup and heap/pending-event work are the main
 remaining costs; projection is below 1% of routed profile samples.

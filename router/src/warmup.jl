@@ -20,9 +20,9 @@ function warmup_server(; progress::Bool=true)
         graph = pack_graph(distances ? table : Base.structdiff(table, NamedTuple{(:distance_km,)}))
         population = _population(unique(table.from_h3), ones(length(unique(table.from_h3))))
         handler = make_network_handler(Dict(("warmup", 8) => make_handler(graph; population)); default_network="warmup")
-        for walk in (0, 0.25), window in (0, 0.05), encoding in ("split", "string"),
+        for walk in (0, 0.25), window in (0, 0.05, 0.1), encoding in ("split", "string"),
                 mode in (window == 0 ? ("mean_intersection",) : ("mean_intersection", "min_union", "reachable_union"))
-            push!(jobs, (handler, "/reachable?index=$(string(origin; base=16))&departure_h=0&budget_h=0.1&max_walk_h=$walk&window_h=$window&window_mode=$mode&encoding=$encoding&metric=accessible_population&origin_radius=5"))
+            push!(jobs, (handler, "/reachable?index=$(string(origin; base=16))&departure_h=0&budget_h=0.5&max_walk_h=$walk&window_h=$window&window_mode=$mode&encoding=$encoding&metric=accessible_population&origin_radius=5"))
         end
         modes = distances ? ("point", "mean_intersection", "min_union", "max_intersection", "diff_union", "diff_intersection", "reachable_union") :
                             ("point", "mean_intersection")

@@ -300,6 +300,7 @@ include("walking_output.jl")
 include("walking_catchup.jl")
 include("population.jl")
 include("population_packed.jl")
+include("population_range.jl")
 
 function _hours_ms(value, name, maximum; positive=false, nonzero=false, clock=false)
     text = string(value)
