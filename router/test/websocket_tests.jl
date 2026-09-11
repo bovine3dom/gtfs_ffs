@@ -75,6 +75,9 @@ end
                     bytes = socket_receive(ws)
                     @test socket_id(bytes) == id
                     @test bytes[5:end] == response.body
+                    repeated = HTTP.get(http * path)
+                    @test HTTP.header(repeated, "X-Router-Cache-Misses") == "0"
+                    @test repeated.body == response.body
                     table = Arrow.Table(response.body)
                     positive = weight > 0 && radius == 1 && (window == 0 || endswith(mode, "_union"))
                     @test collect(table.value) == (positive ? [window > 0 && mode == "reachable_union" ? weight / 2 : weight] : Float64[])

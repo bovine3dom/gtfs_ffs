@@ -192,3 +192,40 @@ julia --threads=8 --project=. test/runtests.jl
 Optional [GPU experiments](../experiments/gpu/README.md) use a separate environment outside the production server.
 
 The code uses the licence in [LICENSE](LICENSE). Timetable data uses its source licences.
+
+## Population Result Cache
+
+Each HTTP handler has an in-memory cache for accessible population results.
+The cache holds at most 100,000 `Float64` origin totals, including zero. This
+capacity can hold several requests with tens of thousands of origins. When full,
+the cache replaces the oldest inserted entry (FIFO). Hits do not change this
+order. There is no capacity setting or TTL.
+
+The key contains the actual origin, integer departure time, budget, effective
+sample schedule, effective walk limit, population coverage mode, and origin
+exclusion setting. Equivalent coverage modes use the same key. The centre and
+radius select origins; they are not part of each origin key. A change to the
+departure time does not reuse results from an earlier time window.
+
+Each handler has a separate cache, protected by the request lock. The graph,
+population, and walking geometry must not change during its lifetime. To replace
+these inputs, create a new handler. Direct `route_population` calls are not cached.
+
+Validation occurs before cache lookup. All missing origins use one routing call
+with the existing tile selection and reference fallback. Only complete successful
+results enter the cache. Routing excludes origin population without subtraction
+from cached totals. HTTP output omits zeros. WebSocket uses the same handler cache.
+
+Population responses include `X-Router-Cache-Hits` and `X-Router-Cache-Misses`.
+These headers count origins, including zero totals. `X-Router-Origin-Count`
+counts all selected origins. Worker and expansion headers count only new work.
+An all-hit request does not prepare sources or route origins.
+
+Run the synthetic spatial overlap benchmark from the repository root:
+
+```sh
+julia --project=router --threads=8 experiments/benchmarks/benchmark-population-cache.jl
+```
+
+The benchmark reports cold, repeat, and moved-centre requests after compilation
+and input preparation. It uses synthetic data and does not measure HTTP output.

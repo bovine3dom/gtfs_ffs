@@ -122,7 +122,7 @@ and accumulator km. No per-sample floating-point distance averaging remains.
   replay visits 768 on the fixture versus **zero** straight-line visits, with the
   same 111 profile lookups and 222 routing expansions. Its nonzero straight-line
   `replay_ns` is timer/branch overhead, not replay work.
-- The existing `benchmark-walking-output.jl` diagnostic smoke passes for both its
+- The frozen output diagnostic smoke test passed for both its
   96-sample and 12-sample fixture cases after adapting the shared probe instrumentation.
 - Historical launcher dispatch smoke passed with the KA CPU point engine and window backends
   `origin`, `catchup` and `ka_cpu`, for straight-line walking/transit points/windows.

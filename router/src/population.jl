@@ -229,7 +229,7 @@ function _route_population_reference(graph, population::Population, origin, depa
                           origin_radius=0, window_ms=0, step_ms=60_000,
                           max_walk_ms=3_600_000, window_mode=:mean_intersection,
                           walking_index=WalkingIndex(graph), origin_batch_size=nothing,
-                          exclude_origin_population::Bool=false)
+                          exclude_origin_population::Bool=false, origins=nothing)
     ready, _ = query_times(graph, origin, departure_ms, budget_ms)
     radius = _origin_radius(string(origin_radius))
     window_ms isa Integer && window_ms >= 0 || throw(ArgumentError("window must be nonnegative"))
@@ -240,7 +240,7 @@ function _route_population_reference(graph, population::Population, origin, depa
     limit = min(_walking_limit(max_walk_ms), UInt32(budget_ms))
     walking_index.resolution == graph.resolution && walking_index.cells == graph.h3 ||
         throw(ArgumentError("walking index does not match graph"))
-    origins = H3.API.gridDisk(origin, radius)
+    origins = isnothing(origins) ? H3.API.gridDisk(origin, radius) : origins
     origins isa Vector{UInt64} || throw(ArgumentError("H3 origin disk failed"))
     sort!(filter!(!iszero, origins))
     weights = _population_rollup(population, graph.resolution)

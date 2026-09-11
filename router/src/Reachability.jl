@@ -481,6 +481,7 @@ function make_handler(graph::Graph; request_lock=ReentrantLock(), progress::Bool
             _population_schedule_hints(population, graph)
         end
     end
+    population_cache = isnothing(population) ? nothing : PopulationResultCache(graph, population, walking_index)
     return function (request)
         headers = _response_headers()
         query = try
@@ -511,13 +512,15 @@ function make_handler(graph::Graph; request_lock=ReentrantLock(), progress::Bool
             if metric == "accessible_population"
                 params = _query_params(HTTP.URI(request.target))
                 radius = _origin_radius(get(params, "origin_radius", "0"))
-                result = route_population(graph, population, origin, ready, budget;
+                result = _cached_route_population(population_cache, origin, ready, budget;
                     origin_radius=radius, window_ms=window, step_ms=step, max_walk_ms,
-                    window_mode, walking_index, prepared_population,
+                    window_mode, prepared_population,
                     exclude_origin_population=_exclude_origin_population(params))
                 append!(headers, ["X-Router-Backend" => "shared-population",
                     "X-Router-Metric" => metric, "X-Router-Distance" => "not-computed",
                     "X-Router-Origin-Count" => string(length(result.h3)),
+                    "X-Router-Cache-Hits" => string(result.cache_hits),
+                    "X-Router-Cache-Misses" => string(result.cache_misses),
                     "X-Router-Shared-Expansions" => string(result.shared_expansions),
                     "X-Router-Query-Expansions" => string(result.query_expansions),
                     "X-Router-Workers" => string(result.workers),
@@ -556,7 +559,7 @@ function make_handler(graph::Graph; request_lock=ReentrantLock(), progress::Bool
 end
 
 _response_headers() = ["Access-Control-Allow-Origin" => "*", "Cache-Control" => "no-store",
-    "Access-Control-Expose-Headers" => "X-Router-Backend, X-Router-Distance, X-Router-Distance-Mode, X-Router-Window-Mode, X-Router-Searches, X-Router-Reused-Samples, X-Router-Metric, X-Router-Window-Strategy, X-Router-Full-Searches, X-Router-Repair-Searches, X-Router-Profile-Lookups, X-Router-Batches, X-Router-Rounds, X-Router-Workers, X-Router-Max-Walk-H, X-Router-Origin-Count, X-Router-Shared-Expansions, X-Router-Query-Expansions"]
+    "Access-Control-Expose-Headers" => "X-Router-Backend, X-Router-Distance, X-Router-Distance-Mode, X-Router-Window-Mode, X-Router-Searches, X-Router-Reused-Samples, X-Router-Metric, X-Router-Window-Strategy, X-Router-Full-Searches, X-Router-Repair-Searches, X-Router-Profile-Lookups, X-Router-Batches, X-Router-Rounds, X-Router-Workers, X-Router-Max-Walk-H, X-Router-Origin-Count, X-Router-Shared-Expansions, X-Router-Query-Expansions, X-Router-Cache-Hits, X-Router-Cache-Misses"]
 
 """Dispatch by network (default explicitly supplied) and origin H3 resolution."""
 function make_network_handler(handlers::AbstractDict{Tuple{String,Int}}; default_network::String)

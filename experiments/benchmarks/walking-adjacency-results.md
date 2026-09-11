@@ -34,9 +34,8 @@ julia --project=router --threads=4 router/test/runtests.jl
 julia --project=router --threads=4 experiments/benchmarks/benchmark-walking-adjacency.jl data/rail_and_friends_res7.arrow
 ```
 
-The new standalone benchmark leaves the existing source-instrumented harness intact
-apart from importing its new range type; that harness's probe also passed a fixture
-window parity smoke test. The benchmark packs the input once, builds the real adjacency
+The separate frozen-source probe also passed a fixture window parity smoke test.
+The retained benchmark packs the input once, builds the real adjacency
 once after compiling preparation on an empty index, warms each query, then measures
 three runs. Tests were finished before the reported benchmark was started.
 

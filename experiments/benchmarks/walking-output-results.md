@@ -20,7 +20,7 @@ The regression case uses the same origin at midnight, a three-hour budget and a 
 window at five-minute intervals (12 samples).
 
 The baseline was profiled **before production edits**. Its sources and diagnostic
-harness come from immutable Git revision `66a7a2d2a0532fb9137f80a725743676520d0ada`.
+harness came from Git revision `66a7a2d2a0532fb9137f80a725743676520d0ada`.
 The benchmark packed once, retained that graph while implementation/tests ran, then
 constructed the new module's `Graph` around the **identical field objects**, asserting
 identity for every field. Old/new prepared indexes were built separately because their
@@ -97,8 +97,7 @@ not a sparse-memory improvement or a claim of consistently faster small queries.
 
 A supplemental isolated process repacked the same input for the new phase/scratch
 probe after the matched comparison completed. These are not additional old/new
-timing repetitions. The final benchmark now runs this diagnostic on its already
-shared graph so future reproduction does not require that supplemental pack.
+timing repetitions. The closed harness later used its shared graph for this probe.
 
 The exact-output four-worker probe took 11.177 s: summed worker elapsed intervals
 were 5.589 s for arrival repair, 32.587 s for canonical replay, and 3.565 s for indexed
@@ -179,20 +178,11 @@ missing km/NaN, tentative transit overflow and recovery after worker errors.
 Whole in-process HTTP bodies match the independent engine for both metrics, including
 96-sample requests and off-graph origins; existing live concurrent HTTP tests also pass.
 
-## Reproduction
+## Evidence
 
-```sh
-julia --project=router --threads=1 router/test/runtests.jl
-julia --project=router --threads=4 router/test/runtests.jl
-julia --project=router --threads=8 router/test/walking_catchup_tests.jl
-julia --project=experiments/gpu --threads=8 experiments/benchmarks/benchmark-walking-output.jl data/everything_res7.arrow
-```
-
-The optional `--wait` mode used during implementation pauses after the immutable
-baseline profile until `/tmp/opencode/walking-output-continue` exists, retaining the
-packed graph while current sources are edited/tested. Normal reproduction needs no
-pause. The final harness also runs the updated diagnostic copy on the new path and
-compares dense versus touched resets for broad and sparse output scratch.
+The frozen-baseline harness is closed. Its diagnostic compared dense and touched
+resets for broad and sparse output storage. Use the retained
+[walking harness](benchmark-walking.jl) for current routing comparisons.
 
 Raw local artifacts:
 

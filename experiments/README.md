@@ -11,27 +11,33 @@ differential tests and benchmark harnesses.
 
 ## Benchmarks
 
-`benchmarks/` retains the CPU harnesses, nine measurement reports and
-[development history](benchmarks/history-todo.md). Reports describe their recorded
-snapshots, not fresh measurements or the current public API.
+`benchmarks/` contains reusable CPU harnesses and measurement reports.
+The [CPU research decisions](benchmarks/cpu-research-results.md) record accepted
+and rejected population changes. The [roadmap](benchmarks/roadmap.md) lists
+conditional research ideas. Reports describe measured snapshots, not the current API.
 
 ```sh
 julia --threads=8 --project=router experiments/benchmarks/benchmark-distance-modes.jl data/everything_res7.arrow
 julia --threads=4 --project=router experiments/benchmarks/benchmark-window.jl data/rail_res5.arrow
 ```
 
-The walking reuse and output comparisons load fixed Git snapshots and need this
-repository's history plus the GPU environment, whose dependencies those snapshots
-import. They do not rewrite the production source:
+The population harness uses the current router. The cache harness uses a synthetic
+network and does not load a full dataset:
 
 ```sh
-julia --threads=4 --project=experiments/gpu experiments/benchmarks/benchmark-walking-reuse.jl data/everything_res7.arrow
-julia --threads=8 --project=experiments/gpu experiments/benchmarks/benchmark-walking-output.jl data/everything_res7.arrow
+julia --threads=8 --project=router experiments/benchmarks/benchmark-population.jl data/everything_res7.arrow data/kontur_h3.arrow
+julia --threads=8 --project=router experiments/benchmarks/benchmark-population-cache.jl
 ```
 
 Reference comparisons load `router/test/reference.jl` explicitly. Source-level
-profiling instrumentation is snapshot-specific and may need updating after router
-changes. Measurements and their original artifact paths are preserved in the reports.
+profiling instrumentation can depend on a specific source snapshot. Check it before
+use after router changes. Closed prototype harnesses are not retained.
+
+## Trip Experiments
+
+[Trip shortcuts](trip-shortcuts/results.md) remain active for GPU comparison.
+The [trip-pattern decision](trip-patterns/decision.md) records the stopped CPU
+implementation path, input audit, correctness checks, and final measurements.
 
 ## Data
 

@@ -304,11 +304,45 @@ function _population_tile!(w, graph, network, population, sources, ids, ready, b
     return (; value=values, shared, separate)
 end
 
+const PopulationCacheKey = Tuple{UInt64,UInt32,UInt32,Int64,Int64,UInt32,Symbol,Bool}
+
+# The handler lock protects this FIFO. Inputs must stay unchanged for its lifetime.
+mutable struct PopulationResultCache
+    graph::Graph
+    population::Population
+    walking_index::WalkingIndex
+    totals::Dict{PopulationCacheKey,Float64}
+    order::Vector{PopulationCacheKey}
+    next::Int
+    capacity::Int
+end
+
+function PopulationResultCache(graph, population, walking_index; capacity=100_000)
+    capacity > 0 || throw(ArgumentError("population cache capacity must be positive"))
+    return PopulationResultCache(graph, population, walking_index,
+        Dict{PopulationCacheKey,Float64}(), PopulationCacheKey[], 1, capacity)
+end
+
 function route_population(graph, population::Population, origin, departure_ms, budget_ms;
+        origin_radius=0, window_ms=0, step_ms=60_000, max_walk_ms=3_600_000,
+        window_mode=:mean_intersection, walking_index=WalkingIndex(graph),
+        prepared_population=nothing, origin_batch_size=nothing, exclude_origin_population::Bool=false)
+    return _route_population(graph, population, origin, departure_ms, budget_ms;
+        origin_radius, window_ms, step_ms, max_walk_ms, window_mode, walking_index,
+        prepared_population, origin_batch_size, exclude_origin_population)
+end
+
+function _cached_route_population(cache::PopulationResultCache, origin, departure_ms, budget_ms; kwargs...)
+    return _route_population(cache.graph, cache.population, origin, departure_ms, budget_ms;
+        walking_index=cache.walking_index, result_cache=cache, kwargs...)
+end
+
+function _route_population(graph, population::Population, origin, departure_ms, budget_ms;
                           origin_radius=0, window_ms=0, step_ms=60_000,
                           max_walk_ms=3_600_000, window_mode=:mean_intersection,
                           walking_index=WalkingIndex(graph), prepared_population=nothing,
-                          origin_batch_size=nothing, exclude_origin_population::Bool=false)
+                          origin_batch_size=nothing, exclude_origin_population::Bool=false,
+                          result_cache=nothing)
     ready, _ = query_times(graph, origin, departure_ms, budget_ms)
     radius = _origin_radius(string(origin_radius))
     window_ms isa Integer && window_ms >= 0 || throw(ArgumentError("window must be nonnegative"))
@@ -324,15 +358,54 @@ function route_population(graph, population::Population, origin, departure_ms, b
     prepared = _prepare_population(population, walking_index)
     isnothing(prepared_population) || prepared_population === prepared ||
         throw(ArgumentError("prepared population does not match population and walking index"))
-    if isnothing(prepared) || limit > walking_index.prepared.limit
-        return _route_population_reference(graph, population, origin, departure_ms, budget_ms;
-            origin_radius, window_ms, step_ms, max_walk_ms, window_mode, walking_index, origin_batch_size,
-            exclude_origin_population)
-    end
     origins = H3.API.gridDisk(origin, radius)
     origins isa Vector{UInt64} || throw(ArgumentError("H3 origin disk failed"))
     sort!(filter!(!iszero, origins))
     weights = _population_rollup(population, graph.resolution)
+    function route_missing(selected)
+        if isnothing(prepared) || limit > walking_index.prepared.limit
+            return _route_population_reference(graph, population, origin, departure_ms, budget_ms;
+                origin_radius, window_ms, step_ms, max_walk_ms, window_mode, walking_index,
+                origin_batch_size, exclude_origin_population, origins=selected)
+        end
+        return _route_population_origins(graph, walking_index, population, prepared, weights,
+            selected, ready, budget_ms, step, samples, limit, mode, origin_batch_size,
+            exclude_origin_population)
+    end
+    isnothing(result_cache) && return route_missing(origins)
+    cache = result_cache
+    # Population modes use coverage, not elapsed-time statistics.
+    semantic_mode = samples == 1 ? :mean_intersection :
+        mode in (:min_union, :diff_union) ? :min_union :
+        mode == :reachable_union ? mode : :mean_intersection
+    keys = PopulationCacheKey[(cell, ready, UInt32(budget_ms), samples == 1 ? 0 : step,
+        samples, limit, semantic_mode, exclude_origin_population) for cell in origins]
+    missing = findall(key -> !haskey(cache.totals, key), keys)
+    values = Float64[get(cache.totals, key, 0.0) for key in keys]
+    result = isempty(missing) ? (; shared_expansions=0, query_expansions=0, workers=0) :
+        route_missing(length(missing) == length(origins) ? origins : origins[missing])
+    if !isempty(missing)
+        values[missing] = result.value
+        # Publish only after all workers and finite-total checks succeed.
+        for i in missing
+            key = keys[i]
+            if length(cache.order) < cache.capacity
+                push!(cache.order, key)
+            else
+                delete!(cache.totals, cache.order[cache.next])
+                cache.order[cache.next] = key
+                cache.next = mod1(cache.next + 1, cache.capacity)
+            end
+            cache.totals[key] = values[i]
+        end
+    end
+    return (; h3=origins, value=values, result.shared_expansions, result.query_expansions,
+        result.workers, cache_hits=length(origins) - length(missing), cache_misses=length(missing))
+end
+
+function _route_population_origins(graph, walking_index, population, prepared, weights,
+        origins, ready, budget_ms, step, samples, limit, mode, origin_batch_size,
+        exclude_origin_population)
     values = zeros(Float64, length(origins))
     isempty(weights) && return (; h3=origins, value=values, shared_expansions=0, query_expansions=0, workers=0)
     sources = _population_sources(walking_index, prepared, weights, origins, limit)

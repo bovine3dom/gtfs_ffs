@@ -1,8 +1,7 @@
 # Walking Optimization Results
 
-Final shared-geometry implementation with staggered prewarming measured on 2026-09-07 using
-`benchmark-walking-reuse.jl`. The complete run passed exact output comparisons
-against the original implementation.
+The final shared-geometry implementation with staggered prewarming was measured
+on 2026-09-07. The frozen-baseline comparison passed exact output checks.
 
 The 3-hour-budget, 1,440-departure window took **34.11 s original versus 1.32 s
 cached with four workers**. The 7-day-budget, 12-departure case took **5.88 s
@@ -12,41 +11,16 @@ output. It showed no clear full-day/3h-budget benefit: that case was 7.7% slower
 than the previous run, but its unchanged one-worker control was also 8.7% slower.
 No further optimization changes were made as part of this final measurement.
 
-## Reproduction
+## Provenance
 
-Run from the repository root. The optional output directory must already exist;
-omitting it creates a fresh directory under `/tmp/opencode`.
-
-```bash
-julia --startup-file=no --compiled-modules=existing --threads=4 \
-  --project=experiments/gpu experiments/benchmarks/benchmark-walking-reuse.jl \
-  data/rail_and_friends_res7.arrow
-```
-
-The completed measurement used:
-
-```bash
-time julia --startup-file=no --compiled-modules=existing --threads=4 \
-  --project=experiments/gpu experiments/benchmarks/benchmark-walking-reuse.jl \
-  data/rail_and_friends_res7.arrow \
-  /tmp/opencode/walking-reuse-prewarm-20260907
-```
-
-After graph loading the script automatically waits for a Julia process running
-`router/test/runtests.jl`; `WALKING_BENCH_WAIT_PID` can additionally identify a
-specific process to await. The one- and four-thread suites had both exited before
-benchmark loading; no concurrent Julia suite was found at timing start or in the
-spot checks. The existing router server was not stopped; its cumulative
-CPU time stayed unchanged in those checks. This was not an otherwise isolated
-or CPU-pinned machine. Timing-start load average was `[2.52, 2.11, 1.63]`.
-
-The original implementation is loaded using `git show` from pinned commit
-`8edcb64459f542cab4c9886c722d8660da6a3433`, which was unchanged `HEAD` during the
-investigations. `WALKING_BASELINE_REV` can explicitly select another revision.
-Every included baseline source comes from that revision, not the worktree.
-Current sources are also loaded from an in-memory snapshot. `sources.toml`
-records full SHA-256 hashes for both snapshots; no current source changed during
-the completed run.
+The closed harness used `data/rail_and_friends_res7.arrow` and baseline commit
+`8edcb64459f542cab4c9886c722d8660da6a3433`. Local artifacts were recorded under
+`/tmp/opencode/walking-reuse-prewarm-20260907`; `sources.toml` recorded source
+hashes. The source did not change during measurement. One- and four-thread
+suites finished before loading. No concurrent suite was found during timing.
+The server remained running with unchanged CPU counters in spot checks.
+The host was not isolated or CPU-pinned; initial load was `[2.52, 2.11, 1.63]`.
+Use the retained [walking harness](benchmark-walking.jl) for current comparisons.
 
 ## Method
 

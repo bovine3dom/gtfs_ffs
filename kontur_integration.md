@@ -65,6 +65,12 @@ with compact destination IDs. Its compressed sparse row (CSR) walking data
 contains positive-population destinations, sorted by duration within each node.
 Workers share the immutable walking adjacency and prepared population data.
 
+Each population object also caches eight-bin schedule bounds by graph identity.
+These bounds narrow exact timetable searches. They do not depend on walking
+geometry. The handler's population-result cache is separate: it reuses completed
+origin totals. The rejected per-worker runtime schedule cache was a different
+lookup experiment; its rejection does not apply to either retained cache.
+
 The [benchmark report](experiments/benchmarks/population-results.md) records these
 facts for `data/kontur_h3.arrow`:
 
@@ -147,31 +153,20 @@ Arrow responses, HTTP, and WebSockets. This uses synthetic graphs and population
 
 ## Verification
 
-The [10,000-origin report](experiments/benchmarks/population-10k-results.md) records
-range-baseline parity for 9,919-origin Paris and rural requests. Its
-[shared-host appendix](experiments/benchmarks/population-shared-results.md) records
-interleaved trials with measured external CPU load.
-Expiry buckets and schedule hints remain experimental.
+The [CPU research report](experiments/benchmarks/cpu-research-results.md) records
+range-baseline parity for 9,919-origin Paris and rural requests, paired trials
+with measured external CPU load, and the retained eight-bin schedule bounds.
+Expiry, SIMD, and radix implementations were not adopted; those paths are closed.
 
 Tests cover all six modes, independent per-origin walking results, HTTP/WebSocket
 parity, deadlines, overlapping walks, partial batches, fractional population,
 zero-population cells, and reference fallback.
 
-The [CPU range report](experiments/benchmarks/population-queue-results.md) measures
-the current engine against the frozen packed default on the standard resolution-7
-graph. It uses the production one-hour walking limit and real walking edges.
-
-The [earlier CPU report](experiments/benchmarks/population-optimization-results.md#final-default-16-results)
-records the default-16 measurements for 127, 331, and 1,027 origins. Its timing
-matrix uses `mean_intersection`, four- and 96-sample windows, and three-hour and
-seven-day budgets. Union and weighted comparisons cover a selected subset.
-Every final timed output matches the frozen origin and value arrays exactly.
-The table marks single-call baselines separately from three-call medians.
-
-That resolution-6 three-hour profile at the one-hour limit traverses zero walking edges.
-Actual two-hour walking cases improve by 5.61-8.71x. Those measurements use a
-two-hour prepared index. Schedule lookup and heap/pending-event work are the main
-remaining costs; projection is below 1% of routed profile samples.
+Resolution-7 range and adaptive trials used actual one-hour walking edges.
+Earlier resolution-6 three-hour profiles at that limit traversed no walking edges.
+Actual two-hour walking cases improved by 5.61-8.71x with a two-hour prepared
+index. These are shared-host measurements, not general speed guarantees.
+Schedule lookup and heap work remained the main measured costs.
 
 The optional [GPU population experiment](experiments/gpu/README.md#population)
 performs walking, coverage, and `Float32` reduction on the device. Small-fixture

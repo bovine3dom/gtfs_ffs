@@ -12,6 +12,7 @@ const START = 28_800_000
 include("startup_tests.jl")
 include("population_tests.jl")
 include("population_packed_tests.jl")
+include("population_cache_tests.jl")
 include("population_range_tests.jl")
 include("population_hints_tests.jl")
 include("population_queue_tests.jl")
