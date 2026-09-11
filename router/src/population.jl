@@ -16,6 +16,7 @@ struct Population{H,P}
     weights::P
     rollups::Dict{Int,Dict{UInt64,Float64}}
     prepared::IdDict{WalkingIndex,PreparedPopulation}
+    schedule_hints::IdDict{Graph,Matrix{Int32}}
     lock::ReentrantLock
 end
 
@@ -50,7 +51,26 @@ function _population(cells, weights; progress::Bool=false)
         end
     end
     return Population(cells, weights, Dict{Int,Dict{UInt64,Float64}}(),
-                      IdDict{WalkingIndex,PreparedPopulation}(), ReentrantLock())
+                      IdDict{WalkingIndex,PreparedPopulation}(), IdDict{Graph,Matrix{Int32}}(), ReentrantLock())
+end
+
+function _population_schedule_hints(population::Population, graph::Graph)
+    return lock(population.lock) do
+        get!(population.schedule_hints, graph) do
+            hints = Matrix{Int32}(undef, 8, length(graph.edge_to))
+            for edge in eachindex(graph.edge_to)
+                lo, stop = graph.schedule_ptr[edge], graph.schedule_ptr[edge + 1]
+                for bin in 1:8
+                    time = UInt32(bin - 1) * div(PERIOD, UInt32(8))
+                    while lo < stop && graph.departure[lo] < time
+                        lo += Int32(1)
+                    end
+                    hints[bin, edge] = lo
+                end
+            end
+            hints
+        end
+    end
 end
 
 function _population_rollup(population::Population, resolution; progress::Bool=false)

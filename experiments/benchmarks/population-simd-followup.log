@@ -1,0 +1,220 @@
+2026-09-10T23:26:32.938 ENV julia=1.12.7 threads=8 cpu=Intel(R) Xeon(R) CPU E3-1275 v6 @ 3.80GHz pid=1020421 memory=(available = 37808717824, swap = 20177117184, rss = 562688000, peak = 0x0000000022529000)
+2026-09-10T23:26:32.957 SOURCE path=/tmp/opencode/population-simd-followup/router/src/Reachability.jl bytes=29896 sha256=b0cd26f5c8edb3a70068be0a8e6840acf6d691c123cb09f5b18e473f4d6e9725
+2026-09-10T23:26:32.957 SOURCE path=/tmp/opencode/population-simd-followup/router/src/catchup.jl bytes=6036 sha256=cc60fc5deede1be18c51f1052b28296d4e243522a18c8dd300d452de6a59dbb0
+2026-09-10T23:26:32.957 SOURCE path=/tmp/opencode/population-simd-followup/router/src/missing_data.jl bytes=1307 sha256=c0526f17e0471f5a4dc6b45a794fbdb4fb1f9ba5d9451c9de2e2e5ef5526d7cf
+2026-09-10T23:26:32.957 SOURCE path=/tmp/opencode/population-simd-followup/router/src/population.jl bytes=15877 sha256=2f28357362a6a2f9fdecb1b4fb1277538f674a3ba880b3c60e5d92f878a3c57b
+2026-09-10T23:26:32.957 SOURCE path=/tmp/opencode/population-simd-followup/router/src/population_packed.jl bytes=18385 sha256=83c17951baa77e088e5f8932760bf5c3dd78a20afa049c4588d2b43197fe2894
+2026-09-10T23:26:32.957 SOURCE path=/tmp/opencode/population-simd-followup/router/src/population_range.jl bytes=5829 sha256=433612a3387ef8fe37dda8c01c9ef742a8ef48434fc142996211b29d9a96decd
+2026-09-10T23:26:32.957 SOURCE path=/tmp/opencode/population-simd-followup/router/src/walking.jl bytes=9593 sha256=a4394cd1c8e5fd0ea88d87af9ce5b45b4ba7f2d18110f477dd0ae47b96efe5d0
+2026-09-10T23:26:32.957 SOURCE path=/tmp/opencode/population-simd-followup/router/src/walking_catchup.jl bytes=12438 sha256=3a8f44ba29a7ad4286215dede44fe7f4f1d052937a4d7437f59c8838ba80af40
+2026-09-10T23:26:32.957 SOURCE path=/tmp/opencode/population-simd-followup/router/src/walking_geometry.jl bytes=13889 sha256=00f1436a6767cba37acf8cdbf64ea0a2740cc22268683c9512b3eac2bf5a65f9
+2026-09-10T23:26:32.958 SOURCE path=/tmp/opencode/population-simd-followup/router/src/walking_output.jl bytes=6326 sha256=0625078ab98435dc84066759a2b2853763861c2ff829b78db7fd80f9d63db6f3
+2026-09-10T23:26:32.958 SOURCE path=/tmp/opencode/population-simd-followup/router/src/walking_window.jl bytes=5593 sha256=18820d429056b077ac2b48ffe10607052296add3146c159356df2d09cce44da9
+2026-09-10T23:26:32.958 SOURCE path=/tmp/opencode/population-simd-followup/router/src/warmup.jl bytes=4520 sha256=fbf6eed61fd6d559da9597f073a470e53c7b26534b71d0dd3472a2265f9f3022
+2026-09-10T23:26:32.958 SOURCE path=/tmp/opencode/population-simd-followup/router/src/websocket.jl bytes=4270 sha256=9a5d856825f9cfd3f912458d1ffe72aa0e64997ad83c54454af19b5b08075c45
+2026-09-10T23:26:32.958 SOURCE path=/tmp/opencode/population-simd-followup/router/src/window.jl bytes=9177 sha256=efecaf1da514ac7a4233ee6e2980589923e06c176c5302274243fe0a5ee32967
+2026-09-10T23:26:32.958 SOURCE path=/home/olie/projects/gtfs_ffs/router/src/Reachability.jl bytes=29896 sha256=b0cd26f5c8edb3a70068be0a8e6840acf6d691c123cb09f5b18e473f4d6e9725
+2026-09-10T23:26:32.958 SOURCE path=/home/olie/projects/gtfs_ffs/router/src/catchup.jl bytes=6036 sha256=cc60fc5deede1be18c51f1052b28296d4e243522a18c8dd300d452de6a59dbb0
+2026-09-10T23:26:32.958 SOURCE path=/home/olie/projects/gtfs_ffs/router/src/missing_data.jl bytes=1307 sha256=c0526f17e0471f5a4dc6b45a794fbdb4fb1f9ba5d9451c9de2e2e5ef5526d7cf
+2026-09-10T23:26:32.958 SOURCE path=/home/olie/projects/gtfs_ffs/router/src/population.jl bytes=15877 sha256=2f28357362a6a2f9fdecb1b4fb1277538f674a3ba880b3c60e5d92f878a3c57b
+2026-09-10T23:26:32.958 SOURCE path=/home/olie/projects/gtfs_ffs/router/src/population_packed.jl bytes=18385 sha256=83c17951baa77e088e5f8932760bf5c3dd78a20afa049c4588d2b43197fe2894
+2026-09-10T23:26:32.958 SOURCE path=/home/olie/projects/gtfs_ffs/router/src/population_range.jl bytes=5829 sha256=433612a3387ef8fe37dda8c01c9ef742a8ef48434fc142996211b29d9a96decd
+2026-09-10T23:26:32.958 SOURCE path=/home/olie/projects/gtfs_ffs/router/src/walking.jl bytes=9593 sha256=a4394cd1c8e5fd0ea88d87af9ce5b45b4ba7f2d18110f477dd0ae47b96efe5d0
+2026-09-10T23:26:32.958 SOURCE path=/home/olie/projects/gtfs_ffs/router/src/walking_catchup.jl bytes=12438 sha256=3a8f44ba29a7ad4286215dede44fe7f4f1d052937a4d7437f59c8838ba80af40
+2026-09-10T23:26:32.958 SOURCE path=/home/olie/projects/gtfs_ffs/router/src/walking_geometry.jl bytes=13889 sha256=00f1436a6767cba37acf8cdbf64ea0a2740cc22268683c9512b3eac2bf5a65f9
+2026-09-10T23:26:32.958 SOURCE path=/home/olie/projects/gtfs_ffs/router/src/walking_output.jl bytes=6326 sha256=0625078ab98435dc84066759a2b2853763861c2ff829b78db7fd80f9d63db6f3
+2026-09-10T23:26:32.958 SOURCE path=/home/olie/projects/gtfs_ffs/router/src/walking_window.jl bytes=5593 sha256=18820d429056b077ac2b48ffe10607052296add3146c159356df2d09cce44da9
+2026-09-10T23:26:32.958 SOURCE path=/home/olie/projects/gtfs_ffs/router/src/warmup.jl bytes=4520 sha256=fbf6eed61fd6d559da9597f073a470e53c7b26534b71d0dd3472a2265f9f3022
+2026-09-10T23:26:32.958 SOURCE path=/home/olie/projects/gtfs_ffs/router/src/websocket.jl bytes=4270 sha256=9a5d856825f9cfd3f912458d1ffe72aa0e64997ad83c54454af19b5b08075c45
+2026-09-10T23:26:32.958 SOURCE path=/home/olie/projects/gtfs_ffs/router/src/window.jl bytes=9177 sha256=efecaf1da514ac7a4233ee6e2980589923e06c176c5302274243fe0a5ee32967
+2026-09-10T23:27:09.705 INPUT file=everything_res7.arrow bytes=7397939938 rows=205463043 sha256=614ac1a6a5b87d35c6e83c057a64161005fb339e80a369f4065709e3d33309d7
+2026-09-10T23:27:11.367 INPUT file=kontur_h3.arrow bytes=234395250 rows=32957699 sha256=c21eaf6c3eb65563e80f2055347ad13f979014a190f8472817c25a591f427eb3
+[ Info: Startup: Opening Arrow file /home/olie/projects/gtfs_ffs/data/everything_res7.arrow
+┌ Info: Startup complete: Opening Arrow file /home/olie/projects/gtfs_ffs/data/everything_res7.arrow
+└   elapsed_s = 0.025341071
+[ Info: Startup: Validating and filtering rows
+┌ Warning: Skipping 88936 of 205463043 connections: duration_ms outside the two-day UInt32 profile range (3205 negative, 85731 overflowing; range (-20280000, 1767361200000))
+└ @ Main.Frozen.Reachability /tmp/opencode/population-simd-followup/router/src/Reachability.jl:99
+┌ Info: Startup complete: Validating and filtering rows
+└   elapsed_s = 14.435626271
+[ Info: Startup: Materializing sort columns
+┌ Info: Startup complete: Materializing sort columns
+└   elapsed_s = 2.788654261
+[ Info: Startup: Indexing and validating H3 endpoints
+┌ Info: Startup complete: Indexing and validating H3 endpoints
+└   elapsed_s = 4.032160314
+┌ Info: Added Elvas-Badajoz fantasy rail shuttle
+│   resolution = 7
+└   connections = 2342
+[ Info: Startup: Sorting connections by edge
+┌ Info: Startup complete: Sorting connections by edge
+└   elapsed_s = 36.785914132
+[ Info: Startup: Packing daily profiles
+┌ Info: Startup complete: Packing daily profiles
+└   elapsed_s = 29.302904179
+2026-09-10T23:28:43.413 RUN pack seconds=90.628391041 wall_s=91.95448279380798 own_cpu_s=96.4 bytes=39898523384 rss=23362052096 external_cpu_s=217.1 external_cores=2.3609506943430825 shared_host=true faults=0
+┌ Info: Preparing resident walking adjacency
+│   workers = 8
+│   nodes = 379305
+└   max_walk_h = 1.0
+[ Info: Startup: Enumerating walking geometry
+┌ Info: Startup complete: Enumerating walking geometry
+└   elapsed_s = 6.993416464
+[ Info: Startup: Packing walking adjacency
+┌ Info: Startup complete: Packing walking adjacency
+└   elapsed_s = 0.4870489
+[ Info: Startup: Indexing walking output IDs
+┌ Info: Startup complete: Indexing walking output IDs
+└   elapsed_s = 0.249047872
+2026-09-10T23:28:52.585 RUN walking seconds=7.936753216 wall_s=8.538904905319214 own_cpu_s=50.81 bytes=1987083776 rss=13329874944 external_cpu_s=7.939999999999998 external_cores=0.9298616260562715 shared_host=true faults=0
+[ Info: Startup: Opening population file /home/olie/projects/gtfs_ffs/data/kontur_h3.arrow
+┌ Info: Startup complete: Opening population file /home/olie/projects/gtfs_ffs/data/kontur_h3.arrow
+└   elapsed_s = 0.128448855
+[ Info: Startup: Validating population rows
+┌ Info: Startup complete: Validating population rows
+└   elapsed_s = 0.46319991
+[ Info: Startup: Checking population cell uniqueness
+┌ Info: Startup complete: Checking population cell uniqueness
+└   elapsed_s = 0.976059805
+2026-09-10T23:28:54.846 RUN population seconds=1.873795708 wall_s=1.9606480598449707 own_cpu_s=2.8000000000000114 bytes=2138866792 rss=7284916224 external_cpu_s=3.189999999999989 external_cores=1.6270130602899857 shared_host=true faults=0
+[ Info: Startup: Aggregating population at res7
+┌ Info: Startup complete: Aggregating population at res7
+└   elapsed_s = 2.235858362
+[ Info: Startup: Preparing indexed population weights and walks
+┌ Info: Startup complete: Preparing indexed population weights and walks
+└   elapsed_s = 0.475908998
+2026-09-10T23:28:58.575 RUN sidecar seconds=3.390942294 wall_s=3.545293092727661 own_cpu_s=3.5500000000000114 bytes=1119722376 rss=7230078976 external_cpu_s=6.7899999999999885 external_cores=1.9152154201095768 shared_host=true faults=0
+2026-09-10T23:28:58.633 GRAPH nodes=379305 edges=1471782 profiles=192645963 walks=3737032 population_walks=6038589 memory=(available = 30950354944, swap = 20176809984, rss = 7255248896, peak = 0x0000000570d5f000)
+2026-09-10T23:28:58.681 ORIGIN name=Paris h3=871fb4660ffffff coordinates=H3.Lib.LatLng(0.8531021315107716, 0.04137474662639373) on_graph=true disk18=1027 disk57=9919
+2026-09-10T23:28:58.681 ORIGIN name=rural h3=871f94d80ffffff coordinates=H3.Lib.LatLng(0.813286259636663, 0.04350619021765001) on_graph=false disk18=1027 disk57=9919
+2026-09-10T23:28:58.681 RESIDENT next=/tmp/opencode/population-simd-followup/command-1.jl
+2026-09-10T23:33:50.765 FOLLOWUP_SOURCE file=population-approved3-candidates.jl sha256=639b7578c7367b27d072a433ae26addad842753486407ae2417d21b25f3b5072
+2026-09-10T23:33:50.765 FOLLOWUP_SOURCE file=population-approved3-kernels.jl sha256=cfffacdc7ea2bcda678206df062f3432cdd7afa51673dcc74f7e8f20a133b1ac
+2026-09-10T23:33:50.765 FOLLOWUP_SOURCE file=population-simd-followup-kernels.jl sha256=8ba6fa1f92f0081290489a8b1b3a92203ff872bdaa91021d4c97961ee62fbef7
+2026-09-10T23:33:50.765 FOLLOWUP_SOURCE file=population-simd-followup-trials.jl sha256=8985b6be8fcc67792aafcd5c401b5d1b2a5b44940b777c6634b208a614d78c50
+2026-09-10T23:34:04.157 RUN Paris-1027 baseline warm seconds=11.891673577 wall_s=11.925894975662231 own_cpu_s=73.61999999999998 bytes=2023859320 rss=8755150848 external_cpu_s=6.500000000000028 external_cores=0.5450324703734942 shared_host=true faults=0
+2026-09-10T23:34:16.003 RUN Paris-1027 quarter_read warm seconds=11.686215837 wall_s=11.714869022369385 own_cpu_s=71.68 bytes=1973552248 rss=10515128320 external_cpu_s=7.4199999999999875 external_cores=0.6333830950932184 shared_host=true faults=0
+2026-09-10T23:34:28.275 RUN Paris-1027 half_read warm seconds=11.806507493 wall_s=11.838572978973389 own_cpu_s=71.97000000000003 bytes=1973411144 rss=10586345472 external_cpu_s=8.679999999999978 external_cores=0.7331964769247624 shared_host=true faults=0
+2026-09-10T23:34:40.640 RUN Paris-1027 full_read warm seconds=12.10607166 wall_s=12.135360956192017 own_cpu_s=72.59999999999997 bytes=1973583400 rss=10629406720 external_cpu_s=9.80000000000004 external_cores=0.8075573553499973 shared_host=true faults=0
+2026-09-10T23:34:53.344 RUN Paris-1027 half_update warm seconds=12.446983404 wall_s=12.481518030166626 own_cpu_s=73.93 bytes=1980483208 rss=10798317568 external_cpu_s=11.049999999999997 external_cores=0.8853089803093832 shared_host=true faults=0
+2026-09-10T23:35:06.363 RUN Paris-1027 full_update warm seconds=12.758504608 wall_s=12.797179937362671 own_cpu_s=74.00999999999999 bytes=1980415720 rss=10804662272 external_cpu_s=12.680000000000007 external_cores=0.9908433000132674 shared_host=true faults=0
+2026-09-10T23:35:16.360 RUN Paris-1027 baseline pair=1 seconds=9.737582602 wall_s=9.769510984420776 own_cpu_s=67.68999999999994 bytes=1816954712 rss=10835116032 external_cpu_s=7.240000000000066 external_cores=0.7410811054458646 shared_host=true faults=0
+2026-09-10T23:35:27.030 RUN Paris-1027 quarter_read pair=1 seconds=9.710646585 wall_s=9.747756004333496 own_cpu_s=66.55999999999995 bytes=1816900656 rss=10839977984 external_cpu_s=7.9200000000000585 external_cores=0.8124946907246259 shared_host=true faults=0
+2026-09-10T23:35:36.941 RUN Paris-1027 half_read pair=1 seconds=9.664159666 wall_s=9.694586992263794 own_cpu_s=66.9799999999999 bytes=1816918616 rss=11029303296 external_cpu_s=7.940000000000097 external_cores=0.8190137451276838 shared_host=true faults=0
+2026-09-10T23:35:47.398 RUN Paris-1027 full_read pair=1 seconds=10.190160143 wall_s=10.2207190990448 own_cpu_s=67.14999999999998 bytes=1817261616 rss=11155410944 external_cpu_s=9.450000000000017 external_cores=0.9245924781244783 shared_host=true faults=0
+2026-09-10T23:35:57.507 RUN Paris-1027 half_update pair=1 seconds=9.841107827 wall_s=9.869290113449097 own_cpu_s=68.19999999999993 bytes=1817009232 rss=10948952064 external_cpu_s=8.390000000000072 external_cores=0.8501118017157927 shared_host=true faults=0
+2026-09-10T23:36:07.842 RUN Paris-1027 full_update pair=1 seconds=10.079095383 wall_s=10.115877151489258 own_cpu_s=68.45999999999992 bytes=1817207384 rss=10950537216 external_cpu_s=9.040000000000077 external_cores=0.8936446997746715 shared_host=true faults=0
+2026-09-10T23:36:17.924 RUN Paris-1027 full_update pair=2 seconds=9.898318579 wall_s=9.898648977279663 own_cpu_s=68.95999999999981 bytes=1817045040 rss=11165843456 external_cpu_s=6.610000000000184 external_cores=0.6677678959191397 shared_host=true faults=0
+2026-09-10T23:36:27.640 RUN Paris-1027 half_update pair=2 seconds=9.532738819 wall_s=9.533046960830688 own_cpu_s=68.14999999999986 bytes=1816792368 rss=11064336384 external_cpu_s=4.390000000000143 external_cores=0.4605033435834043 shared_host=true faults=0
+2026-09-10T23:36:37.425 RUN Paris-1027 full_read pair=2 seconds=9.597880018 wall_s=9.598217964172363 own_cpu_s=67.51999999999998 bytes=1816828464 rss=11063291904 external_cpu_s=5.340000000000018 external_cores=0.5563532751530379 shared_host=true faults=0
+2026-09-10T23:36:47.090 RUN Paris-1027 half_read pair=2 seconds=9.478665116 wall_s=9.478913068771362 own_cpu_s=66.94999999999982 bytes=1816827880 rss=11165331456 external_cpu_s=5.500000000000185 external_cores=0.5802353033619585 shared_host=true faults=0
+2026-09-10T23:36:56.775 RUN Paris-1027 quarter_read pair=2 seconds=9.515541194 wall_s=9.515896081924438 own_cpu_s=66.37999999999988 bytes=1816792368 rss=11378692096 external_cpu_s=5.6600000000001245 external_cores=0.5947942212979148 shared_host=true faults=0
+2026-09-10T23:37:06.710 RUN Paris-1027 baseline pair=2 seconds=9.710394687 wall_s=9.710760831832886 own_cpu_s=67.96000000000004 bytes=1816973256 rss=11164078080 external_cpu_s=6.32999999999997 external_cores=0.6518541759621522 shared_host=true faults=0
+2026-09-10T23:37:16.671 RUN Paris-1027 baseline pair=3 seconds=9.782300472 wall_s=9.78263783454895 own_cpu_s=67.70000000000005 bytes=1816972848 rss=11194486784 external_cpu_s=6.839999999999961 external_cores=0.6991979173391666 shared_host=true faults=0
+2026-09-10T23:37:26.559 RUN Paris-1027 quarter_read pair=3 seconds=9.66354909 wall_s=9.663959980010986 own_cpu_s=66.21000000000004 bytes=1816882112 rss=11010224128 external_cpu_s=7.269999999999968 external_cores=0.7522796053623251 shared_host=true faults=0
+2026-09-10T23:37:36.295 RUN Paris-1027 half_read pair=3 seconds=9.559478034 wall_s=9.55978512763977 own_cpu_s=66.68000000000006 bytes=1816828464 rss=11097296896 external_cpu_s=7.229999999999933 external_cores=0.7562931492148462 shared_host=true faults=0
+2026-09-10T23:37:46.452 RUN Paris-1027 full_read pair=3 seconds=9.941122536 wall_s=9.941511154174805 own_cpu_s=67.24000000000001 bytes=1817117928 rss=11041525760 external_cpu_s=8.11999999999999 external_cores=0.8167772357817157 shared_host=true faults=0
+2026-09-10T23:37:56.566 RUN Paris-1027 half_update pair=3 seconds=9.931794155 wall_s=9.93210482597351 own_cpu_s=67.93999999999983 bytes=1817063584 rss=10954985472 external_cpu_s=8.330000000000169 external_cores=0.8386943297473394 shared_host=true faults=0
+2026-09-10T23:38:06.772 RUN Paris-1027 full_update pair=3 seconds=10.000974656 wall_s=10.001276969909668 own_cpu_s=68.88000000000011 bytes=1817171288 rss=10799169536 external_cpu_s=8.209999999999894 external_cores=0.8208951741563505 shared_host=true faults=0
+2026-09-10T23:38:08.800 FOLLOWUP_PAIRED label=Paris-1027 name=baseline n=3 wall=9.769510984420776 cpu=67.70000000000005 ratio=1.0 range=(1.0, 1.0) cpu_ratio=1.0 external=(0.6518541759621522, 0.7410811054458646)
+2026-09-10T23:38:08.800 FOLLOWUP_PAIRED label=Paris-1027 name=quarter_read n=3 wall=9.663959980010986 cpu=66.37999999999988 ratio=1.0122804579885925 range=(1.0022317936638554, 1.0204778139894355) cpu_ratio=1.0225041534511405 external=(0.5947942212979148, 0.8124946907246259)
+2026-09-10T23:38:08.800 FOLLOWUP_PAIRED label=Paris-1027 name=half_read n=3 wall=9.55978512763977 cpu=66.94999999999982 ratio=1.0233114765586997 range=(1.0077284356947616, 1.024459319478871) cpu_ratio=1.015085884988801 external=(0.5802353033619585, 0.8190137451276838)
+2026-09-10T23:38:08.800 FOLLOWUP_PAIRED label=Paris-1027 name=full_read n=3 wall=9.941511154174805 cpu=67.24000000000001 ratio=0.9840191981719864 range=(0.9558535842486668, 1.011725391950945) cpu_ratio=1.006841165972636 external=(0.5563532751530379, 0.9245924781244783)
+2026-09-10T23:38:08.800 FOLLOWUP_PAIRED label=Paris-1027 name=half_update n=3 wall=9.869290113449097 cpu=68.14999999999986 ratio=0.9898899385992971 range=(0.9849511262674465, 1.0186418751247515) cpu_ratio=0.9964674712982075 external=(0.4605033435834043, 0.8501118017157927)
+2026-09-10T23:38:08.800 FOLLOWUP_PAIRED label=Paris-1027 name=full_update n=3 wall=10.001276969909668 cpu=68.88000000000011 ratio=0.9781388780634187 range=(0.9657601449798657, 0.9810188091447594) cpu_ratio=0.9854988399071958 external=(0.6677678959191397, 0.8936446997746715)
+2026-09-10T23:38:23.321 RUN mask-density diagnostic seconds=12.85311302 wall_s=12.883888006210327 own_cpu_s=75.5 bytes=1969575896 rss=10985197568 external_cpu_s=14.280000000000001 external_cores=1.108361078046993 shared_host=true faults=0
+2026-09-10T23:38:24.346 MASK_DENSITY kind=enqueue width=64 total=401566415 zero=0 quarter=0.09166759874577658 half=0.020793389805768493 full=5.412554234646341e-5
+2026-09-10T23:38:24.352 MASK_DENSITY kind=valid_pop width=64 total=61435410 zero=18618854 quarter=0.09458750254942548 half=0.02257058266559953 full=8.333955938440063e-5
+2026-09-10T23:38:24.352 MASK_DENSITY kind=cutoff width=64 total=24819610 zero=0 quarter=0.8078207111231804 half=0.6910578772188604 full=0.2688371815673171
+2026-09-10T23:38:24.352 FOLLOWUP_SCREEN_COMPLETE
+2026-09-10T23:38:24.352 RESIDENT next=/tmp/opencode/population-simd-followup/command-2.jl
+WARNING: Detected access to binding `Main.approved_module` in a world prior to its definition world.
+  Julia 1.12 has introduced more strict world age semantics for global bindings.
+  !!! This code may malfunction under Revise.
+  !!! This code will error in future versions of Julia.
+Hint: Add an appropriate `invokelatest` around the access to this binding.
+To make this warning an error, and hence obtain a stack trace, use `julia --depwarn=error`.
+WARNING: Detected access to binding `Main.followup_inputs` in a world prior to its definition world.
+  Julia 1.12 has introduced more strict world age semantics for global bindings.
+  !!! This code may malfunction under Revise.
+  !!! This code will error in future versions of Julia.
+Hint: Add an appropriate `invokelatest` around the access to this binding.
+To make this warning an error, and hence obtain a stack trace, use `julia --depwarn=error`.
+2026-09-10T23:39:40.689 COMMAND_ERROR LoadError: MethodError: no method matching approved_module(::Symbol; gate::Symbol, labels::Bool, sites::Symbol)
+This method does not support all of the given keyword arguments (and may not support any).
+
+Closest candidates are:
+  approved_module(::Any; labels, radix, vector, gate, update, histogram) got unsupported keyword argument "sites"
+   @ Main ~/projects/gtfs_ffs/experiments/benchmarks/population-approved3-candidates.jl:3
+
+Stacktrace:
+ [1] kwerr(::@NamedTuple{gate::Symbol, labels::Bool, sites::Symbol}, ::Function, ::Symbol)
+   @ Base ./error.jl:175
+ [2] followup_inputs(name::Symbol; kwargs::@Kwargs{gate::Symbol, labels::Bool, sites::Symbol})
+   @ Main ~/projects/gtfs_ffs/experiments/benchmarks/population-simd-followup-trials.jl:4
+ [3] top-level scope
+   @ /tmp/opencode/population-simd-followup/command-2.jl:1
+ [4] include(mod::Module, _path::String)
+   @ Base ./Base.jl:306
+ [5] main10(; inputs::Tuple{String, String})
+   @ Main ~/projects/gtfs_ffs/experiments/benchmarks/benchmark-population-10k.jl:93
+ [6] top-level scope
+   @ /tmp/opencode/population-simd-followup/resident.jl:4
+ [7] include(mod::Module, _path::String)
+   @ Base ./Base.jl:306
+ [8] exec_options(opts::Base.JLOptions)
+   @ Base ./client.jl:317
+ [9] _start()
+   @ Base ./client.jl:550
+in expression starting at /tmp/opencode/population-simd-followup/command-2.jl:1
+2026-09-10T23:39:40.689 RESIDENT next=/tmp/opencode/population-simd-followup/command-3.jl
+2026-09-10T23:40:40.086 RUN cutoff-1027 baseline warm seconds=9.852094707 wall_s=9.852432012557983 own_cpu_s=67.26999999999998 bytes=1817081816 rss=11063312384 external_cpu_s=8.410000000000025 external_cores=0.8535963495389337 shared_host=true faults=0
+2026-09-10T23:40:52.696 RUN cutoff-1027 cutoff_native warm seconds=12.383847447 wall_s=12.414446830749512 own_cpu_s=71.49000000000024 bytes=1970466536 rss=11156328448 external_cpu_s=14.40999999999977 external_cores=1.160744429168398 shared_host=true faults=0
+2026-09-10T23:41:04.798 RUN cutoff-1027 cutoff_compiler warm seconds=11.874525216 wall_s=11.904967069625854 own_cpu_s=71.92000000000007 bytes=1964276984 rss=11268800512 external_cpu_s=8.119999999999933 external_cores=0.6820682453391386 shared_host=true faults=0
+2026-09-10T23:41:14.453 RUN cutoff-1027 baseline pair=1 seconds=9.469309777 wall_s=9.47114610671997 own_cpu_s=67.70000000000027 bytes=1816809576 rss=11161255936 external_cpu_s=4.6499999999997215 external_cores=0.49096486820116225 shared_host=true faults=0
+2026-09-10T23:41:24.334 RUN cutoff-1027 cutoff_native pair=1 seconds=9.664432623 wall_s=9.692080020904541 own_cpu_s=66.77999999999975 bytes=1816864560 rss=11240411136 external_cpu_s=5.760000000000261 external_cores=0.5942996743296278 shared_host=true faults=0
+2026-09-10T23:41:34.041 RUN cutoff-1027 cutoff_compiler pair=1 seconds=9.491537898 wall_s=9.527922868728638 own_cpu_s=67.07000000000016 bytes=1816810040 rss=11301163008 external_cpu_s=5.489999999999839 external_cores=0.5762011380275163 shared_host=true faults=0
+2026-09-10T23:41:43.798 RUN cutoff-1027 cutoff_compiler pair=2 seconds=9.572392561 wall_s=9.572787046432495 own_cpu_s=67.09999999999991 bytes=1816846136 rss=11396816896 external_cpu_s=6.190000000000097 external_cores=0.6466246423299402 shared_host=true faults=0
+2026-09-10T23:41:53.353 RUN cutoff-1027 cutoff_native pair=2 seconds=9.359681388 wall_s=9.360116958618164 own_cpu_s=66.55999999999995 bytes=1816737848 rss=11214630912 external_cpu_s=5.9200000000000585 external_cores=0.6324707293907607 shared_host=true faults=0
+2026-09-10T23:42:03.392 RUN cutoff-1027 baseline pair=2 seconds=9.832968768 wall_s=9.833308935165405 own_cpu_s=67.59999999999991 bytes=1817063000 rss=11126824960 external_cpu_s=6.720000000000084 external_cores=0.6833915261187762 shared_host=true faults=0
+2026-09-10T23:42:13.564 RUN cutoff-1027 baseline pair=3 seconds=9.98373885 wall_s=9.98396611213684 own_cpu_s=67.57999999999993 bytes=1817153736 rss=11309023232 external_cpu_s=7.250000000000071 external_cores=0.7261643237337044 shared_host=true faults=0
+2026-09-10T23:42:23.432 RUN cutoff-1027 cutoff_native pair=3 seconds=9.670981959 wall_s=9.671293020248413 own_cpu_s=66.80999999999995 bytes=1816864560 rss=11396825088 external_cpu_s=6.940000000000055 external_cores=0.7175876054494518 shared_host=true faults=0
+2026-09-10T23:42:33.206 RUN cutoff-1027 cutoff_compiler pair=3 seconds=9.589548423 wall_s=9.589907884597778 own_cpu_s=67.01999999999998 bytes=1816846016 rss=11397890048 external_cpu_s=7.15000000000002 external_cores=0.7455754618335322 shared_host=true faults=0
+2026-09-10T23:42:33.695 FOLLOWUP_PAIRED label=cutoff-1027 name=baseline n=3 wall=9.833308935165405 cpu=67.59999999999991 ratio=1.0 range=(1.0, 1.0) cpu_ratio=1.0 external=(0.49096486820116225, 0.7261643237337044)
+2026-09-10T23:42:33.695 FOLLOWUP_PAIRED label=cutoff-1027 name=cutoff_native n=3 wall=9.671293020248413 cpu=66.77999999999975 ratio=1.0323300194952005 range=(0.9772046956166226, 1.0505540666467377) cpu_ratio=1.0137765798143237 external=(0.5942996743296278, 0.7175876054494518)
+2026-09-10T23:42:33.695 FOLLOWUP_PAIRED label=cutoff-1027 name=cutoff_compiler n=3 wall=9.572787046432495 cpu=67.07000000000016 ratio=1.0272148421843355 range=(0.9940410136825296, 1.0410909293687747) cpu_ratio=1.0083557147120255 external=(0.5762011380275163, 0.7455754618335322)
+2026-09-10T23:42:33.695 FOLLOWUP_CUTOFF_COMPLETE
+2026-09-10T23:42:33.695 RESIDENT next=/tmp/opencode/population-simd-followup/command-4.jl
+2026-09-10T23:43:35.347 RUN confirm-127 baseline warm seconds=1.90121234 wall_s=1.9375648498535156 own_cpu_s=12.559999999999945 bytes=640971440 rss=10055057408 external_cpu_s=1.6200000000000543 external_cores=0.8361010472101257 shared_host=true faults=0
+2026-09-10T23:43:37.330 RUN confirm-127 half_read warm seconds=1.736751859 wall_s=1.7747960090637207 own_cpu_s=12.090000000000146 bytes=640863536 rss=8607952896 external_cpu_s=1.4099999999998545 external_cores=0.7944574997910259 shared_host=true faults=0
+2026-09-10T23:43:39.411 RUN confirm-127 baseline pair=1 seconds=1.927363776 wall_s=1.9563610553741455 own_cpu_s=12.620000000000346 bytes=640976880 rss=8738013184 external_cpu_s=1.6399999999996542 external_cores=0.8382910687649174 shared_host=true faults=0
+2026-09-10T23:43:41.424 RUN confirm-127 half_read pair=1 seconds=1.865610835 wall_s=1.8989269733428955 own_cpu_s=12.200000000000273 bytes=640941072 rss=9041379328 external_cpu_s=1.559999999999727 external_cores=0.8215165837859909 shared_host=true faults=0
+2026-09-10T23:43:43.315 RUN confirm-127 half_read pair=2 seconds=1.772733681 wall_s=1.7730319499969482 own_cpu_s=12.120000000000346 bytes=640863152 rss=9063567360 external_cpu_s=1.3399999999996552 external_cores=0.7557675427123361 shared_host=true faults=0
+2026-09-10T23:43:45.250 RUN confirm-127 baseline pair=2 seconds=1.809092738 wall_s=1.8127539157867432 own_cpu_s=12.559999999999945 bytes=640898960 rss=9067962368 external_cpu_s=1.3500000000000547 external_cores=0.7447232568322153 shared_host=true faults=0
+2026-09-10T23:43:47.243 RUN confirm-127 baseline pair=3 seconds=1.876177759 wall_s=1.8765251636505127 own_cpu_s=12.559999999999945 bytes=640974304 rss=9247961088 external_cpu_s=1.4600000000000541 external_cores=0.7780337979373705 shared_host=true faults=0
+2026-09-10T23:43:49.174 RUN confirm-127 half_read pair=3 seconds=1.788720304 wall_s=1.7891340255737305 own_cpu_s=12.080000000000382 bytes=640898960 rss=8782090240 external_cpu_s=1.5199999999996177 external_cores=0.8495730215136855 shared_host=true faults=0
+2026-09-10T23:43:49.499 FOLLOWUP_PAIRED label=confirm-127 name=baseline n=3 wall=1.8765251636505127 cpu=12.559999999999945 ratio=1.0 range=(1.0, 1.0) cpu_ratio=1.0 external=(0.7447232568322153, 0.8382910687649174)
+2026-09-10T23:43:49.499 FOLLOWUP_PAIRED label=confirm-127 name=half_read n=3 wall=1.7891340255737305 cpu=12.120000000000346 ratio=1.0302455454251316 range=(1.0224034122960184, 1.0488454955456779) cpu_ratio=1.0363036303630022 external=(0.7557675427123361, 0.8495730215136855)
+2026-09-10T23:44:18.335 RUN confirm-9919 baseline warm seconds=28.709542643 wall_s=28.70990490913391 own_cpu_s=199.74000000000024 bytes=1877482536 rss=9960669184 external_cpu_s=22.839999999999776 external_cores=0.7955442580631239 shared_host=true faults=0
+2026-09-10T23:44:47.356 RUN confirm-9919 half_read warm seconds=28.910559693 wall_s=28.91086196899414 own_cpu_s=196.28999999999996 bytes=1877123800 rss=11439280128 external_cpu_s=27.160000000000025 external_cores=0.9394393024022648 shared_host=true faults=0
+2026-09-10T23:45:15.345 RUN confirm-9919 baseline pair=1 seconds=27.796489837 wall_s=27.796828985214233 own_cpu_s=201.3100000000004 bytes=1877443512 rss=11568455680 external_cpu_s=13.289999999999594 external_cores=0.4781120899462614 shared_host=true faults=0
+2026-09-10T23:45:43.153 RUN confirm-9919 half_read pair=1 seconds=27.618212346 wall_s=27.619171857833862 own_cpu_s=198.07999999999993 bytes=1876688136 rss=11640061952 external_cpu_s=15.750000000000085 external_cores=0.5702560555063413 shared_host=true faults=0
+2026-09-10T23:46:11.185 RUN confirm-9919 half_read pair=2 seconds=27.810394542 wall_s=27.810703992843628 own_cpu_s=197.57999999999993 bytes=1876832520 rss=11472183296 external_cpu_s=18.190000000000083 external_cores=0.6540647084906881 shared_host=true faults=0
+2026-09-10T23:46:39.846 RUN confirm-9919 baseline pair=2 seconds=28.468787779 wall_s=28.46913194656372 own_cpu_s=200.58000000000038 bytes=1878415880 rss=11439280128 external_cpu_s=20.579999999999615 external_cores=0.7228882158622916 shared_host=true faults=0
+2026-09-10T23:47:08.953 RUN confirm-9919 baseline pair=3 seconds=28.898962163 wall_s=28.899343013763428 own_cpu_s=200.1800000000003 bytes=1878795088 rss=11418931200 external_cpu_s=24.34999999999971 external_cores=0.8425797080716654 shared_host=true faults=0
+2026-09-10T23:47:37.837 RUN confirm-9919 half_read pair=3 seconds=28.679922145 wall_s=28.680235147476196 own_cpu_s=197.1899999999996 bytes=1877410344 rss=11638026240 external_cpu_s=25.350000000000392 external_cores=0.8838839664196806 shared_host=true faults=0
+2026-09-10T23:47:37.837 FOLLOWUP_PAIRED label=confirm-9919 name=baseline n=3 wall=28.46913194656372 cpu=200.58000000000038 ratio=1.0 range=(1.0, 1.0) cpu_ratio=1.0 external=(0.4781120899462614, 0.8425797080716654)
+2026-09-10T23:47:37.837 FOLLOWUP_PAIRED label=confirm-9919 name=half_read n=3 wall=27.810703992843628 cpu=197.57999999999993 ratio=1.007639681653953 range=(1.0064323842979377, 1.0236753429143512) cpu_ratio=1.0151837230488938 external=(0.5702560555063413, 0.8838839664196806)
+2026-09-10T23:47:38.310 RUN confirm-rural-1027 baseline warm seconds=0.269752688 wall_s=0.2700178623199463 own_cpu_s=1.1599999999998545 bytes=619686032 rss=10469126144 external_cpu_s=0.4100000000001456 external_cores=1.5184180649291021 shared_host=true faults=0
+2026-09-10T23:47:38.763 RUN confirm-rural-1027 half_read warm seconds=0.228780435 wall_s=0.23240399360656738 own_cpu_s=1.069999999999709 bytes=619594992 rss=8783142912 external_cpu_s=0.34000000000029096 external_cores=1.462969696535727 shared_host=true faults=0
+2026-09-10T23:47:39.203 RUN confirm-rural-1027 baseline pair=1 seconds=0.31363031 wall_s=0.3138539791107178 own_cpu_s=1.180000000000291 bytes=619745224 rss=8807014400 external_cpu_s=0.629999999999709 external_cores=2.0073028922072864 shared_host=true faults=0
+2026-09-10T23:47:39.639 RUN confirm-rural-1027 half_read pair=1 seconds=0.31442496 wall_s=0.3147001266479492 own_cpu_s=1.2399999999997817 bytes=619742544 rss=9074610176 external_cpu_s=0.46000000000021823 external_cores=1.4617089764149158 shared_host=true faults=0
+2026-09-10T23:47:40.010 RUN confirm-rural-1027 half_read pair=2 seconds=0.231725433 wall_s=0.23197007179260254 own_cpu_s=1.069999999999709 bytes=619531640 rss=8900468736 external_cpu_s=0.370000000000291 external_cores=1.595033346935793 shared_host=true faults=0
+2026-09-10T23:47:40.471 RUN confirm-rural-1027 baseline pair=2 seconds=0.329700369 wall_s=0.33000802993774414 own_cpu_s=1.1899999999995998 bytes=619707440 rss=8936275968 external_cpu_s=0.5500000000004002 external_cores=1.6666261124135597 shared_host=true faults=0
+2026-09-10T23:47:40.896 RUN confirm-rural-1027 baseline pair=3 seconds=0.304010575 wall_s=0.30428099632263184 own_cpu_s=1.1599999999998545 bytes=619724864 rss=9128214528 external_cpu_s=0.6000000000001455 external_cores=1.9718615597142328 shared_host=true faults=0
+2026-09-10T23:47:41.323 RUN confirm-rural-1027 half_read pair=3 seconds=0.27464476 wall_s=0.2763488292694092 own_cpu_s=1.1499999999996362 bytes=619646064 rss=8957308928 external_cpu_s=0.43000000000036387 external_cores=1.5560044207068524 shared_host=true faults=0
+2026-09-10T23:47:41.323 FOLLOWUP_PAIRED label=confirm-rural-1027 name=baseline n=3 wall=0.3138539791107178 cpu=1.180000000000291 ratio=1.0 range=(1.0, 1.0) cpu_ratio=1.0 external=(1.6666261124135597, 2.0073028922072864)
+2026-09-10T23:47:41.324 FOLLOWUP_PAIRED label=confirm-rural-1027 name=half_read n=3 wall=0.2763488292694092 cpu=1.1499999999996362 ratio=1.101075756778372 range=(0.9973112577162131, 1.4226319256942523) cpu_ratio=1.0086956521741055 external=(1.4617089764149158, 1.595033346935793)
+2026-09-10T23:47:41.324 FOLLOWUP_CONFIRM_COMPLETE
+2026-09-10T23:47:41.324 RESIDENT next=/tmp/opencode/population-simd-followup/command-5.jl
+2026-09-10T23:53:51.035 FOLLOWUP_EXIT production_bytes_unchanged=true benchmark_pid=1020421 no_user_process_changed=true

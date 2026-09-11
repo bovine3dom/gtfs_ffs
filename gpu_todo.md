@@ -18,7 +18,7 @@ and download origin totals rather than departure-by-destination surfaces.
 - [x] Measure departure windows with four and 96 samples, including three-hour and seven-day budgets.
 - [x] Check all three aggregation families on a benchmark subset. The final timing matrix uses `mean_intersection`.
 - [x] Record CPU request time, allocation, sampled process memory, and shared state expansions.
-- [ ] Measure single departures at the target origin counts.
+- [x] Measure single departures at 1,027 and 9,919 origins. See the [adaptive CPU experiment report](experiments/benchmarks/population-approved3-results.md).
 - [ ] Record full-network GPU request time, origins per second, peak memory, and transfers.
 
 ## Tune CPU Batches
@@ -37,6 +37,7 @@ and download origin totals rather than departure-by-destination surfaces.
 - [x] Test incremental population labels, static schedule bounds, and tile sizes. Keep unproven candidates outside production.
 - [x] Complete interleaved trials under measured shared load. Record wall time, process CPU time, external CPU load, and pair variation. See the [shared-host appendix](experiments/benchmarks/population-shared-results.md).
 - [x] Add an experimental expiry-bucket candidate. Update population labels on valid pops, then apply sample expiry events.
+- [x] Test dense-label SIMD, a timestamp-radix queue, and eight-bin bounds against the current adaptive engine. Retain only graph-specific eight-bin bounds. See the [three-experiment report](experiments/benchmarks/population-approved3-results.md).
 
 Each tile uses blocks of up to `floor(64 / origin_count)` samples. One worker
 processes all time blocks for its tile. The worker count is the smaller of the
@@ -50,7 +51,9 @@ full 64-origin tiles per worker. Eight threads require 1,024 transit origins,
 not 1,024 total origins. The 64-lane mask limits each block, not the request.
 Tile 64 needs more workspace RAM. Request allocation was 2.6-2.9 times the
 tile-16 allocation in those eight-thread trials. The rule is not an optimum
-for all machines. Expiry buckets and eight-bin schedule hints remain experimental.
+for all machines. Expiry buckets, dense-label SIMD, and the timestamp-radix queue
+remain experimental. Eight-bin schedule bounds are retained. Each population
+object caches them by graph identity, independently of walking geometry.
 
 Workers take the next available tile without a barrier between groups of tiles.
 For tiles with multiple time blocks, routing works backward through departure
@@ -130,3 +133,10 @@ StaticArrays would not address the measured schedule-lookup and heap/pending-eve
 costs. Projection is below 1% of routed profile samples. The schedule-cache
 candidate increased measured walking times and was removed. Next CPU work targets
 transit-time lookup and queue processing.
+
+The [current adaptive-engine measurements](experiments/benchmarks/population-approved3-results.md)
+replace those earlier timings as the CPU comparison target. They use actual
+one-hour resolution-7 walking with 3,737,032 network walking edges. Retained
+eight-bin bounds give paired speedups of 1.076x and 1.088x for Paris windows with
+1,027 and 9,919 origins. SIMD and timestamp-radix trials did not give a useful
+gain on the main three-hour case. All results were measured on a shared host.

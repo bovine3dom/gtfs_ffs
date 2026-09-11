@@ -78,7 +78,7 @@ function _population_sample_range!(w, graph, network, population, sources, ids, 
                 end
             else
                 for edge in graph.out_ptr[node]:(graph.out_ptr[node + 1] - Int32(1))
-                    arrival = next_arrival(graph.schedule_ptr, graph.departure, graph.arrival, edge, time, cutoff)
+                    arrival = _population_next_arrival(w.schedule_hints, graph, edge, time, cutoff)
                     arrival == INF && continue
                     target = graph.edge_to[edge]
                     _population_range_enqueue!(w, labels, arrival, target, false, mask, cutoff, population, limit)

@@ -1,0 +1,2755 @@
+Test Summary:                         |   Pass   Total  Time
+Follow-up exact read and update masks | 384000  384000  1.7s
+MICRO_COLUMNS width,active,operation,winning,gate,kind,trial,seconds
+MICRO 3,0,eq,false,sparse,native,1,8.5942e-5
+MICRO 3,0,eq,false,dense,compiler,1,0.000322042
+MICRO 3,0,eq,false,dense,native,1,0.001067983
+MICRO 3,0,eq,false,quarter,native,1,8.5825e-5
+MICRO 3,0,eq,false,half,native,1,4.9015e-5
+MICRO 3,0,eq,false,full,native,1,4.9022e-5
+MICRO 3,0,eq,false,half,compiler,1,4.9318e-5
+MICRO 3,0,eq,false,full,compiler,1,8.5786e-5
+MICRO 3,0,eq,false,full,compiler,2,8.5971e-5
+MICRO 3,0,eq,false,half,compiler,2,4.9119e-5
+MICRO 3,0,eq,false,full,native,2,4.9066e-5
+MICRO 3,0,eq,false,half,native,2,4.9155e-5
+MICRO 3,0,eq,false,quarter,native,2,8.5801e-5
+MICRO 3,0,eq,false,dense,native,2,0.000951232
+MICRO 3,0,eq,false,dense,compiler,2,0.000318312
+MICRO 3,0,eq,false,sparse,native,2,8.5711e-5
+MICRO 3,0,eq,false,sparse,native,3,8.5759e-5
+MICRO 3,0,eq,false,dense,compiler,3,0.000318399
+MICRO 3,0,eq,false,dense,native,3,0.001033757
+MICRO 3,0,eq,false,quarter,native,3,8.568e-5
+MICRO 3,0,eq,false,half,native,3,4.8937e-5
+MICRO 3,0,eq,false,full,native,3,4.8945e-5
+MICRO 3,0,eq,false,half,compiler,3,4.9048e-5
+MICRO 3,0,eq,false,full,compiler,3,8.5649e-5
+MICRO 3,0,le,false,sparse,native,1,4.9187e-5
+MICRO 3,0,le,false,dense,compiler,1,0.000326748
+MICRO 3,0,le,false,dense,native,1,0.000587156
+MICRO 3,0,le,false,quarter,native,1,9.2763e-5
+MICRO 3,0,le,false,half,native,1,8.572e-5
+MICRO 3,0,le,false,full,native,1,4.9035e-5
+MICRO 3,0,le,false,half,compiler,1,8.5727e-5
+MICRO 3,0,le,false,full,compiler,1,4.8992e-5
+MICRO 3,0,le,false,full,compiler,2,4.8982e-5
+MICRO 3,0,le,false,half,compiler,2,8.5645e-5
+MICRO 3,0,le,false,full,native,2,4.9381e-5
+MICRO 3,0,le,false,half,native,2,8.5632e-5
+MICRO 3,0,le,false,quarter,native,2,8.563e-5
+MICRO 3,0,le,false,dense,native,2,0.000587579
+MICRO 3,0,le,false,dense,compiler,2,0.000326104
+MICRO 3,0,le,false,sparse,native,2,4.8977e-5
+MICRO 3,0,le,false,sparse,native,3,4.897e-5
+MICRO 3,0,le,false,dense,compiler,3,0.000326443
+MICRO 3,0,le,false,dense,native,3,0.000586961
+MICRO 3,0,le,false,quarter,native,3,8.5741e-5
+MICRO 3,0,le,false,half,native,3,8.5642e-5
+MICRO 3,0,le,false,full,native,3,4.9082e-5
+MICRO 3,0,le,false,half,compiler,3,8.5628e-5
+MICRO 3,0,le,false,full,compiler,3,4.8992e-5
+MICRO 3,0,update,false,sparse,native,1,0.000125744
+MICRO 3,0,update,false,dense,compiler,1,0.000376809
+MICRO 3,0,update,false,dense,native,1,0.000753107
+MICRO 3,0,update,false,quarter,native,1,0.000125643
+MICRO 3,0,update,false,half,native,1,0.000126505
+MICRO 3,0,update,false,full,native,1,0.000176165
+MICRO 3,0,update,false,half,compiler,1,0.000175775
+MICRO 3,0,update,false,full,compiler,1,0.00012615
+MICRO 3,0,update,false,full,compiler,2,0.000126476
+MICRO 3,0,update,false,half,compiler,2,0.000175635
+MICRO 3,0,update,false,full,native,2,0.000175653
+MICRO 3,0,update,false,half,native,2,0.000126223
+MICRO 3,0,update,false,quarter,native,2,0.000127017
+MICRO 3,0,update,false,dense,native,2,0.000800428
+MICRO 3,0,update,false,dense,compiler,2,0.000376441
+MICRO 3,0,update,false,sparse,native,2,0.000125568
+MICRO 3,0,update,false,sparse,native,3,0.000126002
+MICRO 3,0,update,false,dense,compiler,3,0.000376713
+MICRO 3,0,update,false,dense,native,3,0.000764113
+MICRO 3,0,update,false,quarter,native,3,0.000125598
+MICRO 3,0,update,false,half,native,3,0.000136342
+MICRO 3,0,update,false,full,native,3,0.000171239
+MICRO 3,0,update,false,half,compiler,3,0.00017122
+MICRO 3,0,update,false,full,compiler,3,0.000122337
+MICRO 3,0,update,true,sparse,native,1,0.000159246
+MICRO 3,0,update,true,dense,compiler,1,0.000366831
+MICRO 3,0,update,true,dense,native,1,0.000733995
+MICRO 3,0,update,true,quarter,native,1,0.000122312
+MICRO 3,0,update,true,half,native,1,0.000122367
+MICRO 3,0,update,true,full,native,1,0.0001713
+MICRO 3,0,update,true,half,compiler,1,0.000171229
+MICRO 3,0,update,true,full,compiler,1,0.000122304
+MICRO 3,0,update,true,full,compiler,2,0.000122334
+MICRO 3,0,update,true,half,compiler,2,0.000171185
+MICRO 3,0,update,true,full,native,2,0.000171198
+MICRO 3,0,update,true,half,native,2,0.0001224
+MICRO 3,0,update,true,quarter,native,2,0.000122361
+MICRO 3,0,update,true,dense,native,2,0.000782141
+MICRO 3,0,update,true,dense,compiler,2,0.0003673
+MICRO 3,0,update,true,sparse,native,2,0.000122641
+MICRO 3,0,update,true,sparse,native,3,0.000122397
+MICRO 3,0,update,true,dense,compiler,3,0.000368269
+MICRO 3,0,update,true,dense,native,3,0.000907481
+MICRO 3,0,update,true,quarter,native,3,0.000208839
+MICRO 3,0,update,true,half,native,3,0.000176674
+MICRO 3,0,update,true,full,native,3,0.00017587
+MICRO 3,0,update,true,half,compiler,3,0.000175681
+MICRO 3,0,update,true,full,compiler,3,0.000125946
+MICRO 3,1,eq,false,sparse,native,1,0.000161918
+MICRO 3,1,eq,false,dense,compiler,1,0.000348234
+MICRO 3,1,eq,false,dense,native,1,0.001041418
+MICRO 3,1,eq,false,quarter,native,1,0.000146921
+MICRO 3,1,eq,false,half,native,1,0.000112954
+MICRO 3,1,eq,false,full,native,1,0.000112849
+MICRO 3,1,eq,false,half,compiler,1,0.000134668
+MICRO 3,1,eq,false,full,compiler,1,0.000134756
+MICRO 3,1,eq,false,full,compiler,2,0.000150681
+MICRO 3,1,eq,false,half,compiler,2,0.000262424
+MICRO 3,1,eq,false,full,native,2,0.00011835
+MICRO 3,1,eq,false,half,native,2,0.000115651
+MICRO 3,1,eq,false,quarter,native,2,0.000150809
+MICRO 3,1,eq,false,dense,native,2,0.001034322
+MICRO 3,1,eq,false,dense,compiler,2,0.000335695
+MICRO 3,1,eq,false,sparse,native,2,0.000138028
+MICRO 3,1,eq,false,sparse,native,3,0.000138047
+MICRO 3,1,eq,false,dense,compiler,3,0.00035354
+MICRO 3,1,eq,false,dense,native,3,0.001008935
+MICRO 3,1,eq,false,quarter,native,3,0.000146908
+MICRO 3,1,eq,false,half,native,3,0.000113322
+MICRO 3,1,eq,false,full,native,3,0.000137615
+MICRO 3,1,eq,false,half,compiler,3,0.000134642
+MICRO 3,1,eq,false,full,compiler,3,0.000135572
+MICRO 3,1,le,false,sparse,native,1,0.000117125
+MICRO 3,1,le,false,dense,compiler,1,0.000327295
+MICRO 3,1,le,false,dense,native,1,0.000589608
+MICRO 3,1,le,false,quarter,native,1,0.000160242
+MICRO 3,1,le,false,half,native,1,0.000159412
+MICRO 3,1,le,false,full,native,1,0.000117086
+MICRO 3,1,le,false,half,compiler,1,0.00015913
+MICRO 3,1,le,false,full,compiler,1,0.000117638
+MICRO 3,1,le,false,full,compiler,2,0.000117377
+MICRO 3,1,le,false,half,compiler,2,0.000159583
+MICRO 3,1,le,false,full,native,2,0.000117403
+MICRO 3,1,le,false,half,native,2,0.00015931
+MICRO 3,1,le,false,quarter,native,2,0.000159326
+MICRO 3,1,le,false,dense,native,2,0.000628773
+MICRO 3,1,le,false,dense,compiler,2,0.000326801
+MICRO 3,1,le,false,sparse,native,2,0.000117344
+MICRO 3,1,le,false,sparse,native,3,0.000117313
+MICRO 3,1,le,false,dense,compiler,3,0.000326333
+MICRO 3,1,le,false,dense,native,3,0.000586865
+MICRO 3,1,le,false,quarter,native,3,0.000158977
+MICRO 3,1,le,false,half,native,3,0.000158966
+MICRO 3,1,le,false,full,native,3,0.000117019
+MICRO 3,1,le,false,half,compiler,3,0.000159
+MICRO 3,1,le,false,full,compiler,3,0.000117012
+MICRO 3,1,update,false,sparse,native,1,0.000268949
+MICRO 3,1,update,false,dense,compiler,1,0.000374687
+MICRO 3,1,update,false,dense,native,1,0.001009079
+MICRO 3,1,update,false,quarter,native,1,0.000402729
+MICRO 3,1,update,false,half,native,1,0.000284405
+MICRO 3,1,update,false,full,native,1,0.000326569
+MICRO 3,1,update,false,half,compiler,1,0.000353584
+MICRO 3,1,update,false,full,compiler,1,0.00025127
+MICRO 3,1,update,false,full,compiler,2,0.000251033
+MICRO 3,1,update,false,half,compiler,2,0.000382687
+MICRO 3,1,update,false,full,native,2,0.000318366
+MICRO 3,1,update,false,half,native,2,0.000305202
+MICRO 3,1,update,false,quarter,native,2,0.000326933
+MICRO 3,1,update,false,dense,native,2,0.001047631
+MICRO 3,1,update,false,dense,compiler,2,0.000367042
+MICRO 3,1,update,false,sparse,native,2,0.000269184
+MICRO 3,1,update,false,sparse,native,3,0.000269087
+MICRO 3,1,update,false,dense,compiler,3,0.000426559
+MICRO 3,1,update,false,dense,native,3,0.000985632
+MICRO 3,1,update,false,quarter,native,3,0.000273081
+MICRO 3,1,update,false,half,native,3,0.000244629
+MICRO 3,1,update,false,full,native,3,0.000343541
+MICRO 3,1,update,false,half,compiler,3,0.000344611
+MICRO 3,1,update,false,full,compiler,3,0.000261422
+MICRO 3,1,update,true,sparse,native,1,0.000407932
+MICRO 3,1,update,true,dense,compiler,1,0.001214915
+MICRO 3,1,update,true,dense,native,1,0.001007736
+MICRO 3,1,update,true,quarter,native,1,0.000294287
+MICRO 3,1,update,true,half,native,1,0.000293474
+MICRO 3,1,update,true,full,native,1,0.000366775
+MICRO 3,1,update,true,half,compiler,1,0.000395436
+MICRO 3,1,update,true,full,compiler,1,0.000293522
+MICRO 3,1,update,true,full,compiler,2,0.000293424
+MICRO 3,1,update,true,half,compiler,2,0.000391909
+MICRO 3,1,update,true,full,native,2,0.000366764
+MICRO 3,1,update,true,half,native,2,0.000293662
+MICRO 3,1,update,true,quarter,native,2,0.000293731
+MICRO 3,1,update,true,dense,native,2,0.000998583
+MICRO 3,1,update,true,dense,compiler,2,0.001573139
+MICRO 3,1,update,true,sparse,native,2,0.000696259
+MICRO 3,1,update,true,sparse,native,3,0.000783556
+MICRO 3,1,update,true,dense,compiler,3,0.001880716
+MICRO 3,1,update,true,dense,native,3,0.001037805
+MICRO 3,1,update,true,quarter,native,3,0.000306524
+MICRO 3,1,update,true,half,native,3,0.000331255
+MICRO 3,1,update,true,full,native,3,0.000366914
+MICRO 3,1,update,true,half,compiler,3,0.000440139
+MICRO 3,1,update,true,full,compiler,3,0.000293573
+MICRO 3,3,eq,false,sparse,native,1,0.000256454
+MICRO 3,3,eq,false,dense,compiler,1,0.000319281
+MICRO 3,3,eq,false,dense,native,1,0.001023155
+MICRO 3,3,eq,false,quarter,native,1,0.000251982
+MICRO 3,3,eq,false,half,native,1,0.000285313
+MICRO 3,3,eq,false,full,native,1,0.000250688
+MICRO 3,3,eq,false,half,compiler,1,0.000252838
+MICRO 3,3,eq,false,full,compiler,1,0.000254016
+MICRO 3,3,eq,false,full,compiler,2,0.00025265
+MICRO 3,3,eq,false,half,compiler,2,0.000252275
+MICRO 3,3,eq,false,full,native,2,0.00024957
+MICRO 3,3,eq,false,half,native,2,0.000249784
+MICRO 3,3,eq,false,quarter,native,2,0.000265284
+MICRO 3,3,eq,false,dense,native,2,0.001059793
+MICRO 3,3,eq,false,dense,compiler,2,0.000317984
+MICRO 3,3,eq,false,sparse,native,2,0.000256594
+MICRO 3,3,eq,false,sparse,native,3,0.000256192
+MICRO 3,3,eq,false,dense,compiler,3,0.000318123
+MICRO 3,3,eq,false,dense,native,3,0.00102699
+MICRO 3,3,eq,false,quarter,native,3,0.000268982
+MICRO 3,3,eq,false,half,native,3,0.000249191
+MICRO 3,3,eq,false,full,native,3,0.000249208
+MICRO 3,3,eq,false,half,compiler,3,0.000286429
+MICRO 3,3,eq,false,full,compiler,3,0.000252473
+MICRO 3,3,le,false,sparse,native,1,0.000256502
+MICRO 3,3,le,false,dense,compiler,1,0.000326176
+MICRO 3,3,le,false,dense,native,1,0.000593258
+MICRO 3,3,le,false,quarter,native,1,0.000295103
+MICRO 3,3,le,false,half,native,1,0.000318543
+MICRO 3,3,le,false,full,native,1,0.000256764
+MICRO 3,3,le,false,half,compiler,1,0.00028142
+MICRO 3,3,le,false,full,compiler,1,0.000256692
+MICRO 3,3,le,false,full,compiler,2,0.000262667
+MICRO 3,3,le,false,half,compiler,2,0.000272163
+MICRO 3,3,le,false,full,native,2,0.000292295
+MICRO 3,3,le,false,half,native,2,0.000288664
+MICRO 3,3,le,false,quarter,native,2,0.000281327
+MICRO 3,3,le,false,dense,native,2,0.0005875
+MICRO 3,3,le,false,dense,compiler,2,0.000326096
+MICRO 3,3,le,false,sparse,native,2,0.000256161
+MICRO 3,3,le,false,sparse,native,3,0.000256194
+MICRO 3,3,le,false,dense,compiler,3,0.000326017
+MICRO 3,3,le,false,dense,native,3,0.000591216
+MICRO 3,3,le,false,quarter,native,3,0.000281635
+MICRO 3,3,le,false,half,native,3,0.000302732
+MICRO 3,3,le,false,full,native,3,0.000256535
+MICRO 3,3,le,false,half,compiler,3,0.00026926
+MICRO 3,3,le,false,full,compiler,3,0.000256301
+MICRO 3,3,update,false,sparse,native,1,0.00036715
+MICRO 3,3,update,false,dense,compiler,1,0.000366796
+MICRO 3,3,update,false,dense,native,1,0.000762097
+MICRO 3,3,update,false,quarter,native,1,0.000391379
+MICRO 3,3,update,false,half,native,1,0.000391637
+MICRO 3,3,update,false,full,native,1,0.000464747
+MICRO 3,3,update,false,half,compiler,1,0.000489157
+MICRO 3,3,update,false,full,compiler,1,0.000391202
+MICRO 3,3,update,false,full,compiler,2,0.000391209
+MICRO 3,3,update,false,half,compiler,2,0.000489232
+MICRO 3,3,update,false,full,native,2,0.000470015
+MICRO 3,3,update,false,half,native,2,0.00039191
+MICRO 3,3,update,false,quarter,native,2,0.000391331
+MICRO 3,3,update,false,dense,native,2,0.000759246
+MICRO 3,3,update,false,dense,compiler,2,0.0003668
+MICRO 3,3,update,false,sparse,native,2,0.000367448
+MICRO 3,3,update,false,sparse,native,3,0.000366814
+MICRO 3,3,update,false,dense,compiler,3,0.000370272
+MICRO 3,3,update,false,dense,native,3,0.000758401
+MICRO 3,3,update,false,quarter,native,3,0.000391481
+MICRO 3,3,update,false,half,native,3,0.000392173
+MICRO 3,3,update,false,full,native,3,0.000464908
+MICRO 3,3,update,false,half,compiler,3,0.000491774
+MICRO 3,3,update,false,full,compiler,3,0.000393
+MICRO 3,3,update,true,sparse,native,1,0.000699571
+MICRO 3,3,update,true,dense,compiler,1,0.001101493
+MICRO 3,3,update,true,dense,native,1,0.001406447
+MICRO 3,3,update,true,quarter,native,1,0.001027937
+MICRO 3,3,update,true,half,native,1,0.000993159
+MICRO 3,3,update,true,full,native,1,0.000629075
+MICRO 3,3,update,true,half,compiler,1,0.00068615
+MICRO 3,3,update,true,full,compiler,1,0.000575166
+MICRO 3,3,update,true,full,compiler,2,0.0006083
+MICRO 3,3,update,true,half,compiler,2,0.000635983
+MICRO 3,3,update,true,full,native,2,0.000611742
+MICRO 3,3,update,true,half,native,2,0.000538571
+MICRO 3,3,update,true,quarter,native,2,0.000582184
+MICRO 3,3,update,true,dense,native,2,0.000810907
+MICRO 3,3,update,true,dense,compiler,2,0.000717911
+MICRO 3,3,update,true,sparse,native,2,0.000677991
+MICRO 3,3,update,true,sparse,native,3,0.000679888
+MICRO 3,3,update,true,dense,compiler,3,0.000742469
+MICRO 3,3,update,true,dense,native,3,0.000807187
+MICRO 3,3,update,true,quarter,native,3,0.000538862
+MICRO 3,3,update,true,half,native,3,0.000538148
+MICRO 3,3,update,true,full,native,3,0.000612216
+MICRO 3,3,update,true,half,compiler,3,0.000906422
+MICRO 3,3,update,true,full,compiler,3,0.000539309
+MICRO 16,0,eq,false,sparse,native,1,8.6099e-5
+MICRO 16,0,eq,false,dense,compiler,1,0.000459337
+MICRO 16,0,eq,false,dense,native,1,0.00050491
+MICRO 16,0,eq,false,quarter,native,1,9.7884e-5
+MICRO 16,0,eq,false,half,native,1,9.8129e-5
+MICRO 16,0,eq,false,full,native,1,0.000146867
+MICRO 16,0,eq,false,half,compiler,1,0.000171329
+MICRO 16,0,eq,false,full,compiler,1,9.7921e-5
+MICRO 16,0,eq,false,full,compiler,2,0.000197538
+MICRO 16,0,eq,false,half,compiler,2,0.000287552
+MICRO 16,0,eq,false,full,native,2,0.000150717
+MICRO 16,0,eq,false,half,native,2,0.000100868
+MICRO 16,0,eq,false,quarter,native,2,0.000100585
+MICRO 16,0,eq,false,dense,native,2,0.000480637
+MICRO 16,0,eq,false,dense,compiler,2,0.000490513
+MICRO 16,0,eq,false,sparse,native,2,8.561e-5
+MICRO 16,0,eq,false,sparse,native,3,8.5649e-5
+MICRO 16,0,eq,false,dense,compiler,3,0.000459011
+MICRO 16,0,eq,false,dense,native,3,0.000516742
+MICRO 16,0,eq,false,quarter,native,3,9.7905e-5
+MICRO 16,0,eq,false,half,native,3,9.7985e-5
+MICRO 16,0,eq,false,full,native,3,0.000182353
+MICRO 16,0,eq,false,half,compiler,3,0.000171255
+MICRO 16,0,eq,false,full,compiler,3,9.8065e-5
+MICRO 16,0,le,false,sparse,native,1,4.9163e-5
+MICRO 16,0,le,false,dense,compiler,1,0.000595888
+MICRO 16,0,le,false,dense,native,1,0.000415757
+MICRO 16,0,le,false,quarter,native,1,0.000112998
+MICRO 16,0,le,false,half,native,1,0.0001013
+MICRO 16,0,le,false,full,native,1,0.000161914
+MICRO 16,0,le,false,half,compiler,1,0.000146881
+MICRO 16,0,le,false,full,compiler,1,0.000147051
+MICRO 16,0,le,false,full,compiler,2,0.000147628
+MICRO 16,0,le,false,half,compiler,2,0.000148072
+MICRO 16,0,le,false,full,native,2,0.000147146
+MICRO 16,0,le,false,half,native,2,9.826e-5
+MICRO 16,0,le,false,quarter,native,2,9.8337e-5
+MICRO 16,0,le,false,dense,native,2,0.000450807
+MICRO 16,0,le,false,dense,compiler,2,0.000576681
+MICRO 16,0,le,false,sparse,native,2,4.9551e-5
+MICRO 16,0,le,false,sparse,native,3,4.908e-5
+MICRO 16,0,le,false,dense,compiler,3,0.000578137
+MICRO 16,0,le,false,dense,native,3,0.00041838
+MICRO 16,0,le,false,quarter,native,3,9.8227e-5
+MICRO 16,0,le,false,half,native,3,9.8033e-5
+MICRO 16,0,le,false,full,native,3,0.000146919
+MICRO 16,0,le,false,half,compiler,3,0.000146829
+MICRO 16,0,le,false,full,compiler,3,0.000146849
+MICRO 16,0,update,false,sparse,native,1,0.000122413
+MICRO 16,0,update,false,dense,compiler,1,0.000646922
+MICRO 16,0,update,false,dense,native,1,0.000562832
+MICRO 16,0,update,false,quarter,native,1,0.00026903
+MICRO 16,0,update,false,half,native,1,0.000269531
+MICRO 16,0,update,false,full,native,1,0.000244748
+MICRO 16,0,update,false,half,compiler,1,0.000200188
+MICRO 16,0,update,false,full,compiler,1,0.000244574
+MICRO 16,0,update,false,full,compiler,2,0.000244591
+MICRO 16,0,update,false,half,compiler,2,0.000195758
+MICRO 16,0,update,false,full,native,2,0.000273777
+MICRO 16,0,update,false,half,native,2,0.000269785
+MICRO 16,0,update,false,quarter,native,2,0.000269546
+MICRO 16,0,update,false,dense,native,2,0.000568146
+MICRO 16,0,update,false,dense,compiler,2,0.000641882
+MICRO 16,0,update,false,sparse,native,2,0.000169116
+MICRO 16,0,update,false,sparse,native,3,0.000178483
+MICRO 16,0,update,false,dense,compiler,3,0.000877888
+MICRO 16,0,update,false,dense,native,3,0.000580171
+MICRO 16,0,update,false,quarter,native,3,0.000297629
+MICRO 16,0,update,false,half,native,3,0.000276007
+MICRO 16,0,update,false,full,native,3,0.000259629
+MICRO 16,0,update,false,half,compiler,3,0.000200685
+MICRO 16,0,update,false,full,compiler,3,0.000250805
+MICRO 16,0,update,true,sparse,native,1,0.000191386
+MICRO 16,0,update,true,dense,compiler,1,0.0006146
+MICRO 16,0,update,true,dense,native,1,0.000565545
+MICRO 16,0,update,true,quarter,native,1,0.000269463
+MICRO 16,0,update,true,half,native,1,0.000313319
+MICRO 16,0,update,true,full,native,1,0.00025775
+MICRO 16,0,update,true,half,compiler,1,0.000195831
+MICRO 16,0,update,true,full,compiler,1,0.00042053
+MICRO 16,0,update,true,full,compiler,2,0.000407345
+MICRO 16,0,update,true,half,compiler,2,0.000346628
+MICRO 16,0,update,true,full,native,2,0.000389358
+MICRO 16,0,update,true,half,native,2,0.000438074
+MICRO 16,0,update,true,quarter,native,2,0.000452165
+MICRO 16,0,update,true,dense,native,2,0.000975259
+MICRO 16,0,update,true,dense,compiler,2,0.00112479
+MICRO 16,0,update,true,sparse,native,2,0.000247514
+MICRO 16,0,update,true,sparse,native,3,0.000254897
+MICRO 16,0,update,true,dense,compiler,3,0.001219575
+MICRO 16,0,update,true,dense,native,3,0.000885602
+MICRO 16,0,update,true,quarter,native,3,0.00038606
+MICRO 16,0,update,true,half,native,3,0.00040527
+MICRO 16,0,update,true,full,native,3,0.000244591
+MICRO 16,0,update,true,half,compiler,3,0.000195687
+MICRO 16,0,update,true,full,compiler,3,0.000244584
+MICRO 16,1,eq,false,sparse,native,1,0.000134693
+MICRO 16,1,eq,false,dense,compiler,1,0.000497358
+MICRO 16,1,eq,false,dense,native,1,0.000949027
+MICRO 16,1,eq,false,quarter,native,1,0.000295361
+MICRO 16,1,eq,false,half,native,1,0.000296875
+MICRO 16,1,eq,false,full,native,1,0.000346904
+MICRO 16,1,eq,false,half,compiler,1,0.000469271
+MICRO 16,1,eq,false,full,compiler,1,0.000195697
+MICRO 16,1,eq,false,full,compiler,2,0.000219134
+MICRO 16,1,eq,false,half,compiler,2,0.000436026
+MICRO 16,1,eq,false,full,native,2,0.000359641
+MICRO 16,1,eq,false,half,native,2,0.000294092
+MICRO 16,1,eq,false,quarter,native,2,0.000280066
+MICRO 16,1,eq,false,dense,native,2,0.000858931
+MICRO 16,1,eq,false,dense,compiler,2,0.000526757
+MICRO 16,1,eq,false,sparse,native,2,0.000221321
+MICRO 16,1,eq,false,sparse,native,3,0.000262728
+MICRO 16,1,eq,false,dense,compiler,3,0.000777678
+MICRO 16,1,eq,false,dense,native,3,0.000779545
+MICRO 16,1,eq,false,quarter,native,3,0.000294022
+MICRO 16,1,eq,false,half,native,3,0.000277014
+MICRO 16,1,eq,false,full,native,3,0.000300087
+MICRO 16,1,eq,false,half,compiler,3,0.000487406
+MICRO 16,1,eq,false,full,compiler,3,0.000335935
+MICRO 16,1,le,false,sparse,native,1,0.00022457
+MICRO 16,1,le,false,dense,compiler,1,0.001030514
+MICRO 16,1,le,false,dense,native,1,0.000788835
+MICRO 16,1,le,false,quarter,native,1,0.000325346
+MICRO 16,1,le,false,half,native,1,0.000288758
+MICRO 16,1,le,false,full,native,1,0.000316066
+MICRO 16,1,le,false,half,compiler,1,0.000286322
+MICRO 16,1,le,false,full,compiler,1,0.000341353
+MICRO 16,1,le,false,full,compiler,2,0.000235243
+MICRO 16,1,le,false,half,compiler,2,0.000244575
+MICRO 16,1,le,false,full,native,2,0.000195661
+MICRO 16,1,le,false,half,native,2,0.000171897
+MICRO 16,1,le,false,quarter,native,2,0.000171931
+MICRO 16,1,le,false,dense,native,2,0.000415683
+MICRO 16,1,le,false,dense,compiler,2,0.000575709
+MICRO 16,1,le,false,sparse,native,2,0.000117034
+MICRO 16,1,le,false,sparse,native,3,0.000116988
+MICRO 16,1,le,false,dense,compiler,3,0.001090954
+MICRO 16,1,le,false,dense,native,3,0.000666664
+MICRO 16,1,le,false,quarter,native,3,0.000302323
+MICRO 16,1,le,false,half,native,3,0.000319609
+MICRO 16,1,le,false,full,native,3,0.000401768
+MICRO 16,1,le,false,half,compiler,3,0.000469337
+MICRO 16,1,le,false,full,compiler,3,0.000452744
+MICRO 16,1,update,false,sparse,native,1,0.000567623
+MICRO 16,1,update,false,dense,compiler,1,0.001200214
+MICRO 16,1,update,false,dense,native,1,0.00074005
+MICRO 16,1,update,false,quarter,native,1,0.000708144
+MICRO 16,1,update,false,half,native,1,0.000780458
+MICRO 16,1,update,false,full,native,1,0.000667904
+MICRO 16,1,update,false,half,compiler,1,0.000642808
+MICRO 16,1,update,false,full,compiler,1,0.00050056
+MICRO 16,1,update,false,full,compiler,2,0.000622851
+MICRO 16,1,update,false,half,compiler,2,0.000662972
+MICRO 16,1,update,false,full,native,2,0.000802823
+MICRO 16,1,update,false,half,native,2,0.000875668
+MICRO 16,1,update,false,quarter,native,2,0.000850163
+MICRO 16,1,update,false,dense,native,2,0.000741904
+MICRO 16,1,update,false,dense,compiler,2,0.000736163
+MICRO 16,1,update,false,sparse,native,2,0.00026903
+MICRO 16,1,update,false,sparse,native,3,0.000268966
+MICRO 16,1,update,false,dense,compiler,3,0.0006117
+MICRO 16,1,update,false,dense,native,3,0.000606932
+MICRO 16,1,update,false,quarter,native,3,0.000415682
+MICRO 16,1,update,false,half,native,3,0.000415673
+MICRO 16,1,update,false,full,native,3,0.000415697
+MICRO 16,1,update,false,half,compiler,3,0.000350767
+MICRO 16,1,update,false,full,compiler,3,0.000317896
+MICRO 16,1,update,true,sparse,native,1,0.000391229
+MICRO 16,1,update,true,dense,compiler,1,0.0015188
+MICRO 16,1,update,true,dense,native,1,0.001360733
+MICRO 16,1,update,true,quarter,native,1,0.00065618
+MICRO 16,1,update,true,half,native,1,0.000550496
+MICRO 16,1,update,true,full,native,1,0.000501369
+MICRO 16,1,update,true,half,compiler,1,0.000426185
+MICRO 16,1,update,true,full,compiler,1,0.000351023
+MICRO 16,1,update,true,full,compiler,2,0.000350962
+MICRO 16,1,update,true,half,compiler,2,0.000426222
+MICRO 16,1,update,true,full,native,2,0.000501369
+MICRO 16,1,update,true,half,native,2,0.000524218
+MICRO 16,1,update,true,quarter,native,2,0.000639947
+MICRO 16,1,update,true,dense,native,2,0.000998856
+MICRO 16,1,update,true,dense,compiler,2,0.00128197
+MICRO 16,1,update,true,sparse,native,2,0.000403236
+MICRO 16,1,update,true,sparse,native,3,0.00039128
+MICRO 16,1,update,true,dense,compiler,3,0.001281425
+MICRO 16,1,update,true,dense,native,3,0.000814535
+MICRO 16,1,update,true,quarter,native,3,0.000540707
+MICRO 16,1,update,true,half,native,3,0.000513454
+MICRO 16,1,update,true,full,native,3,0.000489046
+MICRO 16,1,update,true,half,compiler,3,0.000416088
+MICRO 16,1,update,true,full,compiler,3,0.000342581
+MICRO 16,4,eq,false,sparse,native,1,0.000320048
+MICRO 16,4,eq,false,dense,compiler,1,0.000458184
+MICRO 16,4,eq,false,dense,native,1,0.00049951
+MICRO 16,4,eq,false,quarter,native,1,0.000537966
+MICRO 16,4,eq,false,half,native,1,0.000350347
+MICRO 16,4,eq,false,full,native,1,0.000391262
+MICRO 16,4,eq,false,half,compiler,1,0.000435805
+MICRO 16,4,eq,false,full,compiler,1,0.000595282
+MICRO 16,4,eq,false,full,compiler,2,0.000548034
+MICRO 16,4,eq,false,half,compiler,2,0.000419313
+MICRO 16,4,eq,false,full,native,2,0.000392921
+MICRO 16,4,eq,false,half,native,2,0.00035232
+MICRO 16,4,eq,false,quarter,native,2,0.00056383
+MICRO 16,4,eq,false,dense,native,2,0.000464933
+MICRO 16,4,eq,false,dense,compiler,2,0.000565225
+MICRO 16,4,eq,false,sparse,native,2,0.000545217
+MICRO 16,4,eq,false,sparse,native,3,0.000512593
+MICRO 16,4,eq,false,dense,compiler,3,0.000833774
+MICRO 16,4,eq,false,dense,native,3,0.000944028
+MICRO 16,4,eq,false,quarter,native,3,0.000970293
+MICRO 16,4,eq,false,half,native,3,0.000567921
+MICRO 16,4,eq,false,full,native,3,0.000561129
+MICRO 16,4,eq,false,half,compiler,3,0.000577686
+MICRO 16,4,eq,false,full,compiler,3,0.000606951
+MICRO 16,4,le,false,sparse,native,1,0.000520109
+MICRO 16,4,le,false,dense,compiler,1,0.001036065
+MICRO 16,4,le,false,dense,native,1,0.000797367
+MICRO 16,4,le,false,quarter,native,1,0.000866795
+MICRO 16,4,le,false,half,native,1,0.000652655
+MICRO 16,4,le,false,full,native,1,0.000562364
+MICRO 16,4,le,false,half,compiler,1,0.000637676
+MICRO 16,4,le,false,full,compiler,1,0.000520221
+MICRO 16,4,le,false,full,compiler,2,0.000741565
+MICRO 16,4,le,false,half,compiler,2,0.000807552
+MICRO 16,4,le,false,full,native,2,0.000660446
+MICRO 16,4,le,false,half,native,2,0.000430871
+MICRO 16,4,le,false,quarter,native,2,0.000580042
+MICRO 16,4,le,false,dense,native,2,0.000448258
+MICRO 16,4,le,false,dense,compiler,2,0.000615868
+MICRO 16,4,le,false,sparse,native,2,0.000330849
+MICRO 16,4,le,false,sparse,native,3,0.00037012
+MICRO 16,4,le,false,dense,compiler,3,0.000575653
+MICRO 16,4,le,false,dense,native,3,0.000415786
+MICRO 16,4,le,false,quarter,native,3,0.000519551
+MICRO 16,4,le,false,half,native,3,0.000631836
+MICRO 16,4,le,false,full,native,3,0.00059854
+MICRO 16,4,le,false,half,compiler,3,0.000694691
+MICRO 16,4,le,false,full,compiler,3,0.000685413
+MICRO 16,4,update,false,sparse,native,1,0.000701108
+MICRO 16,4,update,false,dense,compiler,1,0.001134597
+MICRO 16,4,update,false,dense,native,1,0.001112835
+MICRO 16,4,update,false,quarter,native,1,0.000995399
+MICRO 16,4,update,false,half,native,1,0.001083758
+MICRO 16,4,update,false,full,native,1,0.000854814
+MICRO 16,4,update,false,half,compiler,1,0.000710574
+MICRO 16,4,update,false,full,compiler,1,0.000668156
+MICRO 16,4,update,false,full,compiler,2,0.000704331
+MICRO 16,4,update,false,half,compiler,2,0.001071847
+MICRO 16,4,update,false,full,native,2,0.00112567
+MICRO 16,4,update,false,half,native,2,0.001172962
+MICRO 16,4,update,false,quarter,native,2,0.001054664
+MICRO 16,4,update,false,dense,native,2,0.001125354
+MICRO 16,4,update,false,dense,compiler,2,0.001201594
+MICRO 16,4,update,false,sparse,native,2,0.0005162
+MICRO 16,4,update,false,sparse,native,3,0.000465323
+MICRO 16,4,update,false,dense,compiler,3,0.000611738
+MICRO 16,4,update,false,dense,native,3,0.000562955
+MICRO 16,4,update,false,quarter,native,3,0.000513798
+MICRO 16,4,update,false,half,native,3,0.00066235
+MICRO 16,4,update,false,full,native,3,0.000673964
+MICRO 16,4,update,false,half,compiler,3,0.000591833
+MICRO 16,4,update,false,full,compiler,3,0.000474072
+MICRO 16,4,update,true,sparse,native,1,0.000834977
+MICRO 16,4,update,true,dense,compiler,1,0.001321522
+MICRO 16,4,update,true,dense,native,1,0.000898517
+MICRO 16,4,update,true,quarter,native,1,0.000839471
+MICRO 16,4,update,true,half,native,1,0.001450235
+MICRO 16,4,update,true,full,native,1,0.001521102
+MICRO 16,4,update,true,half,compiler,1,0.001483899
+MICRO 16,4,update,true,full,compiler,1,0.001036769
+MICRO 16,4,update,true,full,compiler,2,0.000666632
+MICRO 16,4,update,true,half,compiler,2,0.000856379
+MICRO 16,4,update,true,full,native,2,0.000965675
+MICRO 16,4,update,true,half,native,2,0.000957213
+MICRO 16,4,update,true,quarter,native,2,0.000840236
+MICRO 16,4,update,true,dense,native,2,0.000901056
+MICRO 16,4,update,true,dense,compiler,2,0.001321901
+MICRO 16,4,update,true,sparse,native,2,0.000832483
+MICRO 16,4,update,true,sparse,native,3,0.000832337
+MICRO 16,4,update,true,dense,compiler,3,0.00132043
+MICRO 16,4,update,true,dense,native,3,0.000899688
+MICRO 16,4,update,true,quarter,native,3,0.000822759
+MICRO 16,4,update,true,half,native,3,0.000991769
+MICRO 16,4,update,true,full,native,3,0.001300641
+MICRO 16,4,update,true,half,compiler,3,0.000903962
+MICRO 16,4,update,true,full,compiler,3,0.000646602
+MICRO 16,8,eq,false,sparse,native,1,0.000592875
+MICRO 16,8,eq,false,dense,compiler,1,0.000460333
+MICRO 16,8,eq,false,dense,native,1,0.000569424
+MICRO 16,8,eq,false,quarter,native,1,0.000593203
+MICRO 16,8,eq,false,half,native,1,0.000437366
+MICRO 16,8,eq,false,full,native,1,0.000716049
+MICRO 16,8,eq,false,half,compiler,1,0.000489633
+MICRO 16,8,eq,false,full,compiler,1,0.000626404
+MICRO 16,8,eq,false,full,compiler,2,0.000857215
+MICRO 16,8,eq,false,half,compiler,2,0.000846318
+MICRO 16,8,eq,false,full,native,2,0.000887923
+MICRO 16,8,eq,false,half,native,2,0.000723946
+MICRO 16,8,eq,false,quarter,native,2,0.000888595
+MICRO 16,8,eq,false,dense,native,2,0.000972395
+MICRO 16,8,eq,false,dense,compiler,2,0.000863958
+MICRO 16,8,eq,false,sparse,native,2,0.000916026
+MICRO 16,8,eq,false,sparse,native,3,0.000779936
+MICRO 16,8,eq,false,dense,compiler,3,0.000780376
+MICRO 16,8,eq,false,dense,native,3,0.000685541
+MICRO 16,8,eq,false,quarter,native,3,0.000778809
+MICRO 16,8,eq,false,half,native,3,0.0006814
+MICRO 16,8,eq,false,full,native,3,0.0009887
+MICRO 16,8,eq,false,half,compiler,3,0.000924133
+MICRO 16,8,eq,false,full,compiler,3,0.000943175
+MICRO 16,8,le,false,sparse,native,1,0.000760032
+MICRO 16,8,le,false,dense,compiler,1,0.000614923
+MICRO 16,8,le,false,dense,native,1,0.000416498
+MICRO 16,8,le,false,quarter,native,1,0.000462926
+MICRO 16,8,le,false,half,native,1,0.000533716
+MICRO 16,8,le,false,full,native,1,0.001051062
+MICRO 16,8,le,false,half,compiler,1,0.001024771
+MICRO 16,8,le,false,full,compiler,1,0.001090596
+MICRO 16,8,le,false,full,compiler,2,0.001093324
+MICRO 16,8,le,false,half,compiler,2,0.001140225
+MICRO 16,8,le,false,full,native,2,0.001128885
+MICRO 16,8,le,false,half,native,2,0.000672323
+MICRO 16,8,le,false,quarter,native,2,0.000705999
+MICRO 16,8,le,false,dense,native,2,0.000529652
+MICRO 16,8,le,false,dense,compiler,2,0.000575716
+MICRO 16,8,le,false,sparse,native,2,0.000661421
+MICRO 16,8,le,false,sparse,native,3,0.000966255
+MICRO 16,8,le,false,dense,compiler,3,0.001087755
+MICRO 16,8,le,false,dense,native,3,0.000731398
+MICRO 16,8,le,false,quarter,native,3,0.000602615
+MICRO 16,8,le,false,half,native,3,0.000853602
+MICRO 16,8,le,false,full,native,3,0.001152756
+MICRO 16,8,le,false,half,compiler,3,0.001130334
+MICRO 16,8,le,false,full,compiler,3,0.001160948
+MICRO 16,8,update,false,sparse,native,1,0.000635235
+MICRO 16,8,update,false,dense,compiler,1,0.000640016
+MICRO 16,8,update,false,dense,native,1,0.000563814
+MICRO 16,8,update,false,quarter,native,1,0.000622714
+MICRO 16,8,update,false,half,native,1,0.000529793
+MICRO 16,8,update,false,full,native,1,0.001026529
+MICRO 16,8,update,false,half,compiler,1,0.000686292
+MICRO 16,8,update,false,full,compiler,1,0.000693605
+MICRO 16,8,update,false,full,compiler,2,0.00091704
+MICRO 16,8,update,false,half,compiler,2,0.00072728
+MICRO 16,8,update,false,full,native,2,0.001009047
+MICRO 16,8,update,false,half,native,2,0.000525687
+MICRO 16,8,update,false,quarter,native,2,0.000513947
+MICRO 16,8,update,false,dense,native,2,0.000650673
+MICRO 16,8,update,false,dense,compiler,2,0.000795704
+MICRO 16,8,update,false,sparse,native,2,0.000614619
+MICRO 16,8,update,false,sparse,native,3,0.000659692
+MICRO 16,8,update,false,dense,compiler,3,0.000612156
+MICRO 16,8,update,false,dense,native,3,0.000586528
+MICRO 16,8,update,false,quarter,native,3,0.000561016
+MICRO 16,8,update,false,half,native,3,0.000551851
+MICRO 16,8,update,false,full,native,3,0.000958113
+MICRO 16,8,update,false,half,compiler,3,0.000685715
+MICRO 16,8,update,false,full,compiler,3,0.000727102
+MICRO 16,8,update,true,sparse,native,1,0.001431614
+MICRO 16,8,update,true,dense,compiler,1,0.001285574
+MICRO 16,8,update,true,dense,native,1,0.000892947
+MICRO 16,8,update,true,quarter,native,1,0.000784786
+MICRO 16,8,update,true,half,native,1,0.001110699
+MICRO 16,8,update,true,full,native,1,0.001577683
+MICRO 16,8,update,true,half,compiler,1,0.001430309
+MICRO 16,8,update,true,full,compiler,1,0.000996038
+MICRO 16,8,update,true,full,compiler,2,0.000929743
+MICRO 16,8,update,true,half,compiler,2,0.001391155
+MICRO 16,8,update,true,full,native,2,0.002330929
+MICRO 16,8,update,true,half,native,2,0.001322374
+MICRO 16,8,update,true,quarter,native,2,0.001469745
+MICRO 16,8,update,true,dense,native,2,0.001653972
+MICRO 16,8,update,true,dense,compiler,2,0.001648373
+MICRO 16,8,update,true,sparse,native,2,0.002479247
+MICRO 16,8,update,true,sparse,native,3,0.001570051
+MICRO 16,8,update,true,dense,compiler,3,0.001409408
+MICRO 16,8,update,true,dense,native,3,0.000920714
+MICRO 16,8,update,true,quarter,native,3,0.000785595
+MICRO 16,8,update,true,half,native,3,0.000858662
+MICRO 16,8,update,true,full,native,3,0.001595344
+MICRO 16,8,update,true,half,compiler,3,0.001275579
+MICRO 16,8,update,true,full,compiler,3,0.000932348
+MICRO 16,16,eq,false,sparse,native,1,0.001062715
+MICRO 16,16,eq,false,dense,compiler,1,0.000460701
+MICRO 16,16,eq,false,dense,native,1,0.000466281
+MICRO 16,16,eq,false,quarter,native,1,0.000538287
+MICRO 16,16,eq,false,half,native,1,0.000424069
+MICRO 16,16,eq,false,full,native,1,0.000496561
+MICRO 16,16,eq,false,half,compiler,1,0.000489365
+MICRO 16,16,eq,false,full,compiler,1,0.000488431
+MICRO 16,16,eq,false,full,compiler,2,0.000488133
+MICRO 16,16,eq,false,half,compiler,2,0.00048934
+MICRO 16,16,eq,false,full,native,2,0.000673421
+MICRO 16,16,eq,false,half,native,2,0.000460972
+MICRO 16,16,eq,false,quarter,native,2,0.000540518
+MICRO 16,16,eq,false,dense,native,2,0.000503674
+MICRO 16,16,eq,false,dense,compiler,2,0.000455161
+MICRO 16,16,eq,false,sparse,native,2,0.001057177
+MICRO 16,16,eq,false,sparse,native,3,0.001222195
+MICRO 16,16,eq,false,dense,compiler,3,0.000472546
+MICRO 16,16,eq,false,dense,native,3,0.000493622
+MICRO 16,16,eq,false,quarter,native,3,0.000538428
+MICRO 16,16,eq,false,half,native,3,0.000443585
+MICRO 16,16,eq,false,full,native,3,0.000464595
+MICRO 16,16,eq,false,half,compiler,3,0.00053884
+MICRO 16,16,eq,false,full,compiler,3,0.000531425
+MICRO 16,16,le,false,sparse,native,1,0.001156284
+MICRO 16,16,le,false,dense,compiler,1,0.000576357
+MICRO 16,16,le,false,dense,native,1,0.000417541
+MICRO 16,16,le,false,quarter,native,1,0.000483165
+MICRO 16,16,le,false,half,native,1,0.0004522
+MICRO 16,16,le,false,full,native,1,0.000521013
+MICRO 16,16,le,false,half,compiler,1,0.000604623
+MICRO 16,16,le,false,full,compiler,1,0.000691372
+MICRO 16,16,le,false,full,compiler,2,0.000703129
+MICRO 16,16,le,false,half,compiler,2,0.000604299
+MICRO 16,16,le,false,full,native,2,0.000489144
+MICRO 16,16,le,false,half,native,2,0.00045927
+MICRO 16,16,le,false,quarter,native,2,0.000473061
+MICRO 16,16,le,false,dense,native,2,0.000416071
+MICRO 16,16,le,false,dense,compiler,2,0.000604756
+MICRO 16,16,le,false,sparse,native,2,0.001578086
+MICRO 16,16,le,false,sparse,native,3,0.001749433
+MICRO 16,16,le,false,dense,compiler,3,0.001029984
+MICRO 16,16,le,false,dense,native,3,0.000837968
+MICRO 16,16,le,false,quarter,native,3,0.000858752
+MICRO 16,16,le,false,half,native,3,0.000876331
+MICRO 16,16,le,false,full,native,3,0.000556475
+MICRO 16,16,le,false,half,compiler,3,0.000603612
+MICRO 16,16,le,false,full,compiler,3,0.000660256
+MICRO 16,16,update,false,sparse,native,1,0.001041696
+MICRO 16,16,update,false,dense,compiler,1,0.000613746
+MICRO 16,16,update,false,dense,native,1,0.000591751
+MICRO 16,16,update,false,quarter,native,1,0.000539004
+MICRO 16,16,update,false,half,native,1,0.00051442
+MICRO 16,16,update,false,full,native,1,0.000565033
+MICRO 16,16,update,false,half,compiler,1,0.000718507
+MICRO 16,16,update,false,full,compiler,1,0.000660516
+MICRO 16,16,update,false,full,compiler,2,0.00066071
+MICRO 16,16,update,false,half,compiler,2,0.000685131
+MICRO 16,16,update,false,full,native,2,0.00061548
+MICRO 16,16,update,false,half,native,2,0.000745642
+MICRO 16,16,update,false,quarter,native,2,0.000529096
+MICRO 16,16,update,false,dense,native,2,0.000603374
+MICRO 16,16,update,false,dense,compiler,2,0.000611702
+MICRO 16,16,update,false,sparse,native,2,0.001037242
+MICRO 16,16,update,false,sparse,native,3,0.001184872
+MICRO 16,16,update,false,dense,compiler,3,0.000630764
+MICRO 16,16,update,false,dense,native,3,0.000592082
+MICRO 16,16,update,false,quarter,native,3,0.000513902
+MICRO 16,16,update,false,half,native,3,0.000623707
+MICRO 16,16,update,false,full,native,3,0.000562706
+MICRO 16,16,update,false,half,compiler,3,0.000685697
+MICRO 16,16,update,false,full,compiler,3,0.0006606
+MICRO 16,16,update,true,sparse,native,1,0.002614546
+MICRO 16,16,update,true,dense,compiler,1,0.001318317
+MICRO 16,16,update,true,dense,native,1,0.000862185
+MICRO 16,16,update,true,quarter,native,1,0.000783518
+MICRO 16,16,update,true,half,native,1,0.000760712
+MICRO 16,16,update,true,full,native,1,0.000978916
+MICRO 16,16,update,true,half,compiler,1,0.001354541
+MICRO 16,16,update,true,full,compiler,1,0.001303744
+MICRO 16,16,update,true,full,compiler,2,0.001668486
+MICRO 16,16,update,true,half,compiler,2,0.001926621
+MICRO 16,16,update,true,full,native,2,0.001365161
+MICRO 16,16,update,true,half,native,2,0.000782607
+MICRO 16,16,update,true,quarter,native,2,0.000781999
+MICRO 16,16,update,true,dense,native,2,0.000894543
+MICRO 16,16,update,true,dense,compiler,2,0.001284213
+MICRO 16,16,update,true,sparse,native,2,0.002647668
+MICRO 16,16,update,true,sparse,native,3,0.002620225
+MICRO 16,16,update,true,dense,compiler,3,0.001282452
+MICRO 16,16,update,true,dense,native,3,0.000887522
+MICRO 16,16,update,true,quarter,native,3,0.00078548
+MICRO 16,16,update,true,half,native,3,0.001115459
+MICRO 16,16,update,true,full,native,3,0.000876057
+MICRO 16,16,update,true,half,compiler,3,0.001274372
+MICRO 16,16,update,true,full,compiler,3,0.001300359
+MICRO 32,0,eq,false,sparse,native,1,8.5723e-5
+MICRO 32,0,eq,false,dense,compiler,1,0.000760859
+MICRO 32,0,eq,false,dense,native,1,0.00080709
+MICRO 32,0,eq,false,quarter,native,1,9.7858e-5
+MICRO 32,0,eq,false,half,native,1,0.000141935
+MICRO 32,0,eq,false,full,native,1,0.000146731
+MICRO 32,0,eq,false,half,compiler,1,0.00017126
+MICRO 32,0,eq,false,full,compiler,1,9.7888e-5
+MICRO 32,0,eq,false,full,compiler,2,9.7915e-5
+MICRO 32,0,eq,false,half,compiler,2,0.000171238
+MICRO 32,0,eq,false,full,native,2,0.00014686
+MICRO 32,0,eq,false,half,native,2,9.8175e-5
+MICRO 32,0,eq,false,quarter,native,2,9.7871e-5
+MICRO 32,0,eq,false,dense,native,2,0.000807706
+MICRO 32,0,eq,false,dense,compiler,2,0.000760834
+MICRO 32,0,eq,false,sparse,native,2,8.5628e-5
+MICRO 32,0,eq,false,sparse,native,3,8.5617e-5
+MICRO 32,0,eq,false,dense,compiler,3,0.00080156
+MICRO 32,0,eq,false,dense,native,3,0.000823725
+MICRO 32,0,eq,false,quarter,native,3,9.7882e-5
+MICRO 32,0,eq,false,half,native,3,9.7874e-5
+MICRO 32,0,eq,false,full,native,3,0.000146817
+MICRO 32,0,eq,false,half,compiler,3,0.000171217
+MICRO 32,0,eq,false,full,compiler,3,9.7849e-5
+MICRO 32,0,le,false,sparse,native,1,4.9045e-5
+MICRO 32,0,le,false,dense,compiler,1,0.00093853
+MICRO 32,0,le,false,dense,native,1,0.000721128
+MICRO 32,0,le,false,quarter,native,1,9.7857e-5
+MICRO 32,0,le,false,half,native,1,9.7849e-5
+MICRO 32,0,le,false,full,native,1,0.000146751
+MICRO 32,0,le,false,half,compiler,1,0.000146786
+MICRO 32,0,le,false,full,compiler,1,0.000146778
+MICRO 32,0,le,false,full,compiler,2,0.0001468
+MICRO 32,0,le,false,half,compiler,2,0.000146751
+MICRO 32,0,le,false,full,native,2,0.000146726
+MICRO 32,0,le,false,half,native,2,9.7899e-5
+MICRO 32,0,le,false,quarter,native,2,9.7918e-5
+MICRO 32,0,le,false,dense,native,2,0.000684717
+MICRO 32,0,le,false,dense,compiler,2,0.001115879
+MICRO 32,0,le,false,sparse,native,2,8.4046e-5
+MICRO 32,0,le,false,sparse,native,3,5.0203e-5
+MICRO 32,0,le,false,dense,compiler,3,0.000960888
+MICRO 32,0,le,false,dense,native,3,0.000701698
+MICRO 32,0,le,false,quarter,native,3,0.000100354
+MICRO 32,0,le,false,half,native,3,0.000100318
+MICRO 32,0,le,false,full,native,3,0.0001505
+MICRO 32,0,le,false,half,compiler,3,0.000150535
+MICRO 32,0,le,false,full,compiler,3,0.000150438
+MICRO 32,0,update,false,sparse,native,1,0.000125408
+MICRO 32,0,update,false,dense,compiler,1,0.000991948
+MICRO 32,0,update,false,dense,native,1,0.000855715
+MICRO 32,0,update,false,quarter,native,1,0.000269006
+MICRO 32,0,update,false,half,native,1,0.000268993
+MICRO 32,0,update,false,full,native,1,0.00024459
+MICRO 32,0,update,false,half,compiler,1,0.000195691
+MICRO 32,0,update,false,full,compiler,1,0.000244562
+MICRO 32,0,update,false,full,compiler,2,0.000245046
+MICRO 32,0,update,false,half,compiler,2,0.000214234
+MICRO 32,0,update,false,full,native,2,0.000257592
+MICRO 32,0,update,false,half,native,2,0.000268954
+MICRO 32,0,update,false,quarter,native,2,0.000269006
+MICRO 32,0,update,false,dense,native,2,0.000855787
+MICRO 32,0,update,false,dense,compiler,2,0.0009589
+MICRO 32,0,update,false,sparse,native,2,0.000122319
+MICRO 32,0,update,false,sparse,native,3,0.000122278
+MICRO 32,0,update,false,dense,compiler,3,0.000995574
+MICRO 32,0,update,false,dense,native,3,0.000855777
+MICRO 32,0,update,false,quarter,native,3,0.000269035
+MICRO 32,0,update,false,half,native,3,0.000269045
+MICRO 32,0,update,false,full,native,3,0.000244504
+MICRO 32,0,update,false,half,compiler,3,0.000195754
+MICRO 32,0,update,false,full,compiler,3,0.000244506
+MICRO 32,0,update,true,sparse,native,1,0.000122276
+MICRO 32,0,update,true,dense,compiler,1,0.000968176
+MICRO 32,0,update,true,dense,native,1,0.00085622
+MICRO 32,0,update,true,quarter,native,1,0.000269004
+MICRO 32,0,update,true,half,native,1,0.000269008
+MICRO 32,0,update,true,full,native,1,0.000244509
+MICRO 32,0,update,true,half,compiler,1,0.000233186
+MICRO 32,0,update,true,full,compiler,1,0.000330763
+MICRO 32,0,update,true,full,compiler,2,0.000245047
+MICRO 32,0,update,true,half,compiler,2,0.000234543
+MICRO 32,0,update,true,full,native,2,0.000245777
+MICRO 32,0,update,true,half,native,2,0.000270659
+MICRO 32,0,update,true,quarter,native,2,0.000270042
+MICRO 32,0,update,true,dense,native,2,0.000899599
+MICRO 32,0,update,true,dense,compiler,2,0.001186185
+MICRO 32,0,update,true,sparse,native,2,0.000122753
+MICRO 32,0,update,true,sparse,native,3,0.00012241
+MICRO 32,0,update,true,dense,compiler,3,0.001047267
+MICRO 32,0,update,true,dense,native,3,0.000856136
+MICRO 32,0,update,true,quarter,native,3,0.000269047
+MICRO 32,0,update,true,half,native,3,0.000269073
+MICRO 32,0,update,true,full,native,3,0.000244629
+MICRO 32,0,update,true,half,compiler,3,0.000195694
+MICRO 32,0,update,true,full,compiler,3,0.000244615
+MICRO 32,1,eq,false,sparse,native,1,0.000134565
+MICRO 32,1,eq,false,dense,compiler,1,0.000779906
+MICRO 32,1,eq,false,dense,native,1,0.000807043
+MICRO 32,1,eq,false,quarter,native,1,0.00016094
+MICRO 32,1,eq,false,half,native,1,0.000161279
+MICRO 32,1,eq,false,full,native,1,0.000217352
+MICRO 32,1,eq,false,half,compiler,1,0.0003199
+MICRO 32,1,eq,false,full,compiler,1,0.000196477
+MICRO 32,1,eq,false,full,compiler,2,0.00023596
+MICRO 32,1,eq,false,half,compiler,2,0.000244589
+MICRO 32,1,eq,false,full,native,2,0.000238847
+MICRO 32,1,eq,false,half,native,2,0.000202639
+MICRO 32,1,eq,false,quarter,native,2,0.000160611
+MICRO 32,1,eq,false,dense,native,2,0.000808835
+MICRO 32,1,eq,false,dense,compiler,2,0.000762104
+MICRO 32,1,eq,false,sparse,native,2,0.000134587
+MICRO 32,1,eq,false,sparse,native,3,0.000134523
+MICRO 32,1,eq,false,dense,compiler,3,0.000799897
+MICRO 32,1,eq,false,dense,native,3,0.000806909
+MICRO 32,1,eq,false,quarter,native,3,0.000160663
+MICRO 32,1,eq,false,half,native,3,0.000160451
+MICRO 32,1,eq,false,full,native,3,0.000195644
+MICRO 32,1,eq,false,half,compiler,3,0.000244592
+MICRO 32,1,eq,false,full,compiler,3,0.000195634
+MICRO 32,1,le,false,sparse,native,1,0.000117028
+MICRO 32,1,le,false,dense,compiler,1,0.000942846
+MICRO 32,1,le,false,dense,native,1,0.000697966
+MICRO 32,1,le,false,quarter,native,1,0.00017187
+MICRO 32,1,le,false,half,native,1,0.000172449
+MICRO 32,1,le,false,full,native,1,0.000195799
+MICRO 32,1,le,false,half,compiler,1,0.000244893
+MICRO 32,1,le,false,full,compiler,1,0.000196027
+MICRO 32,1,le,false,full,compiler,2,0.000195997
+MICRO 32,1,le,false,half,compiler,2,0.00024501
+MICRO 32,1,le,false,full,native,2,0.000195845
+MICRO 32,1,le,false,half,native,2,0.000172729
+MICRO 32,1,le,false,quarter,native,2,0.000172519
+MICRO 32,1,le,false,dense,native,2,0.000989671
+MICRO 32,1,le,false,dense,compiler,2,0.000937476
+MICRO 32,1,le,false,sparse,native,2,0.000117016
+MICRO 32,1,le,false,sparse,native,3,0.000117022
+MICRO 32,1,le,false,dense,compiler,3,0.000937374
+MICRO 32,1,le,false,dense,native,3,0.00071517
+MICRO 32,1,le,false,quarter,native,3,0.000185033
+MICRO 32,1,le,false,half,native,3,0.000172295
+MICRO 32,1,le,false,full,native,3,0.0001957
+MICRO 32,1,le,false,half,compiler,3,0.000244637
+MICRO 32,1,le,false,full,compiler,3,0.000195697
+MICRO 32,1,update,false,sparse,native,1,0.00026896
+MICRO 32,1,update,false,dense,compiler,1,0.000960701
+MICRO 32,1,update,false,dense,native,1,0.000855785
+MICRO 32,1,update,false,quarter,native,1,0.000478761
+MICRO 32,1,update,false,half,native,1,0.000433201
+MICRO 32,1,update,false,full,native,1,0.000415726
+MICRO 32,1,update,false,half,compiler,1,0.000340301
+MICRO 32,1,update,false,full,compiler,1,0.000317912
+MICRO 32,1,update,false,full,compiler,2,0.000317873
+MICRO 32,1,update,false,half,compiler,2,0.000340288
+MICRO 32,1,update,false,full,native,2,0.000415761
+MICRO 32,1,update,false,half,native,2,0.000450681
+MICRO 32,1,update,false,quarter,native,2,0.000440174
+MICRO 32,1,update,false,dense,native,2,0.000855945
+MICRO 32,1,update,false,dense,compiler,2,0.000964565
+MICRO 32,1,update,false,sparse,native,2,0.000269155
+MICRO 32,1,update,false,sparse,native,3,0.000269047
+MICRO 32,1,update,false,dense,compiler,3,0.000968449
+MICRO 32,1,update,false,dense,native,3,0.0008557
+MICRO 32,1,update,false,quarter,native,3,0.000440223
+MICRO 32,1,update,false,half,native,3,0.000543848
+MICRO 32,1,update,false,full,native,3,0.000643911
+MICRO 32,1,update,false,half,compiler,3,0.000354831
+MICRO 32,1,update,false,full,compiler,3,0.000327154
+MICRO 32,1,update,true,sparse,native,1,0.000402786
+MICRO 32,1,update,true,dense,compiler,1,0.00182037
+MICRO 32,1,update,true,dense,native,1,0.001407715
+MICRO 32,1,update,true,quarter,native,1,0.000527723
+MICRO 32,1,update,true,half,native,1,0.000510858
+MICRO 32,1,update,true,full,native,1,0.000489237
+MICRO 32,1,update,true,half,compiler,1,0.000471808
+MICRO 32,1,update,true,full,compiler,1,0.000394429
+MICRO 32,1,update,true,full,compiler,2,0.000342713
+MICRO 32,1,update,true,half,compiler,2,0.000415928
+MICRO 32,1,update,true,full,native,2,0.00048947
+MICRO 32,1,update,true,half,native,2,0.000515056
+MICRO 32,1,update,true,quarter,native,2,0.000515275
+MICRO 32,1,update,true,dense,native,2,0.001240758
+MICRO 32,1,update,true,dense,compiler,2,0.001788775
+MICRO 32,1,update,true,sparse,native,2,0.000391306
+MICRO 32,1,update,true,sparse,native,3,0.000391516
+MICRO 32,1,update,true,dense,compiler,3,0.001832395
+MICRO 32,1,update,true,dense,native,3,0.001201331
+MICRO 32,1,update,true,quarter,native,3,0.000544396
+MICRO 32,1,update,true,half,native,3,0.001035358
+MICRO 32,1,update,true,full,native,3,0.000508374
+MICRO 32,1,update,true,half,compiler,3,0.000417907
+MICRO 32,1,update,true,full,compiler,3,0.000379884
+MICRO 32,4,eq,false,sparse,native,1,0.000319089
+MICRO 32,4,eq,false,dense,compiler,1,0.000798319
+MICRO 32,4,eq,false,dense,native,1,0.000904302
+MICRO 32,4,eq,false,quarter,native,1,0.000588175
+MICRO 32,4,eq,false,half,native,1,0.000523884
+MICRO 32,4,eq,false,full,native,1,0.000666435
+MICRO 32,4,eq,false,half,compiler,1,0.000770544
+MICRO 32,4,eq,false,full,compiler,1,0.000711565
+MICRO 32,4,eq,false,full,compiler,2,0.000519468
+MICRO 32,4,eq,false,half,compiler,2,0.000437415
+MICRO 32,4,eq,false,full,native,2,0.000401238
+MICRO 32,4,eq,false,half,native,2,0.000368202
+MICRO 32,4,eq,false,quarter,native,2,0.000359376
+MICRO 32,4,eq,false,dense,native,2,0.000849796
+MICRO 32,4,eq,false,dense,compiler,2,0.00078768
+MICRO 32,4,eq,false,sparse,native,2,0.000320005
+MICRO 32,4,eq,false,sparse,native,3,0.000319028
+MICRO 32,4,eq,false,dense,compiler,3,0.000794981
+MICRO 32,4,eq,false,dense,native,3,0.000809175
+MICRO 32,4,eq,false,quarter,native,3,0.000352461
+MICRO 32,4,eq,false,half,native,3,0.00035154
+MICRO 32,4,eq,false,full,native,3,0.000391606
+MICRO 32,4,eq,false,half,compiler,3,0.000369399
+MICRO 32,4,eq,false,full,compiler,3,0.000337803
+MICRO 32,4,le,false,sparse,native,1,0.000365159
+MICRO 32,4,le,false,dense,compiler,1,0.000938433
+MICRO 32,4,le,false,dense,native,1,0.000969122
+MICRO 32,4,le,false,quarter,native,1,0.000436154
+MICRO 32,4,le,false,half,native,1,0.000416595
+MICRO 32,4,le,false,full,native,1,0.000420949
+MICRO 32,4,le,false,half,compiler,1,0.000427619
+MICRO 32,4,le,false,full,compiler,1,0.000416222
+MICRO 32,4,le,false,full,compiler,2,0.000401225
+MICRO 32,4,le,false,half,compiler,2,0.000563487
+MICRO 32,4,le,false,full,native,2,0.000402886
+MICRO 32,4,le,false,half,native,2,0.000417784
+MICRO 32,4,le,false,quarter,native,2,0.000433097
+MICRO 32,4,le,false,dense,native,2,0.000698248
+MICRO 32,4,le,false,dense,compiler,2,0.000981114
+MICRO 32,4,le,false,sparse,native,2,0.000339615
+MICRO 32,4,le,false,sparse,native,3,0.000339626
+MICRO 32,4,le,false,dense,compiler,3,0.000972091
+MICRO 32,4,le,false,dense,native,3,0.000711315
+MICRO 32,4,le,false,quarter,native,3,0.000403744
+MICRO 32,4,le,false,half,native,3,0.000403711
+MICRO 32,4,le,false,full,native,3,0.000412592
+MICRO 32,4,le,false,half,compiler,3,0.000427746
+MICRO 32,4,le,false,full,compiler,3,0.000403266
+MICRO 32,4,update,false,sparse,native,1,0.000432962
+MICRO 32,4,update,false,dense,compiler,1,0.000980823
+MICRO 32,4,update,false,dense,native,1,0.000884047
+MICRO 32,4,update,false,quarter,native,1,0.000636083
+MICRO 32,4,update,false,half,native,1,0.000677773
+MICRO 32,4,update,false,full,native,1,0.000648373
+MICRO 32,4,update,false,half,compiler,1,0.000815476
+MICRO 32,4,update,false,full,compiler,1,0.000500072
+MICRO 32,4,update,false,full,compiler,2,0.000475496
+MICRO 32,4,update,false,half,compiler,2,0.000598767
+MICRO 32,4,update,false,full,native,2,0.000673955
+MICRO 32,4,update,false,half,native,2,0.000636105
+MICRO 32,4,update,false,quarter,native,2,0.000888931
+MICRO 32,4,update,false,dense,native,2,0.001470049
+MICRO 32,4,update,false,dense,compiler,2,0.002029359
+MICRO 32,4,update,false,sparse,native,2,0.000415793
+MICRO 32,4,update,false,sparse,native,3,0.000415678
+MICRO 32,4,update,false,dense,compiler,3,0.001000437
+MICRO 32,4,update,false,dense,native,3,0.000857556
+MICRO 32,4,update,false,quarter,native,3,0.000663347
+MICRO 32,4,update,false,half,native,3,0.000660951
+MICRO 32,4,update,false,full,native,3,0.000672357
+MICRO 32,4,update,false,half,compiler,3,0.000564905
+MICRO 32,4,update,false,full,compiler,3,0.000466685
+MICRO 32,4,update,true,sparse,native,1,0.000832081
+MICRO 32,4,update,true,dense,compiler,1,0.002381776
+MICRO 32,4,update,true,dense,native,1,0.002710688
+MICRO 32,4,update,true,quarter,native,1,0.001595186
+MICRO 32,4,update,true,half,native,1,0.001909059
+MICRO 32,4,update,true,full,native,1,0.001005604
+MICRO 32,4,update,true,half,compiler,1,0.0008945
+MICRO 32,4,update,true,full,compiler,1,0.000607493
+MICRO 32,4,update,true,full,compiler,2,0.0006297
+MICRO 32,4,update,true,half,compiler,2,0.000857588
+MICRO 32,4,update,true,full,native,2,0.000931306
+MICRO 32,4,update,true,half,native,2,0.000993123
+MICRO 32,4,update,true,quarter,native,2,0.000954051
+MICRO 32,4,update,true,dense,native,2,0.001552109
+MICRO 32,4,update,true,dense,compiler,2,0.001826216
+MICRO 32,4,update,true,sparse,native,2,0.000832267
+MICRO 32,4,update,true,sparse,native,3,0.000871717
+MICRO 32,4,update,true,dense,compiler,3,0.002208972
+MICRO 32,4,update,true,dense,native,3,0.001584135
+MICRO 32,4,update,true,quarter,native,3,0.000953979
+MICRO 32,4,update,true,half,native,3,0.000953651
+MICRO 32,4,update,true,full,native,3,0.000966582
+MICRO 32,4,update,true,half,compiler,3,0.00088478
+MICRO 32,4,update,true,full,compiler,3,0.000563782
+MICRO 32,8,eq,false,sparse,native,1,0.000593012
+MICRO 32,8,eq,false,dense,compiler,1,0.000797385
+MICRO 32,8,eq,false,dense,native,1,0.000807234
+MICRO 32,8,eq,false,quarter,native,1,0.000929399
+MICRO 32,8,eq,false,half,native,1,0.000640033
+MICRO 32,8,eq,false,full,native,1,0.0006363
+MICRO 32,8,eq,false,half,compiler,1,0.000675246
+MICRO 32,8,eq,false,full,compiler,1,0.000626154
+MICRO 32,8,eq,false,full,compiler,2,0.000626856
+MICRO 32,8,eq,false,half,compiler,2,0.000640657
+MICRO 32,8,eq,false,full,native,2,0.0006369
+MICRO 32,8,eq,false,half,native,2,0.000682199
+MICRO 32,8,eq,false,quarter,native,2,0.001000401
+MICRO 32,8,eq,false,dense,native,2,0.001188834
+MICRO 32,8,eq,false,dense,compiler,2,0.000821571
+MICRO 32,8,eq,false,sparse,native,2,0.000592871
+MICRO 32,8,eq,false,sparse,native,3,0.000594271
+MICRO 32,8,eq,false,dense,compiler,3,0.000761584
+MICRO 32,8,eq,false,dense,native,3,0.000997537
+MICRO 32,8,eq,false,quarter,native,3,0.00096877
+MICRO 32,8,eq,false,half,native,3,0.000640617
+MICRO 32,8,eq,false,full,native,3,0.000670902
+MICRO 32,8,eq,false,half,compiler,3,0.000680702
+MICRO 32,8,eq,false,full,compiler,3,0.000693164
+MICRO 32,8,le,false,sparse,native,1,0.000605526
+MICRO 32,8,le,false,dense,compiler,1,0.000940082
+MICRO 32,8,le,false,dense,native,1,0.000688613
+MICRO 32,8,le,false,quarter,native,1,0.000748507
+MICRO 32,8,le,false,half,native,1,0.00072845
+MICRO 32,8,le,false,full,native,1,0.000699021
+MICRO 32,8,le,false,half,compiler,1,0.000730131
+MICRO 32,8,le,false,full,compiler,1,0.000734358
+MICRO 32,8,le,false,full,compiler,2,0.00073882
+MICRO 32,8,le,false,half,compiler,2,0.000909693
+MICRO 32,8,le,false,full,native,2,0.000737838
+MICRO 32,8,le,false,half,native,2,0.000728831
+MICRO 32,8,le,false,quarter,native,2,0.000967805
+MICRO 32,8,le,false,dense,native,2,0.000687511
+MICRO 32,8,le,false,dense,compiler,2,0.000979068
+MICRO 32,8,le,false,sparse,native,2,0.000605765
+MICRO 32,8,le,false,sparse,native,3,0.000641977
+MICRO 32,8,le,false,dense,compiler,3,0.000993185
+MICRO 32,8,le,false,dense,native,3,0.000684636
+MICRO 32,8,le,false,quarter,native,3,0.000709721
+MICRO 32,8,le,false,half,native,3,0.000776063
+MICRO 32,8,le,false,full,native,3,0.000698176
+MICRO 32,8,le,false,half,compiler,3,0.000729373
+MICRO 32,8,le,false,full,compiler,3,0.000700774
+MICRO 32,8,update,false,sparse,native,1,0.000613325
+MICRO 32,8,update,false,dense,compiler,1,0.001000706
+MICRO 32,8,update,false,dense,native,1,0.000856061
+MICRO 32,8,update,false,quarter,native,1,0.000758518
+MICRO 32,8,update,false,half,native,1,0.000945555
+MICRO 32,8,update,false,full,native,1,0.000944437
+MICRO 32,8,update,false,half,compiler,1,0.000882119
+MICRO 32,8,update,false,full,compiler,1,0.001155787
+MICRO 32,8,update,false,full,compiler,2,0.00072046
+MICRO 32,8,update,false,half,compiler,2,0.000885054
+MICRO 32,8,update,false,full,native,2,0.001133582
+MICRO 32,8,update,false,half,native,2,0.000978932
+MICRO 32,8,update,false,quarter,native,2,0.000788995
+MICRO 32,8,update,false,dense,native,2,0.000891848
+MICRO 32,8,update,false,dense,compiler,2,0.001090095
+MICRO 32,8,update,false,sparse,native,2,0.000647788
+MICRO 32,8,update,false,sparse,native,3,0.000611481
+MICRO 32,8,update,false,dense,compiler,3,0.000970971
+MICRO 32,8,update,false,dense,native,3,0.000858653
+MICRO 32,8,update,false,quarter,native,3,0.000783741
+MICRO 32,8,update,false,half,native,3,0.000946644
+MICRO 32,8,update,false,full,native,3,0.000932293
+MICRO 32,8,update,false,half,compiler,3,0.000861186
+MICRO 32,8,update,false,full,compiler,3,0.000698933
+MICRO 32,8,update,true,sparse,native,1,0.001878595
+MICRO 32,8,update,true,dense,compiler,1,0.003154076
+MICRO 32,8,update,true,dense,native,1,0.00157326
+MICRO 32,8,update,true,quarter,native,1,0.001430089
+MICRO 32,8,update,true,half,native,1,0.00157064
+MICRO 32,8,update,true,full,native,1,0.001520435
+MICRO 32,8,update,true,half,compiler,1,0.00150361
+MICRO 32,8,update,true,full,compiler,1,0.00093335
+MICRO 32,8,update,true,full,compiler,2,0.00093038
+MICRO 32,8,update,true,half,compiler,2,0.001522853
+MICRO 32,8,update,true,full,native,2,0.001748052
+MICRO 32,8,update,true,half,native,2,0.001609643
+MICRO 32,8,update,true,quarter,native,2,0.001517602
+MICRO 32,8,update,true,dense,native,2,0.001608841
+MICRO 32,8,update,true,dense,compiler,2,0.001885561
+MICRO 32,8,update,true,sparse,native,2,0.001486738
+MICRO 32,8,update,true,sparse,native,3,0.001413062
+MICRO 32,8,update,true,dense,compiler,3,0.001834855
+MICRO 32,8,update,true,dense,native,3,0.001521532
+MICRO 32,8,update,true,quarter,native,3,0.001355617
+MICRO 32,8,update,true,half,native,3,0.001530369
+MICRO 32,8,update,true,full,native,3,0.001519651
+MICRO 32,8,update,true,half,compiler,3,0.001896899
+MICRO 32,8,update,true,full,compiler,3,0.000929961
+MICRO 32,16,eq,false,sparse,native,1,0.001211818
+MICRO 32,16,eq,false,dense,compiler,1,0.001365838
+MICRO 32,16,eq,false,dense,native,1,0.00102044
+MICRO 32,16,eq,false,quarter,native,1,0.001021223
+MICRO 32,16,eq,false,half,native,1,0.000684898
+MICRO 32,16,eq,false,full,native,1,0.001085954
+MICRO 32,16,eq,false,half,compiler,1,0.000829685
+MICRO 32,16,eq,false,full,compiler,1,0.001134064
+MICRO 32,16,eq,false,full,compiler,2,0.001123224
+MICRO 32,16,eq,false,half,compiler,2,0.000791133
+MICRO 32,16,eq,false,full,native,2,0.001123585
+MICRO 32,16,eq,false,half,native,2,0.0006847
+MICRO 32,16,eq,false,quarter,native,2,0.000929686
+MICRO 32,16,eq,false,dense,native,2,0.001169805
+MICRO 32,16,eq,false,dense,compiler,2,0.000796459
+MICRO 32,16,eq,false,sparse,native,2,0.001097146
+MICRO 32,16,eq,false,sparse,native,3,0.001247164
+MICRO 32,16,eq,false,dense,compiler,3,0.000798246
+MICRO 32,16,eq,false,dense,native,3,0.000845266
+MICRO 32,16,eq,false,quarter,native,3,0.000929766
+MICRO 32,16,eq,false,half,native,3,0.000784324
+MICRO 32,16,eq,false,full,native,3,0.001077829
+MICRO 32,16,eq,false,half,compiler,3,0.000793385
+MICRO 32,16,eq,false,full,compiler,3,0.001164527
+MICRO 32,16,le,false,sparse,native,1,0.001130143
+MICRO 32,16,le,false,dense,compiler,1,0.000941482
+MICRO 32,16,le,false,dense,native,1,0.000715042
+MICRO 32,16,le,false,quarter,native,1,0.00075775
+MICRO 32,16,le,false,half,native,1,0.000709505
+MICRO 32,16,le,false,full,native,1,0.00157303
+MICRO 32,16,le,false,half,compiler,1,0.001745747
+MICRO 32,16,le,false,full,compiler,1,0.001753426
+MICRO 32,16,le,false,full,compiler,2,0.001789974
+MICRO 32,16,le,false,half,compiler,2,0.000973835
+MICRO 32,16,le,false,full,native,2,0.001318188
+MICRO 32,16,le,false,half,native,2,0.000709417
+MICRO 32,16,le,false,quarter,native,2,0.000729858
+MICRO 32,16,le,false,dense,native,2,0.000687245
+MICRO 32,16,le,false,dense,compiler,2,0.000978941
+MICRO 32,16,le,false,sparse,native,2,0.001138145
+MICRO 32,16,le,false,sparse,native,3,0.001129032
+MICRO 32,16,le,false,dense,compiler,3,0.000948942
+MICRO 32,16,le,false,dense,native,3,0.000684844
+MICRO 32,16,le,false,quarter,native,3,0.000710228
+MICRO 32,16,le,false,half,native,3,0.000710071
+MICRO 32,16,le,false,full,native,3,0.001680814
+MICRO 32,16,le,false,half,compiler,3,0.000991196
+MICRO 32,16,le,false,full,compiler,3,0.001328889
+MICRO 32,16,update,false,sparse,native,1,0.001086695
+MICRO 32,16,update,false,dense,compiler,1,0.001078769
+MICRO 32,16,update,false,dense,native,1,0.000898017
+MICRO 32,16,update,false,quarter,native,1,0.000711405
+MICRO 32,16,update,false,half,native,1,0.000802288
+MICRO 32,16,update,false,full,native,1,0.001545625
+MICRO 32,16,update,false,half,compiler,1,0.001068954
+MICRO 32,16,update,false,full,compiler,1,0.001128508
+MICRO 32,16,update,false,full,compiler,2,0.001094698
+MICRO 32,16,update,false,half,compiler,2,0.001067829
+MICRO 32,16,update,false,full,native,2,0.001517072
+MICRO 32,16,update,false,half,native,2,0.00097454
+MICRO 32,16,update,false,quarter,native,2,0.000761863
+MICRO 32,16,update,false,dense,native,2,0.000858895
+MICRO 32,16,update,false,dense,compiler,2,0.001186592
+MICRO 32,16,update,false,sparse,native,2,0.001041548
+MICRO 32,16,update,false,sparse,native,3,0.0010577
+MICRO 32,16,update,false,dense,compiler,3,0.000979
+MICRO 32,16,update,false,dense,native,3,0.00089215
+MICRO 32,16,update,false,quarter,native,3,0.000760724
+MICRO 32,16,update,false,half,native,3,0.000717342
+MICRO 32,16,update,false,full,native,3,0.001554926
+MICRO 32,16,update,false,half,compiler,3,0.001031565
+MICRO 32,16,update,false,full,compiler,3,0.00105238
+MICRO 32,16,update,true,sparse,native,1,0.002617311
+MICRO 32,16,update,true,dense,compiler,1,0.001836931
+MICRO 32,16,update,true,dense,native,1,0.001913844
+MICRO 32,16,update,true,quarter,native,1,0.001264108
+MICRO 32,16,update,true,half,native,1,0.001260111
+MICRO 32,16,update,true,full,native,1,0.004296937
+MICRO 32,16,update,true,half,compiler,1,0.002024501
+MICRO 32,16,update,true,full,compiler,1,0.001559895
+MICRO 32,16,update,true,full,compiler,2,0.00168299
+MICRO 32,16,update,true,half,compiler,2,0.001795969
+MICRO 32,16,update,true,full,native,2,0.002831895
+MICRO 32,16,update,true,half,native,2,0.001470798
+MICRO 32,16,update,true,quarter,native,2,0.001266219
+MICRO 32,16,update,true,dense,native,2,0.002446754
+MICRO 32,16,update,true,dense,compiler,2,0.003069853
+MICRO 32,16,update,true,sparse,native,2,0.004267955
+MICRO 32,16,update,true,sparse,native,3,0.003905064
+MICRO 32,16,update,true,dense,compiler,3,0.002652056
+MICRO 32,16,update,true,dense,native,3,0.001512891
+MICRO 32,16,update,true,quarter,native,3,0.001627313
+MICRO 32,16,update,true,half,native,3,0.002135728
+MICRO 32,16,update,true,full,native,3,0.00490044
+MICRO 32,16,update,true,half,compiler,3,0.002090151
+MICRO 32,16,update,true,full,compiler,3,0.001824494
+MICRO 32,32,eq,false,sparse,native,1,0.00301717
+MICRO 32,32,eq,false,dense,compiler,1,0.000886456
+MICRO 32,32,eq,false,dense,native,1,0.000820495
+MICRO 32,32,eq,false,quarter,native,1,0.00092958
+MICRO 32,32,eq,false,half,native,1,0.00068664
+MICRO 32,32,eq,false,full,native,1,0.000671297
+MICRO 32,32,eq,false,half,compiler,1,0.000812963
+MICRO 32,32,eq,false,full,compiler,1,0.000786274
+MICRO 32,32,eq,false,full,compiler,2,0.000787946
+MICRO 32,32,eq,false,half,compiler,2,0.001041415
+MICRO 32,32,eq,false,full,native,2,0.001144875
+MICRO 32,32,eq,false,half,native,2,0.001067132
+MICRO 32,32,eq,false,quarter,native,2,0.001555036
+MICRO 32,32,eq,false,dense,native,2,0.001517655
+MICRO 32,32,eq,false,dense,compiler,2,0.001244856
+MICRO 32,32,eq,false,sparse,native,2,0.003231604
+MICRO 32,32,eq,false,sparse,native,3,0.003297733
+MICRO 32,32,eq,false,dense,compiler,3,0.001340985
+MICRO 32,32,eq,false,dense,native,3,0.001473183
+MICRO 32,32,eq,false,quarter,native,3,0.00155933
+MICRO 32,32,eq,false,half,native,3,0.001151759
+MICRO 32,32,eq,false,full,native,3,0.001272314
+MICRO 32,32,eq,false,half,compiler,3,0.001365798
+MICRO 32,32,eq,false,full,compiler,3,0.001385237
+MICRO 32,32,le,false,sparse,native,1,0.003526117
+MICRO 32,32,le,false,dense,compiler,1,0.001665647
+MICRO 32,32,le,false,dense,native,1,0.001272832
+MICRO 32,32,le,false,quarter,native,1,0.001311276
+MICRO 32,32,le,false,half,native,1,0.001319616
+MICRO 32,32,le,false,full,native,1,0.00136034
+MICRO 32,32,le,false,half,compiler,1,0.001692367
+MICRO 32,32,le,false,full,compiler,1,0.00183206
+MICRO 32,32,le,false,full,compiler,2,0.001816445
+MICRO 32,32,le,false,half,compiler,2,0.001680128
+MICRO 32,32,le,false,full,native,2,0.001318022
+MICRO 32,32,le,false,half,native,2,0.001299531
+MICRO 32,32,le,false,quarter,native,2,0.001264616
+MICRO 32,32,le,false,dense,native,2,0.000934418
+MICRO 32,32,le,false,dense,compiler,2,0.000961888
+MICRO 32,32,le,false,sparse,native,2,0.002186718
+MICRO 32,32,le,false,sparse,native,3,0.00264623
+MICRO 32,32,le,false,dense,compiler,3,0.001713292
+MICRO 32,32,le,false,dense,native,3,0.001207569
+MICRO 32,32,le,false,quarter,native,3,0.001298228
+MICRO 32,32,le,false,half,native,3,0.001138879
+MICRO 32,32,le,false,full,native,3,0.000701826
+MICRO 32,32,le,false,half,compiler,3,0.00110361
+MICRO 32,32,le,false,full,compiler,3,0.00097776
+MICRO 32,32,update,false,sparse,native,1,0.002537741
+MICRO 32,32,update,false,dense,compiler,1,0.000966284
+MICRO 32,32,update,false,dense,native,1,0.000857815
+MICRO 32,32,update,false,quarter,native,1,0.000752539
+MICRO 32,32,update,false,half,native,1,0.000714101
+MICRO 32,32,update,false,full,native,1,0.000710784
+MICRO 32,32,update,false,half,compiler,1,0.001059878
+MICRO 32,32,update,false,full,compiler,1,0.001065599
+MICRO 32,32,update,false,full,compiler,2,0.001027179
+MICRO 32,32,update,false,half,compiler,2,0.001059973
+MICRO 32,32,update,false,full,native,2,0.000747013
+MICRO 32,32,update,false,half,native,2,0.000921692
+MICRO 32,32,update,false,quarter,native,2,0.00071871
+MICRO 32,32,update,false,dense,native,2,0.000859775
+MICRO 32,32,update,false,dense,compiler,2,0.001028827
+MICRO 32,32,update,false,sparse,native,2,0.002850405
+MICRO 32,32,update,false,sparse,native,3,0.002521549
+MICRO 32,32,update,false,dense,compiler,3,0.001894012
+MICRO 32,32,update,false,dense,native,3,0.001691518
+MICRO 32,32,update,false,quarter,native,3,0.000802039
+MICRO 32,32,update,false,half,native,3,0.000740443
+MICRO 32,32,update,false,full,native,3,0.000740609
+MICRO 32,32,update,false,half,compiler,3,0.001030377
+MICRO 32,32,update,false,full,compiler,3,0.001222298
+MICRO 32,32,update,true,sparse,native,1,0.006996448
+MICRO 32,32,update,true,dense,compiler,1,0.002180154
+MICRO 32,32,update,true,dense,native,1,0.001485946
+MICRO 32,32,update,true,quarter,native,1,0.001262806
+MICRO 32,32,update,true,half,native,1,0.001293109
+MICRO 32,32,update,true,full,native,1,0.001220314
+MICRO 32,32,update,true,half,compiler,1,0.001850606
+MICRO 32,32,update,true,full,compiler,1,0.001826799
+MICRO 32,32,update,true,full,compiler,2,0.001858137
+MICRO 32,32,update,true,half,compiler,2,0.001916169
+MICRO 32,32,update,true,full,native,2,0.002137855
+MICRO 32,32,update,true,half,native,2,0.002251666
+MICRO 32,32,update,true,quarter,native,2,0.001218541
+MICRO 32,32,update,true,dense,native,2,0.00149754
+MICRO 32,32,update,true,dense,compiler,2,0.002861782
+MICRO 32,32,update,true,sparse,native,2,0.00897969
+MICRO 32,32,update,true,sparse,native,3,0.00919535
+MICRO 32,32,update,true,dense,compiler,3,0.002893234
+MICRO 32,32,update,true,dense,native,3,0.002169909
+MICRO 32,32,update,true,quarter,native,3,0.001659856
+MICRO 32,32,update,true,half,native,3,0.001267565
+MICRO 32,32,update,true,full,native,3,0.00202001
+MICRO 32,32,update,true,half,compiler,3,0.003151359
+MICRO 32,32,update,true,full,compiler,3,0.003151774
+MICRO 64,0,eq,false,sparse,native,1,0.000153167
+MICRO 64,0,eq,false,dense,compiler,1,0.002212972
+MICRO 64,0,eq,false,dense,native,1,0.002258096
+MICRO 64,0,eq,false,quarter,native,1,0.000180904
+MICRO 64,0,eq,false,half,native,1,0.000134429
+MICRO 64,0,eq,false,full,native,1,0.000268464
+MICRO 64,0,eq,false,half,compiler,1,0.000342095
+MICRO 64,0,eq,false,full,compiler,1,0.000186575
+MICRO 64,0,eq,false,full,compiler,2,0.000178993
+MICRO 64,0,eq,false,half,compiler,2,0.000367961
+MICRO 64,0,eq,false,full,native,2,0.000328433
+MICRO 64,0,eq,false,half,native,2,0.000185778
+MICRO 64,0,eq,false,quarter,native,2,0.000214893
+MICRO 64,0,eq,false,dense,native,2,0.003027611
+MICRO 64,0,eq,false,dense,compiler,2,0.002165699
+MICRO 64,0,eq,false,sparse,native,2,0.000133607
+MICRO 64,0,eq,false,sparse,native,3,0.000148908
+MICRO 64,0,eq,false,dense,compiler,3,0.002248506
+MICRO 64,0,eq,false,dense,native,3,0.002857978
+MICRO 64,0,eq,false,quarter,native,3,0.000122846
+MICRO 64,0,eq,false,half,native,3,0.000137698
+MICRO 64,0,eq,false,full,native,3,0.000241589
+MICRO 64,0,eq,false,half,compiler,3,0.000171257
+MICRO 64,0,eq,false,full,compiler,3,9.7921e-5
+MICRO 64,0,le,false,sparse,native,1,4.8998e-5
+MICRO 64,0,le,false,dense,compiler,1,0.002499397
+MICRO 64,0,le,false,dense,native,1,0.002398946
+MICRO 64,0,le,false,quarter,native,1,0.000191975
+MICRO 64,0,le,false,half,native,1,0.000190618
+MICRO 64,0,le,false,full,native,1,0.000319559
+MICRO 64,0,le,false,half,compiler,1,0.000237892
+MICRO 64,0,le,false,full,compiler,1,0.000321093
+MICRO 64,0,le,false,full,compiler,2,0.000320301
+MICRO 64,0,le,false,half,compiler,2,0.000265032
+MICRO 64,0,le,false,full,native,2,0.000146792
+MICRO 64,0,le,false,half,native,2,9.7857e-5
+MICRO 64,0,le,false,quarter,native,2,9.7865e-5
+MICRO 64,0,le,false,dense,native,2,0.001515805
+MICRO 64,0,le,false,dense,compiler,2,0.002679709
+MICRO 64,0,le,false,sparse,native,2,9.4124e-5
+MICRO 64,0,le,false,sparse,native,3,9.7788e-5
+MICRO 64,0,le,false,dense,compiler,3,0.002880639
+MICRO 64,0,le,false,dense,native,3,0.001969919
+MICRO 64,0,le,false,quarter,native,3,9.7923e-5
+MICRO 64,0,le,false,half,native,3,9.7892e-5
+MICRO 64,0,le,false,full,native,3,0.000146811
+MICRO 64,0,le,false,half,compiler,3,0.000146832
+MICRO 64,0,le,false,full,compiler,3,0.000146785
+MICRO 64,0,update,false,sparse,native,1,0.000122321
+MICRO 64,0,update,false,dense,compiler,1,0.001756469
+MICRO 64,0,update,false,dense,native,1,0.001442542
+MICRO 64,0,update,false,quarter,native,1,0.000294639
+MICRO 64,0,update,false,half,native,1,0.000388422
+MICRO 64,0,update,false,full,native,1,0.000320152
+MICRO 64,0,update,false,half,compiler,1,0.000305867
+MICRO 64,0,update,false,full,compiler,1,0.00036489
+MICRO 64,0,update,false,full,compiler,2,0.000359107
+MICRO 64,0,update,false,half,compiler,2,0.00033974
+MICRO 64,0,update,false,full,native,2,0.000401143
+MICRO 64,0,update,false,half,native,2,0.000275799
+MICRO 64,0,update,false,quarter,native,2,0.000349045
+MICRO 64,0,update,false,dense,native,2,0.001485719
+MICRO 64,0,update,false,dense,compiler,2,0.001759707
+MICRO 64,0,update,false,sparse,native,2,0.00012247
+MICRO 64,0,update,false,sparse,native,3,0.000122332
+MICRO 64,0,update,false,dense,compiler,3,0.00177674
+MICRO 64,0,update,false,dense,native,3,0.001443679
+MICRO 64,0,update,false,quarter,native,3,0.000306235
+MICRO 64,0,update,false,half,native,3,0.000269209
+MICRO 64,0,update,false,full,native,3,0.00024525
+MICRO 64,0,update,false,half,compiler,3,0.000195854
+MICRO 64,0,update,false,full,compiler,3,0.00024482
+MICRO 64,0,update,true,sparse,native,1,0.000122314
+MICRO 64,0,update,true,dense,compiler,1,0.001789177
+MICRO 64,0,update,true,dense,native,1,0.001490597
+MICRO 64,0,update,true,quarter,native,1,0.000269357
+MICRO 64,0,update,true,half,native,1,0.000269014
+MICRO 64,0,update,true,full,native,1,0.000244791
+MICRO 64,0,update,true,half,compiler,1,0.000195746
+MICRO 64,0,update,true,full,compiler,1,0.00024454
+MICRO 64,0,update,true,full,compiler,2,0.000244648
+MICRO 64,0,update,true,half,compiler,2,0.00019569
+MICRO 64,0,update,true,full,native,2,0.000289344
+MICRO 64,0,update,true,half,native,2,0.000268964
+MICRO 64,0,update,true,quarter,native,2,0.00026905
+MICRO 64,0,update,true,dense,native,2,0.001827394
+MICRO 64,0,update,true,dense,compiler,2,0.003252896
+MICRO 64,0,update,true,sparse,native,2,0.000244343
+MICRO 64,0,update,true,sparse,native,3,0.000253803
+MICRO 64,0,update,true,dense,compiler,3,0.003126879
+MICRO 64,0,update,true,dense,native,3,0.002342037
+MICRO 64,0,update,true,quarter,native,3,0.000409105
+MICRO 64,0,update,true,half,native,3,0.000498754
+MICRO 64,0,update,true,full,native,3,0.000391298
+MICRO 64,0,update,true,half,compiler,3,0.000369968
+MICRO 64,0,update,true,full,compiler,3,0.000438162
+MICRO 64,1,eq,false,sparse,native,1,0.000264383
+MICRO 64,1,eq,false,dense,compiler,1,0.002160113
+MICRO 64,1,eq,false,dense,native,1,0.003154285
+MICRO 64,1,eq,false,quarter,native,1,0.000160521
+MICRO 64,1,eq,false,half,native,1,0.00016048
+MICRO 64,1,eq,false,full,native,1,0.000195859
+MICRO 64,1,eq,false,half,compiler,1,0.000244602
+MICRO 64,1,eq,false,full,compiler,1,0.000195716
+MICRO 64,1,eq,false,full,compiler,2,0.000220186
+MICRO 64,1,eq,false,half,compiler,2,0.000476143
+MICRO 64,1,eq,false,full,native,2,0.000360411
+MICRO 64,1,eq,false,half,native,2,0.00031069
+MICRO 64,1,eq,false,quarter,native,2,0.000288458
+MICRO 64,1,eq,false,dense,native,2,0.002838608
+MICRO 64,1,eq,false,dense,compiler,2,0.002165588
+MICRO 64,1,eq,false,sparse,native,2,0.000248962
+MICRO 64,1,eq,false,sparse,native,3,0.000191012
+MICRO 64,1,eq,false,dense,compiler,3,0.002329903
+MICRO 64,1,eq,false,dense,native,3,0.002512894
+MICRO 64,1,eq,false,quarter,native,3,0.000228279
+MICRO 64,1,eq,false,half,native,3,0.000228961
+MICRO 64,1,eq,false,full,native,3,0.000285997
+MICRO 64,1,eq,false,half,compiler,3,0.000396139
+MICRO 64,1,eq,false,full,compiler,3,0.000329955
+MICRO 64,1,le,false,sparse,native,1,0.000196112
+MICRO 64,1,le,false,dense,compiler,1,0.002748222
+MICRO 64,1,le,false,dense,native,1,0.002288612
+MICRO 64,1,le,false,quarter,native,1,0.000173218
+MICRO 64,1,le,false,half,native,1,0.000200982
+MICRO 64,1,le,false,full,native,1,0.000197611
+MICRO 64,1,le,false,half,compiler,1,0.000245749
+MICRO 64,1,le,false,full,compiler,1,0.000196191
+MICRO 64,1,le,false,full,compiler,2,0.000195879
+MICRO 64,1,le,false,half,compiler,2,0.000245147
+MICRO 64,1,le,false,full,native,2,0.000196053
+MICRO 64,1,le,false,half,native,2,0.000172026
+MICRO 64,1,le,false,quarter,native,2,0.000209257
+MICRO 64,1,le,false,dense,native,2,0.002174635
+MICRO 64,1,le,false,dense,compiler,2,0.00286884
+MICRO 64,1,le,false,sparse,native,2,0.000220314
+MICRO 64,1,le,false,sparse,native,3,0.000217578
+MICRO 64,1,le,false,dense,compiler,3,0.002641162
+MICRO 64,1,le,false,dense,native,3,0.001519398
+MICRO 64,1,le,false,quarter,native,3,0.000188803
+MICRO 64,1,le,false,half,native,3,0.000178526
+MICRO 64,1,le,false,full,native,3,0.000202555
+MICRO 64,1,le,false,half,compiler,3,0.000251235
+MICRO 64,1,le,false,full,compiler,3,0.000200897
+MICRO 64,1,update,false,sparse,native,1,0.000290947
+MICRO 64,1,update,false,dense,compiler,1,0.001940238
+MICRO 64,1,update,false,dense,native,1,0.001644639
+MICRO 64,1,update,false,quarter,native,1,0.000764841
+MICRO 64,1,update,false,half,native,1,0.000748863
+MICRO 64,1,update,false,full,native,1,0.000505369
+MICRO 64,1,update,false,half,compiler,1,0.000348343
+MICRO 64,1,update,false,full,compiler,1,0.000319663
+MICRO 64,1,update,false,full,compiler,2,0.000318902
+MICRO 64,1,update,false,half,compiler,2,0.000342423
+MICRO 64,1,update,false,full,native,2,0.000415972
+MICRO 64,1,update,false,half,native,2,0.000434233
+MICRO 64,1,update,false,quarter,native,2,0.000441209
+MICRO 64,1,update,false,dense,native,2,0.001480701
+MICRO 64,1,update,false,dense,compiler,2,0.001757923
+MICRO 64,1,update,false,sparse,native,2,0.00033128
+MICRO 64,1,update,false,sparse,native,3,0.000269106
+MICRO 64,1,update,false,dense,compiler,3,0.00175561
+MICRO 64,1,update,false,dense,native,3,0.001515587
+MICRO 64,1,update,false,quarter,native,3,0.000614771
+MICRO 64,1,update,false,half,native,3,0.000823617
+MICRO 64,1,update,false,full,native,3,0.00069014
+MICRO 64,1,update,false,half,compiler,3,0.000719874
+MICRO 64,1,update,false,full,compiler,3,0.000675538
+MICRO 64,1,update,true,sparse,native,1,0.000830976
+MICRO 64,1,update,true,dense,compiler,1,0.004332049
+MICRO 64,1,update,true,dense,native,1,0.002078823
+MICRO 64,1,update,true,quarter,native,1,0.000514515
+MICRO 64,1,update,true,half,native,1,0.000514465
+MICRO 64,1,update,true,full,native,1,0.000491273
+MICRO 64,1,update,true,half,compiler,1,0.000449638
+MICRO 64,1,update,true,full,compiler,1,0.000342726
+MICRO 64,1,update,true,full,compiler,2,0.000343186
+MICRO 64,1,update,true,half,compiler,2,0.000415903
+MICRO 64,1,update,true,full,native,2,0.000489733
+MICRO 64,1,update,true,half,native,2,0.000513825
+MICRO 64,1,update,true,quarter,native,2,0.00051376
+MICRO 64,1,update,true,dense,native,2,0.002043907
+MICRO 64,1,update,true,dense,compiler,2,0.004048177
+MICRO 64,1,update,true,sparse,native,2,0.00039527
+MICRO 64,1,update,true,sparse,native,3,0.00039279
+MICRO 64,1,update,true,dense,compiler,3,0.004695168
+MICRO 64,1,update,true,dense,native,3,0.00344361
+MICRO 64,1,update,true,quarter,native,3,0.000770663
+MICRO 64,1,update,true,half,native,3,0.000676331
+MICRO 64,1,update,true,full,native,3,0.000527987
+MICRO 64,1,update,true,half,compiler,3,0.00041577
+MICRO 64,1,update,true,full,compiler,3,0.0003425
+MICRO 64,4,eq,false,sparse,native,1,0.000563394
+MICRO 64,4,eq,false,dense,compiler,1,0.002127144
+MICRO 64,4,eq,false,dense,native,1,0.001546757
+MICRO 64,4,eq,false,quarter,native,1,0.000350746
+MICRO 64,4,eq,false,half,native,1,0.000487913
+MICRO 64,4,eq,false,full,native,1,0.00040127
+MICRO 64,4,eq,false,half,compiler,1,0.000412974
+MICRO 64,4,eq,false,full,compiler,1,0.00036739
+MICRO 64,4,eq,false,full,compiler,2,0.000344712
+MICRO 64,4,eq,false,half,compiler,2,0.000379244
+MICRO 64,4,eq,false,full,native,2,0.000401645
+MICRO 64,4,eq,false,half,native,2,0.000361864
+MICRO 64,4,eq,false,quarter,native,2,0.000373763
+MICRO 64,4,eq,false,dense,native,2,0.001495327
+MICRO 64,4,eq,false,dense,compiler,2,0.00137711
+MICRO 64,4,eq,false,sparse,native,2,0.000357227
+MICRO 64,4,eq,false,sparse,native,3,0.000319965
+MICRO 64,4,eq,false,dense,compiler,3,0.001371732
+MICRO 64,4,eq,false,dense,native,3,0.001584633
+MICRO 64,4,eq,false,quarter,native,3,0.000475262
+MICRO 64,4,eq,false,half,native,3,0.000594435
+MICRO 64,4,eq,false,full,native,3,0.000572541
+MICRO 64,4,eq,false,half,compiler,3,0.000716347
+MICRO 64,4,eq,false,full,compiler,3,0.000680236
+MICRO 64,4,le,false,sparse,native,1,0.000549067
+MICRO 64,4,le,false,dense,compiler,1,0.002872998
+MICRO 64,4,le,false,dense,native,1,0.00195178
+MICRO 64,4,le,false,quarter,native,1,0.000414212
+MICRO 64,4,le,false,half,native,1,0.000449393
+MICRO 64,4,le,false,full,native,1,0.000551917
+MICRO 64,4,le,false,half,compiler,1,0.000571515
+MICRO 64,4,le,false,full,compiler,1,0.000544953
+MICRO 64,4,le,false,full,compiler,2,0.000540677
+MICRO 64,4,le,false,half,compiler,2,0.000569542
+MICRO 64,4,le,false,full,native,2,0.000541593
+MICRO 64,4,le,false,half,native,2,0.000565469
+MICRO 64,4,le,false,quarter,native,2,0.000568359
+MICRO 64,4,le,false,dense,native,2,0.001859613
+MICRO 64,4,le,false,dense,compiler,2,0.002215126
+MICRO 64,4,le,false,sparse,native,2,0.000477549
+MICRO 64,4,le,false,sparse,native,3,0.000476563
+MICRO 64,4,le,false,dense,compiler,3,0.002192983
+MICRO 64,4,le,false,dense,native,3,0.001846136
+MICRO 64,4,le,false,quarter,native,3,0.00044466
+MICRO 64,4,le,false,half,native,3,0.000427298
+MICRO 64,4,le,false,full,native,3,0.000391492
+MICRO 64,4,le,false,half,compiler,3,0.000416615
+MICRO 64,4,le,false,full,compiler,3,0.000391234
+MICRO 64,4,update,false,sparse,native,1,0.000439099
+MICRO 64,4,update,false,dense,compiler,1,0.001847419
+MICRO 64,4,update,false,dense,native,1,0.001466645
+MICRO 64,4,update,false,quarter,native,1,0.000635774
+MICRO 64,4,update,false,half,native,1,0.000660552
+MICRO 64,4,update,false,full,native,1,0.000636963
+MICRO 64,4,update,false,half,compiler,1,0.000587938
+MICRO 64,4,update,false,full,compiler,1,0.000497461
+MICRO 64,4,update,false,full,compiler,2,0.000584258
+MICRO 64,4,update,false,half,compiler,2,0.000562576
+MICRO 64,4,update,false,full,native,2,0.000636217
+MICRO 64,4,update,false,half,native,2,0.000658328
+MICRO 64,4,update,false,quarter,native,2,0.000636198
+MICRO 64,4,update,false,dense,native,2,0.001480497
+MICRO 64,4,update,false,dense,compiler,2,0.001755556
+MICRO 64,4,update,false,sparse,native,2,0.00041576
+MICRO 64,4,update,false,sparse,native,3,0.000486113
+MICRO 64,4,update,false,dense,compiler,3,0.001761306
+MICRO 64,4,update,false,dense,native,3,0.001483859
+MICRO 64,4,update,false,quarter,native,3,0.000660346
+MICRO 64,4,update,false,half,native,3,0.000650022
+MICRO 64,4,update,false,full,native,3,0.000635777
+MICRO 64,4,update,false,half,compiler,3,0.000562573
+MICRO 64,4,update,false,full,compiler,3,0.00056746
+MICRO 64,4,update,true,sparse,native,1,0.000831825
+MICRO 64,4,update,true,dense,compiler,1,0.003658023
+MICRO 64,4,update,true,dense,native,1,0.004094088
+MICRO 64,4,update,true,quarter,native,1,0.000995346
+MICRO 64,4,update,true,half,native,1,0.00096794
+MICRO 64,4,update,true,full,native,1,0.000932207
+MICRO 64,4,update,true,half,compiler,1,0.000858957
+MICRO 64,4,update,true,full,compiler,1,0.0006392
+MICRO 64,4,update,true,full,compiler,2,0.000563641
+MICRO 64,4,update,true,half,compiler,2,0.000860203
+MICRO 64,4,update,true,full,native,2,0.000930963
+MICRO 64,4,update,true,half,native,2,0.000988523
+MICRO 64,4,update,true,quarter,native,2,0.00095436
+MICRO 64,4,update,true,dense,native,2,0.004389069
+MICRO 64,4,update,true,dense,compiler,2,0.00452017
+MICRO 64,4,update,true,sparse,native,2,0.000833666
+MICRO 64,4,update,true,sparse,native,3,0.000879424
+MICRO 64,4,update,true,dense,compiler,3,0.003339965
+MICRO 64,4,update,true,dense,native,3,0.003837757
+MICRO 64,4,update,true,quarter,native,3,0.001296095
+MICRO 64,4,update,true,half,native,3,0.001612939
+MICRO 64,4,update,true,full,native,3,0.001853102
+MICRO 64,4,update,true,half,compiler,3,0.000905545
+MICRO 64,4,update,true,full,compiler,3,0.000630604
+MICRO 64,8,eq,false,sparse,native,1,0.000869441
+MICRO 64,8,eq,false,dense,compiler,1,0.002154129
+MICRO 64,8,eq,false,dense,native,1,0.002976497
+MICRO 64,8,eq,false,quarter,native,1,0.00094802
+MICRO 64,8,eq,false,half,native,1,0.00064118
+MICRO 64,8,eq,false,full,native,1,0.000636086
+MICRO 64,8,eq,false,half,compiler,1,0.000640041
+MICRO 64,8,eq,false,full,compiler,1,0.000866178
+MICRO 64,8,eq,false,full,compiler,2,0.000665044
+MICRO 64,8,eq,false,half,compiler,2,0.000642503
+MICRO 64,8,eq,false,full,native,2,0.000672325
+MICRO 64,8,eq,false,half,native,2,0.000639588
+MICRO 64,8,eq,false,quarter,native,2,0.000640227
+MICRO 64,8,eq,false,dense,native,2,0.002893147
+MICRO 64,8,eq,false,dense,compiler,2,0.001457161
+MICRO 64,8,eq,false,sparse,native,2,0.000624011
+MICRO 64,8,eq,false,sparse,native,3,0.000594009
+MICRO 64,8,eq,false,dense,compiler,3,0.001408417
+MICRO 64,8,eq,false,dense,native,3,0.00149486
+MICRO 64,8,eq,false,quarter,native,3,0.000641535
+MICRO 64,8,eq,false,half,native,3,0.00064356
+MICRO 64,8,eq,false,full,native,3,0.000670446
+MICRO 64,8,eq,false,half,compiler,3,0.000640488
+MICRO 64,8,eq,false,full,compiler,3,0.000626261
+MICRO 64,8,le,false,sparse,native,1,0.000607103
+MICRO 64,8,le,false,dense,compiler,1,0.001920959
+MICRO 64,8,le,false,dense,native,1,0.001314242
+MICRO 64,8,le,false,quarter,native,1,0.000766886
+MICRO 64,8,le,false,half,native,1,0.000764306
+MICRO 64,8,le,false,full,native,1,0.000824644
+MICRO 64,8,le,false,half,compiler,1,0.000749851
+MICRO 64,8,le,false,full,compiler,1,0.00073993
+MICRO 64,8,le,false,full,compiler,2,0.000733507
+MICRO 64,8,le,false,half,compiler,2,0.00072705
+MICRO 64,8,le,false,full,native,2,0.000774839
+MICRO 64,8,le,false,half,native,2,0.00072787
+MICRO 64,8,le,false,quarter,native,2,0.00076129
+MICRO 64,8,le,false,dense,native,2,0.001281096
+MICRO 64,8,le,false,dense,compiler,2,0.001629122
+MICRO 64,8,le,false,sparse,native,2,0.000642036
+MICRO 64,8,le,false,sparse,native,3,0.000608987
+MICRO 64,8,le,false,dense,compiler,3,0.001914815
+MICRO 64,8,le,false,dense,native,3,0.001472408
+MICRO 64,8,le,false,quarter,native,3,0.001047538
+MICRO 64,8,le,false,half,native,3,0.001171761
+MICRO 64,8,le,false,full,native,3,0.0011341
+MICRO 64,8,le,false,half,compiler,3,0.000726979
+MICRO 64,8,le,false,full,compiler,3,0.000700414
+MICRO 64,8,update,false,sparse,native,1,0.000648461
+MICRO 64,8,update,false,dense,compiler,1,0.001764871
+MICRO 64,8,update,false,dense,native,1,0.001478904
+MICRO 64,8,update,false,quarter,native,1,0.000950918
+MICRO 64,8,update,false,half,native,1,0.000950976
+MICRO 64,8,update,false,full,native,1,0.000957886
+MICRO 64,8,update,false,half,compiler,1,0.001143889
+MICRO 64,8,update,false,full,compiler,1,0.000681765
+MICRO 64,8,update,false,full,compiler,2,0.000741635
+MICRO 64,8,update,false,half,compiler,2,0.001324803
+MICRO 64,8,update,false,full,native,2,0.001837992
+MICRO 64,8,update,false,half,native,2,0.000981614
+MICRO 64,8,update,false,quarter,native,2,0.000964672
+MICRO 64,8,update,false,dense,native,2,0.001482758
+MICRO 64,8,update,false,dense,compiler,2,0.001793772
+MICRO 64,8,update,false,sparse,native,2,0.000617158
+MICRO 64,8,update,false,sparse,native,3,0.00063279
+MICRO 64,8,update,false,dense,compiler,3,0.001818596
+MICRO 64,8,update,false,dense,native,3,0.001442815
+MICRO 64,8,update,false,quarter,native,3,0.00162861
+MICRO 64,8,update,false,half,native,3,0.001766038
+MICRO 64,8,update,false,full,native,3,0.001440369
+MICRO 64,8,update,false,half,compiler,3,0.001529486
+MICRO 64,8,update,false,full,compiler,3,0.001279148
+MICRO 64,8,update,true,sparse,native,1,0.001451714
+MICRO 64,8,update,true,dense,compiler,1,0.003345223
+MICRO 64,8,update,true,dense,native,1,0.004436146
+MICRO 64,8,update,true,quarter,native,1,0.00161032
+MICRO 64,8,update,true,half,native,1,0.001523573
+MICRO 64,8,update,true,full,native,1,0.001696605
+MICRO 64,8,update,true,half,compiler,1,0.001501718
+MICRO 64,8,update,true,full,compiler,1,0.001016866
+MICRO 64,8,update,true,full,compiler,2,0.000930238
+MICRO 64,8,update,true,half,compiler,2,0.001465505
+MICRO 64,8,update,true,full,native,2,0.001552343
+MICRO 64,8,update,true,half,native,2,0.001537734
+MICRO 64,8,update,true,quarter,native,2,0.001583246
+MICRO 64,8,update,true,dense,native,2,0.004216234
+MICRO 64,8,update,true,dense,compiler,2,0.003446574
+MICRO 64,8,update,true,sparse,native,2,0.001455698
+MICRO 64,8,update,true,sparse,native,3,0.00143389
+MICRO 64,8,update,true,dense,compiler,3,0.003329007
+MICRO 64,8,update,true,dense,native,3,0.004135044
+MICRO 64,8,update,true,quarter,native,3,0.001542444
+MICRO 64,8,update,true,half,native,3,0.001529927
+MICRO 64,8,update,true,full,native,3,0.001915638
+MICRO 64,8,update,true,half,compiler,3,0.00149373
+MICRO 64,8,update,true,full,compiler,3,0.001085193
+MICRO 64,16,eq,false,sparse,native,1,0.001108865
+MICRO 64,16,eq,false,dense,compiler,1,0.001450311
+MICRO 64,16,eq,false,dense,native,1,0.001540149
+MICRO 64,16,eq,false,quarter,native,1,0.001760992
+MICRO 64,16,eq,false,half,native,1,0.001190484
+MICRO 64,16,eq,false,full,native,1,0.001109186
+MICRO 64,16,eq,false,half,compiler,1,0.001186891
+MICRO 64,16,eq,false,full,compiler,1,0.00112412
+MICRO 64,16,eq,false,full,compiler,2,0.00168104
+MICRO 64,16,eq,false,half,compiler,2,0.001929411
+MICRO 64,16,eq,false,full,native,2,0.001862037
+MICRO 64,16,eq,false,half,native,2,0.00121839
+MICRO 64,16,eq,false,quarter,native,2,0.001713408
+MICRO 64,16,eq,false,dense,native,2,0.001551237
+MICRO 64,16,eq,false,dense,compiler,2,0.001376007
+MICRO 64,16,eq,false,sparse,native,2,0.001096591
+MICRO 64,16,eq,false,sparse,native,3,0.001060296
+MICRO 64,16,eq,false,dense,compiler,3,0.001369847
+MICRO 64,16,eq,false,dense,native,3,0.00152445
+MICRO 64,16,eq,false,quarter,native,3,0.001878842
+MICRO 64,16,eq,false,half,native,3,0.001790731
+MICRO 64,16,eq,false,full,native,3,0.001191503
+MICRO 64,16,eq,false,half,compiler,3,0.00137197
+MICRO 64,16,eq,false,full,compiler,3,0.001157351
+MICRO 64,16,le,false,sparse,native,1,0.001205889
+MICRO 64,16,le,false,dense,compiler,1,0.001624427
+MICRO 64,16,le,false,dense,native,1,0.001227141
+MICRO 64,16,le,false,quarter,native,1,0.001279099
+MICRO 64,16,le,false,half,native,1,0.001304858
+MICRO 64,16,le,false,full,native,1,0.001310557
+MICRO 64,16,le,false,half,compiler,1,0.001300174
+MICRO 64,16,le,false,full,compiler,1,0.001856387
+MICRO 64,16,le,false,full,compiler,2,0.002042282
+MICRO 64,16,le,false,half,compiler,2,0.001653513
+MICRO 64,16,le,false,full,native,2,0.001298519
+MICRO 64,16,le,false,half,native,2,0.001352559
+MICRO 64,16,le,false,quarter,native,2,0.001291156
+MICRO 64,16,le,false,dense,native,2,0.001223092
+MICRO 64,16,le,false,dense,compiler,2,0.001665167
+MICRO 64,16,le,false,sparse,native,2,0.001130406
+MICRO 64,16,le,false,sparse,native,3,0.001133707
+MICRO 64,16,le,false,dense,compiler,3,0.00163498
+MICRO 64,16,le,false,dense,native,3,0.001224465
+MICRO 64,16,le,false,quarter,native,3,0.001686508
+MICRO 64,16,le,false,half,native,3,0.001354817
+MICRO 64,16,le,false,full,native,3,0.001444896
+MICRO 64,16,le,false,half,compiler,3,0.00133784
+MICRO 64,16,le,false,full,compiler,3,0.001377434
+MICRO 64,16,update,false,sparse,native,1,0.001003365
+MICRO 64,16,update,false,dense,compiler,1,0.001781344
+MICRO 64,16,update,false,dense,native,1,0.001512244
+MICRO 64,16,update,false,quarter,native,1,0.001132275
+MICRO 64,16,update,false,half,native,1,0.001573578
+MICRO 64,16,update,false,full,native,1,0.001517584
+MICRO 64,16,update,false,half,compiler,1,0.001501149
+MICRO 64,16,update,false,full,compiler,1,0.001321663
+MICRO 64,16,update,false,full,compiler,2,0.001302376
+MICRO 64,16,update,false,half,compiler,2,0.001496015
+MICRO 64,16,update,false,full,native,2,0.001699883
+MICRO 64,16,update,false,half,native,2,0.001615437
+MICRO 64,16,update,false,quarter,native,2,0.001172727
+MICRO 64,16,update,false,dense,native,2,0.001479995
+MICRO 64,16,update,false,dense,compiler,2,0.00175971
+MICRO 64,16,update,false,sparse,native,2,0.001041391
+MICRO 64,16,update,false,sparse,native,3,0.001172859
+MICRO 64,16,update,false,dense,compiler,3,0.001762079
+MICRO 64,16,update,false,dense,native,3,0.002154976
+MICRO 64,16,update,false,quarter,native,3,0.001849428
+MICRO 64,16,update,false,half,native,3,0.001722393
+MICRO 64,16,update,false,full,native,3,0.001618189
+MICRO 64,16,update,false,half,compiler,3,0.001488476
+MICRO 64,16,update,false,full,compiler,3,0.001167376
+MICRO 64,16,update,true,sparse,native,1,0.002623562
+MICRO 64,16,update,true,dense,compiler,1,0.003293366
+MICRO 64,16,update,true,dense,native,1,0.003094185
+MICRO 64,16,update,true,quarter,native,1,0.002565369
+MICRO 64,16,update,true,half,native,1,0.002796234
+MICRO 64,16,update,true,full,native,1,0.0033004
+MICRO 64,16,update,true,half,compiler,1,0.002665347
+MICRO 64,16,update,true,full,compiler,1,0.001689068
+MICRO 64,16,update,true,full,compiler,2,0.001829068
+MICRO 64,16,update,true,half,compiler,2,0.003019758
+MICRO 64,16,update,true,full,native,2,0.003344384
+MICRO 64,16,update,true,half,native,2,0.002719331
+MICRO 64,16,update,true,quarter,native,2,0.002352504
+MICRO 64,16,update,true,dense,native,2,0.002819471
+MICRO 64,16,update,true,dense,compiler,2,0.003265729
+MICRO 64,16,update,true,sparse,native,2,0.002902248
+MICRO 64,16,update,true,sparse,native,3,0.003240978
+MICRO 64,16,update,true,dense,compiler,3,0.003980263
+MICRO 64,16,update,true,dense,native,3,0.002850376
+MICRO 64,16,update,true,quarter,native,3,0.002373964
+MICRO 64,16,update,true,half,native,3,0.003098479
+MICRO 64,16,update,true,full,native,3,0.004163949
+MICRO 64,16,update,true,half,compiler,3,0.002732239
+MICRO 64,16,update,true,full,compiler,3,0.001627983
+MICRO 64,32,eq,false,sparse,native,1,0.002013571
+MICRO 64,32,eq,false,dense,compiler,1,0.001409802
+MICRO 64,32,eq,false,dense,native,1,0.001492065
+MICRO 64,32,eq,false,quarter,native,1,0.001750977
+MICRO 64,32,eq,false,half,native,1,0.001351078
+MICRO 64,32,eq,false,full,native,1,0.002342525
+MICRO 64,32,eq,false,half,compiler,1,0.001569297
+MICRO 64,32,eq,false,full,compiler,1,0.003236049
+MICRO 64,32,eq,false,full,compiler,2,0.002248344
+MICRO 64,32,eq,false,half,compiler,2,0.001411603
+MICRO 64,32,eq,false,full,native,2,0.002151851
+MICRO 64,32,eq,false,half,native,2,0.001208454
+MICRO 64,32,eq,false,quarter,native,2,0.002296637
+MICRO 64,32,eq,false,dense,native,2,0.00316587
+MICRO 64,32,eq,false,dense,compiler,2,0.00232969
+MICRO 64,32,eq,false,sparse,native,2,0.002076043
+MICRO 64,32,eq,false,sparse,native,3,0.0020216
+MICRO 64,32,eq,false,dense,compiler,3,0.001412484
+MICRO 64,32,eq,false,dense,native,3,0.001531372
+MICRO 64,32,eq,false,quarter,native,3,0.001712978
+MICRO 64,32,eq,false,half,native,3,0.001433502
+MICRO 64,32,eq,false,full,native,3,0.002326404
+MICRO 64,32,eq,false,half,compiler,3,0.001493174
+MICRO 64,32,eq,false,full,compiler,3,0.002197281
+MICRO 64,32,le,false,sparse,native,1,0.002156122
+MICRO 64,32,le,false,dense,compiler,1,0.001661854
+MICRO 64,32,le,false,dense,native,1,0.001264821
+MICRO 64,32,le,false,quarter,native,1,0.001294315
+MICRO 64,32,le,false,half,native,1,0.00125135
+MICRO 64,32,le,false,full,native,1,0.002537233
+MICRO 64,32,le,false,half,compiler,1,0.001743734
+MICRO 64,32,le,false,full,compiler,1,0.002444881
+MICRO 64,32,le,false,full,compiler,2,0.002426318
+MICRO 64,32,le,false,half,compiler,2,0.001651748
+MICRO 64,32,le,false,full,native,2,0.002434059
+MICRO 64,32,le,false,half,native,2,0.001251005
+MICRO 64,32,le,false,quarter,native,2,0.001295418
+MICRO 64,32,le,false,dense,native,2,0.001230942
+MICRO 64,32,le,false,dense,compiler,2,0.001659865
+MICRO 64,32,le,false,sparse,native,2,0.002441505
+MICRO 64,32,le,false,sparse,native,3,0.002221389
+MICRO 64,32,le,false,dense,compiler,3,0.001789658
+MICRO 64,32,le,false,dense,native,3,0.001297159
+MICRO 64,32,le,false,quarter,native,3,0.001251516
+MICRO 64,32,le,false,half,native,3,0.001268552
+MICRO 64,32,le,false,full,native,3,0.002408956
+MICRO 64,32,le,false,half,compiler,3,0.001652663
+MICRO 64,32,le,false,full,compiler,3,0.002400665
+MICRO 64,32,update,false,sparse,native,1,0.002772162
+MICRO 64,32,update,false,dense,compiler,1,0.001986568
+MICRO 64,32,update,false,dense,native,1,0.001631547
+MICRO 64,32,update,false,quarter,native,1,0.001149337
+MICRO 64,32,update,false,half,native,1,0.0011519
+MICRO 64,32,update,false,full,native,1,0.002792396
+MICRO 64,32,update,false,half,compiler,1,0.001854901
+MICRO 64,32,update,false,full,compiler,1,0.001836622
+MICRO 64,32,update,false,full,compiler,2,0.001880264
+MICRO 64,32,update,false,half,compiler,2,0.002177779
+MICRO 64,32,update,false,full,native,2,0.00291751
+MICRO 64,32,update,false,half,native,2,0.00115499
+MICRO 64,32,update,false,quarter,native,2,0.001237692
+MICRO 64,32,update,false,dense,native,2,0.001477865
+MICRO 64,32,update,false,dense,compiler,2,0.001767305
+MICRO 64,32,update,false,sparse,native,2,0.002510973
+MICRO 64,32,update,false,sparse,native,3,0.002726402
+MICRO 64,32,update,false,dense,compiler,3,0.001900437
+MICRO 64,32,update,false,dense,native,3,0.001555406
+MICRO 64,32,update,false,quarter,native,3,0.00137511
+MICRO 64,32,update,false,half,native,3,0.001206898
+MICRO 64,32,update,false,full,native,3,0.002814734
+MICRO 64,32,update,false,half,compiler,3,0.001819112
+MICRO 64,32,update,false,full,compiler,3,0.001876399
+MICRO 64,32,update,true,sparse,native,1,0.005625291
+MICRO 64,32,update,true,dense,compiler,1,0.003766695
+MICRO 64,32,update,true,dense,native,1,0.002811061
+MICRO 64,32,update,true,quarter,native,1,0.002362686
+MICRO 64,32,update,true,half,native,1,0.002280523
+MICRO 64,32,update,true,full,native,1,0.005244679
+MICRO 64,32,update,true,half,compiler,1,0.00384651
+MICRO 64,32,update,true,full,compiler,1,0.003225799
+MICRO 64,32,update,true,full,compiler,2,0.003062603
+MICRO 64,32,update,true,half,compiler,2,0.00329462
+MICRO 64,32,update,true,full,native,2,0.00535218
+MICRO 64,32,update,true,half,native,2,0.002524013
+MICRO 64,32,update,true,quarter,native,2,0.002376673
+MICRO 64,32,update,true,dense,native,2,0.002697352
+MICRO 64,32,update,true,dense,compiler,2,0.00330749
+MICRO 64,32,update,true,sparse,native,2,0.005801705
+MICRO 64,32,update,true,sparse,native,3,0.00584728
+MICRO 64,32,update,true,dense,compiler,3,0.003351326
+MICRO 64,32,update,true,dense,native,3,0.002666111
+MICRO 64,32,update,true,quarter,native,3,0.002240249
+MICRO 64,32,update,true,half,native,3,0.00228543
+MICRO 64,32,update,true,full,native,3,0.005173857
+MICRO 64,32,update,true,half,compiler,3,0.003406489
+MICRO 64,32,update,true,full,compiler,3,0.002994294
+MICRO 64,64,eq,false,sparse,native,1,0.003847982
+MICRO 64,64,eq,false,dense,compiler,1,0.001748832
+MICRO 64,64,eq,false,dense,native,1,0.002997429
+MICRO 64,64,eq,false,quarter,native,1,0.00325865
+MICRO 64,64,eq,false,half,native,1,0.00205082
+MICRO 64,64,eq,false,full,native,1,0.002110581
+MICRO 64,64,eq,false,half,compiler,1,0.002362416
+MICRO 64,64,eq,false,full,compiler,1,0.002037377
+MICRO 64,64,eq,false,full,compiler,2,0.002404236
+MICRO 64,64,eq,false,half,compiler,2,0.002325963
+MICRO 64,64,eq,false,full,native,2,0.002229508
+MICRO 64,64,eq,false,half,native,2,0.002087698
+MICRO 64,64,eq,false,quarter,native,2,0.002967479
+MICRO 64,64,eq,false,dense,native,2,0.002780864
+MICRO 64,64,eq,false,dense,compiler,2,0.001727767
+MICRO 64,64,eq,false,sparse,native,2,0.006146848
+MICRO 64,64,eq,false,sparse,native,3,0.006105594
+MICRO 64,64,eq,false,dense,compiler,3,0.002248023
+MICRO 64,64,eq,false,dense,native,3,0.003156729
+MICRO 64,64,eq,false,quarter,native,3,0.002385265
+MICRO 64,64,eq,false,half,native,3,0.001286992
+MICRO 64,64,eq,false,full,native,3,0.001379551
+MICRO 64,64,eq,false,half,compiler,3,0.001448823
+MICRO 64,64,eq,false,full,compiler,3,0.001689197
+MICRO 64,64,le,false,sparse,native,1,0.006783769
+MICRO 64,64,le,false,dense,compiler,1,0.001891206
+MICRO 64,64,le,false,dense,native,1,0.002314122
+MICRO 64,64,le,false,quarter,native,1,0.001770674
+MICRO 64,64,le,false,half,native,1,0.001309522
+MICRO 64,64,le,false,full,native,1,0.001271067
+MICRO 64,64,le,false,half,compiler,1,0.002480414
+MICRO 64,64,le,false,full,compiler,1,0.002797057
+MICRO 64,64,le,false,full,compiler,2,0.002822703
+MICRO 64,64,le,false,half,compiler,2,0.001878658
+MICRO 64,64,le,false,full,native,2,0.001246907
+MICRO 64,64,le,false,half,native,2,0.001728648
+MICRO 64,64,le,false,quarter,native,2,0.001730371
+MICRO 64,64,le,false,dense,native,2,0.001269
+MICRO 64,64,le,false,dense,compiler,2,0.001621305
+MICRO 64,64,le,false,sparse,native,2,0.004140514
+MICRO 64,64,le,false,sparse,native,3,0.004204329
+MICRO 64,64,le,false,dense,compiler,3,0.001623786
+MICRO 64,64,le,false,dense,native,3,0.00122442
+MICRO 64,64,le,false,quarter,native,3,0.001310446
+MICRO 64,64,le,false,half,native,3,0.001602329
+MICRO 64,64,le,false,full,native,3,0.00130809
+MICRO 64,64,le,false,half,compiler,3,0.001835137
+MICRO 64,64,le,false,full,compiler,3,0.00176239
+MICRO 64,64,update,false,sparse,native,1,0.005692021
+MICRO 64,64,update,false,dense,compiler,1,0.002801362
+MICRO 64,64,update,false,dense,native,1,0.002149378
+MICRO 64,64,update,false,quarter,native,1,0.002225844
+MICRO 64,64,update,false,half,native,1,0.002026757
+MICRO 64,64,update,false,full,native,1,0.002173951
+MICRO 64,64,update,false,half,compiler,1,0.003011498
+MICRO 64,64,update,false,full,compiler,1,0.00318063
+MICRO 64,64,update,false,full,compiler,2,0.002689432
+MICRO 64,64,update,false,half,compiler,2,0.002719783
+MICRO 64,64,update,false,full,native,2,0.001152617
+MICRO 64,64,update,false,half,native,2,0.001142213
+MICRO 64,64,update,false,quarter,native,2,0.001636049
+MICRO 64,64,update,false,dense,native,2,0.002705466
+MICRO 64,64,update,false,dense,compiler,2,0.001872849
+MICRO 64,64,update,false,sparse,native,2,0.003391143
+MICRO 64,64,update,false,sparse,native,3,0.003359938
+MICRO 64,64,update,false,dense,compiler,3,0.002774205
+MICRO 64,64,update,false,dense,native,3,0.002370342
+MICRO 64,64,update,false,quarter,native,3,0.001182497
+MICRO 64,64,update,false,half,native,3,0.001214411
+MICRO 64,64,update,false,full,native,3,0.001149982
+MICRO 64,64,update,false,half,compiler,3,0.001849443
+MICRO 64,64,update,false,full,compiler,3,0.001805251
+MICRO 64,64,update,true,sparse,native,1,0.011687634
+MICRO 64,64,update,true,dense,compiler,1,0.003426059
+MICRO 64,64,update,true,dense,native,1,0.002648713
+MICRO 64,64,update,true,quarter,native,1,0.002176165
+MICRO 64,64,update,true,half,native,1,0.002185375
+MICRO 64,64,update,true,full,native,1,0.002179858
+MICRO 64,64,update,true,half,compiler,1,0.004207956
+MICRO 64,64,update,true,full,compiler,1,0.004614834
+MICRO 64,64,update,true,full,compiler,2,0.003381285
+MICRO 64,64,update,true,half,compiler,2,0.003306234
+MICRO 64,64,update,true,full,native,2,0.003834258
+MICRO 64,64,update,true,half,native,2,0.002253072
+MICRO 64,64,update,true,quarter,native,2,0.002282869
+MICRO 64,64,update,true,dense,native,2,0.002661661
+MICRO 64,64,update,true,dense,compiler,2,0.003299374
+MICRO 64,64,update,true,sparse,native,2,0.011675323
+MICRO 64,64,update,true,sparse,native,3,0.009744706
+MICRO 64,64,update,true,dense,compiler,3,0.003339004
+MICRO 64,64,update,true,dense,native,3,0.002653439
+MICRO 64,64,update,true,quarter,native,3,0.002169374
+MICRO 64,64,update,true,half,native,3,0.002205678
+MICRO 64,64,update,true,full,native,3,0.002156927
+MICRO 64,64,update,true,half,compiler,3,0.003276345
+MICRO 64,64,update,true,full,compiler,3,0.003990705
+	.text
+	.file	"vector_update!"
+	.section	.rodata.cst32,"aM",@progbits,32
+	.p2align	5, 0x0                          # -- Begin function julia_vector_update!_1993
+.LCPI0_0:
+	.long	1                               # 0x1
+	.long	2                               # 0x2
+	.long	4                               # 0x4
+	.long	8                               # 0x8
+	.long	16                              # 0x10
+	.long	32                              # 0x20
+	.long	64                              # 0x40
+	.long	128                             # 0x80
+.LCPI0_1:
+	.quad	0                               # 0x0
+	.quad	1                               # 0x1
+	.quad	2                               # 0x2
+	.quad	3                               # 0x3
+	.section	.rodata.cst8,"aM",@progbits,8
+	.p2align	3, 0x0
+.LCPI0_2:
+	.quad	3                               # 0x3
+.LCPI0_3:
+	.quad	1                               # 0x1
+.LCPI0_4:
+	.quad	-9223372036854775808            # 0x8000000000000000
+.LCPI0_5:
+	.quad	-9223372036854775745            # 0x800000000000003f
+.LCPI0_6:
+	.quad	-3                              # 0xfffffffffffffffd
+.LCPI0_7:
+	.quad	8                               # 0x8
+	.section	.ltext,"axl",@progbits
+	.globl	"julia_vector_update!_1993"
+	.p2align	4, 0x90
+	.type	"julia_vector_update!_1993",@function
+"julia_vector_update!_1993":            # @"julia_vector_update!_1993"
+; Function Signature: vector_update!(Array{UInt32, 2}, Int64, UInt32, UInt64)
+# %bb.0:                                # %pass
+	#DEBUG_VALUE: vector_update!:labels <- [$rdi+0]
+	#DEBUG_VALUE: vector_update!:state <- $rsi
+	#DEBUG_VALUE: vector_update!:time <- $edx
+	#DEBUG_VALUE: vector_update!:mask <- $rcx
+	push	rbp
+	mov	rbp, rsp
+	push	r15
+	push	r14
+	push	r13
+	push	r12
+	push	rbx
+	and	rsp, -32
+	sub	rsp, 224
+	movabs	r10, 4611686018427387903
+	mov	r8, qword ptr [rdi + 16]
+	lea	rbx, [r8 + 7]
+	test	r8, r8
+	cmovns	rbx, r8
+	sar	rbx, 3
+	lea	rax, [rbx - 1]
+	cmp	r8, 8
+	mov	r9, -1
+	cmovge	r9, rax
+	xor	r11d, r11d
+	test	r9, r9
+	mov	qword ptr [rsp + 32], rsi       # 8-byte Spill
+	mov	qword ptr [rsp + 24], r8        # 8-byte Spill
+	js	.LBB0_1
+# %bb.2:                                # %L21.preheader
+	lea	r14, [rsi + r10]
+	imul	r14, r8
+	vmovd	xmm0, edx
+	vpbroadcastd	ymm0, xmm0
+	shl	r14, 2
+	add	r14, qword ptr [rdi]
+	inc	r9
+	movabs	rax, offset .LCPI0_0
+	vmovdqa	ymm1, ymmword ptr [rax]
+	xor	r15d, r15d
+	xor	r12d, r12d
+	xor	eax, eax
+	jmp	.LBB0_3
+	.p2align	4, 0x90
+.LBB0_5:                                # %L643
+                                        #   in Loop: Header=BB0_3 Depth=1
+	add	r12, 8
+	add	r15, -8
+	dec	r9
+	je	.LBB0_6
+.LBB0_3:                                # %L21
+                                        # =>This Inner Loop Header: Depth=1
+	vmovdqu	ymm2, ymmword ptr [r14 + 4*r12]
+	vpminud	ymm3, ymm2, ymm0
+	vpcmpeqd	ymm3, ymm2, ymm3
+	vmovmskps	r10d, ymm3
+	xor	r10d, 255
+	shrx	r8, rcx, r12
+	cmp	r12, 64
+	shlx	r13, rcx, r15
+	cmovae	r8d, r11d
+	cmp	r15, 64
+	cmovae	r13d, r11d
+	test	r12, r12
+	cmovns	r13d, r8d
+	and	r13d, r10d
+	je	.LBB0_5
+# %bb.4:                                # %L554
+                                        #   in Loop: Header=BB0_3 Depth=1
+	cmp	r12, 64
+	shlx	r8, r13, r12
+	cmovae	r8, r11
+	cmp	r15, 64
+	shrx	r10, r13, r15
+	cmovae	r10, r11
+	test	r12, r12
+	cmovns	r10, r8
+	vmovd	xmm3, r13d
+	vpbroadcastb	ymm3, xmm3
+	vpand	ymm3, ymm3, ymm1
+	vpcmpeqd	ymm3, ymm3, ymm1
+	vblendvps	ymm2, ymm2, ymm0, ymm3
+	vmovups	ymmword ptr [r14 + 4*r12], ymm2
+	or	rax, r10
+	jmp	.LBB0_5
+.LBB0_1:
+	xor	eax, eax
+.LBB0_6:                                # %pass157
+	lea	r11, [8*rbx]
+	mov	r12, qword ptr [rsp + 24]       # 8-byte Reload
+	mov	r9, r12
+	sub	r9, r11
+	jle	.LBB0_31
+# %bb.7:                                # %L676.preheader
+	lea	r14, [8*rbx + 1]
+	mov	rsi, qword ptr [rsp + 32]       # 8-byte Reload
+	movabs	r13, 4611686018427387903
+	add	rsi, r13
+	imul	rsi, qword ptr [rdi + 16]
+	mov	rdi, qword ptr [rdi]
+	cmp	r9, 8
+	jae	.LBB0_9
+# %bb.8:
+	mov	r9, r14
+	jmp	.LBB0_16
+.LBB0_9:                                # %vector.scevcheck
+	mov	r15, r11
+	not	r15
+	add	r15, r12
+	shl	rbx, 5
+	lea	r8, [rdi + 4*rsi]
+	add	r8, rbx
+	lea	r10, [r8 + 4*r15]
+	cmp	r10, r8
+	jb	.LBB0_10
+# %bb.11:                               # %vector.scevcheck
+	cmp	r15, r13
+	ja	.LBB0_12
+# %bb.13:                               # %vector.ph
+	lea	r8, [4*rsi]
+	mov	r10d, r12d
+	and	r10d, 7
+	sub	r9, r10
+	add	r9, r14
+	vmovq	xmm0, r14
+	vpbroadcastq	ymm0, xmm0
+	movabs	rbx, offset .LCPI0_1
+	vpaddq	ymm1, ymm0, ymmword ptr [rbx]
+	vmovq	xmm0, rax
+	vmovq	xmm2, rcx
+	vpbroadcastq	ymm2, xmm2
+	vmovdqa	ymmword ptr [rsp + 32], ymm2    # 32-byte Spill
+	vmovd	xmm3, edx
+	vpbroadcastd	xmm2, xmm3
+	vmovdqa	xmmword ptr [rsp + 80], xmm2    # 16-byte Spill
+	mov	rax, r12
+	and	rax, -8
+	lea	rbx, [r8 + rdi]
+	add	rbx, 16
+	movabs	r8, offset .LCPI0_2
+	vbroadcastsd	ymm2, qword ptr [r8]
+	vmovaps	ymmword ptr [rsp + 160], ymm2   # 32-byte Spill
+	movabs	r8, offset .LCPI0_3
+	vpbroadcastq	ymm7, qword ptr [r8]
+	movabs	r8, offset .LCPI0_4
+	vpbroadcastq	ymm8, qword ptr [r8]
+	movabs	r8, offset .LCPI0_5
+	vpbroadcastq	ymm9, qword ptr [r8]
+	movabs	r8, offset .LCPI0_6
+	vbroadcastsd	ymm2, qword ptr [r8]
+	vmovaps	ymmword ptr [rsp + 128], ymm2   # 32-byte Spill
+	movabs	r8, offset .LCPI0_7
+	vpbroadcastq	ymm2, qword ptr [r8]
+	vmovdqa	ymmword ptr [rsp + 96], ymm2    # 32-byte Spill
+	vpxor	xmm12, xmm12, xmm12
+	.p2align	4, 0x90
+.LBB0_14:                               # %vector.body
+                                        # =>This Inner Loop Header: Depth=1
+	vpcmpeqd	ymm3, ymm3, ymm3
+	vpaddq	ymm13, ymm1, ymm3
+	vpaddq	ymm14, ymm1, ymmword ptr [rsp + 160] # 32-byte Folded Reload
+	vpsllvq	ymm15, ymm7, ymm13
+	vpsllvq	ymm4, ymm7, ymm14
+	vpxor	ymm6, ymm13, ymm8
+	vpcmpgtq	ymm6, ymm6, ymm9
+	vpandn	ymm6, ymm6, ymm15
+	vpxor	ymm15, ymm14, ymm8
+	vpcmpgtq	ymm15, ymm15, ymm9
+	vpandn	ymm4, ymm15, ymm4
+	vpsubq	ymm15, ymm7, ymm1
+	vmovdqa	ymm2, ymmword ptr [rsp + 128]   # 32-byte Reload
+	vpsubq	ymm10, ymm2, ymm1
+	vpsrlvq	ymm11, ymm7, ymm15
+	vpsrlvq	ymm5, ymm7, ymm10
+	vpxor	ymm15, ymm15, ymm8
+	vpcmpgtq	ymm15, ymm15, ymm9
+	vpandn	ymm11, ymm15, ymm11
+	vpxor	ymm10, ymm10, ymm8
+	vpcmpgtq	ymm10, ymm10, ymm9
+	vpandn	ymm5, ymm10, ymm5
+	vblendvpd	ymm6, ymm6, ymm11, ymm13
+	vblendvpd	ymm4, ymm4, ymm5, ymm14
+	vmovapd	ymm2, ymmword ptr [rsp + 32]    # 32-byte Reload
+	vandpd	ymm5, ymm6, ymm2
+	vandpd	ymm10, ymm4, ymm2
+	vxorpd	xmm2, xmm2, xmm2
+	vpcmpeqq	ymm5, ymm5, ymm2
+	vpxor	ymm11, ymm5, ymm3
+	vextracti128	xmm13, ymm11, 1
+	vpackssdw	xmm11, xmm11, xmm13
+	vpcmpeqq	ymm10, ymm10, ymm2
+	vpxor	ymm13, ymm10, ymm3
+	vextracti128	xmm14, ymm13, 1
+	vpackssdw	xmm13, xmm13, xmm14
+	vpmaskmovd	xmm14, xmm11, xmmword ptr [rbx + 4*r11 - 16]
+	vpmaskmovd	xmm15, xmm13, xmmword ptr [rbx + 4*r11]
+	vmovdqa	xmm3, xmmword ptr [rsp + 80]    # 16-byte Reload
+	vpminud	xmm2, xmm14, xmm3
+	vpcmpeqd	xmm2, xmm14, xmm2
+	vpminud	xmm14, xmm15, xmm3
+	vpcmpeqd	xmm14, xmm15, xmm14
+	vpandn	xmm11, xmm2, xmm11
+	vpmaskmovd	xmmword ptr [rbx + 4*r11 - 16], xmm11, xmm3
+	vpandn	xmm11, xmm14, xmm13
+	vpmaskmovd	xmmword ptr [rbx + 4*r11], xmm11, xmm3
+	vpmovsxdq	ymm2, xmm2
+	vpandn	ymm2, ymm5, ymm2
+	vpandn	ymm2, ymm2, ymm6
+	vpmovsxdq	ymm6, xmm14
+	vpandn	ymm6, ymm10, ymm6
+	vpandn	ymm4, ymm6, ymm4
+	vpandn	ymm2, ymm5, ymm2
+	vpor	ymm0, ymm0, ymm2
+	vpandn	ymm2, ymm10, ymm4
+	vpor	ymm12, ymm12, ymm2
+	vpaddq	ymm1, ymm1, ymmword ptr [rsp + 96] # 32-byte Folded Reload
+	add	r11, 8
+	cmp	rax, r11
+	jne	.LBB0_14
+# %bb.15:                               # %middle.block
+	vpor	ymm0, ymm12, ymm0
+	vextracti128	xmm1, ymm0, 1
+	vpor	xmm0, xmm0, xmm1
+	vpshufd	xmm1, xmm0, 238                 # xmm1 = xmm0[2,3,2,3]
+	vpor	xmm0, xmm0, xmm1
+	vmovq	rax, xmm0
+	test	r10, r10
+	jne	.LBB0_16
+	jmp	.LBB0_31
+.LBB0_12:
+	mov	r9, r14
+	jmp	.LBB0_16
+.LBB0_10:
+	mov	r9, r14
+.LBB0_16:                               # %scalar.ph
+	mov	r8d, r12d
+	not	r8d
+	sub	r8d, r9d
+	test	r8b, 1
+	jne	.LBB0_18
+# %bb.17:
+	mov	r10, r9
+	cmp	r12, r9
+	je	.LBB0_31
+	jmp	.LBB0_23
+.LBB0_18:                               # %L676.prol.preheader
+	lea	r8, [r9 - 1]
+	mov	r10d, 1
+	shlx	r11, r10, r8
+	xor	ebx, ebx
+	cmp	r8, 64
+	cmovae	r11, rbx
+	mov	r14d, 1
+	sub	r14, r9
+	shrx	r10, r10, r14
+	cmp	r14, 64
+	cmovae	r10, rbx
+	test	r8, r8
+	cmovns	r10, r11
+	test	r10, rcx
+	je	.LBB0_21
+# %bb.19:                               # %L719.prol
+	lea	r11, [rsi + r9]
+	cmp	dword ptr [rdi + 4*r11 - 4], edx
+	jbe	.LBB0_21
+# %bb.20:                               # %L781.prol
+	mov	dword ptr [rdi + 4*r11 - 4], edx
+	or	rax, r10
+.LBB0_21:                               # %L799.prol
+	lea	r10, [r9 + 1]
+	cmp	r12, r9
+	jne	.LBB0_23
+.LBB0_31:                               # %L811
+	lea	rsp, [rbp - 40]
+	pop	rbx
+	pop	r12
+	pop	r13
+	pop	r14
+	pop	r15
+	pop	rbp
+	vzeroupper
+	ret
+.LBB0_23:                               # %L676.preheader1
+	mov	r9d, 1
+	xor	r11d, r11d
+	jmp	.LBB0_24
+	.p2align	4, 0x90
+.LBB0_30:                               # %L799.1
+                                        #   in Loop: Header=BB0_24 Depth=1
+	add	r10, 2
+	cmp	rbx, r12
+	je	.LBB0_31
+.LBB0_24:                               # %L676
+                                        # =>This Inner Loop Header: Depth=1
+	lea	r8, [r10 - 1]
+	shlx	r14, r9, r8
+	cmp	r8, 64
+	cmovae	r14, r11
+	mov	r15d, 1
+	sub	r15, r10
+	shrx	rbx, r9, r15
+	cmp	r15, 64
+	cmovae	rbx, r11
+	test	r8, r8
+	cmovns	rbx, r14
+	test	rbx, rcx
+	je	.LBB0_27
+# %bb.25:                               # %L719
+                                        #   in Loop: Header=BB0_24 Depth=1
+	lea	r14, [rsi + r10]
+	cmp	dword ptr [rdi + 4*r14 - 4], edx
+	jbe	.LBB0_27
+# %bb.26:                               # %L781
+                                        #   in Loop: Header=BB0_24 Depth=1
+	mov	dword ptr [rdi + 4*r14 - 4], edx
+	or	rax, rbx
+.LBB0_27:                               # %L799
+                                        #   in Loop: Header=BB0_24 Depth=1
+	lea	rbx, [r10 + 1]
+	shlx	r8, r9, r10
+	cmp	r10, 64
+	cmovae	r8, r11
+	mov	r15, r10
+	neg	r15
+	shrx	r14, r9, r15
+	cmp	r15, 64
+	cmovae	r14, r11
+	test	r10, r10
+	cmovns	r14, r8
+	test	r14, rcx
+	je	.LBB0_30
+# %bb.28:                               # %L719.1
+                                        #   in Loop: Header=BB0_24 Depth=1
+	lea	r15, [rsi + rbx]
+	cmp	dword ptr [rdi + 4*r15 - 4], edx
+	jbe	.LBB0_30
+# %bb.29:                               # %L781.1
+                                        #   in Loop: Header=BB0_24 Depth=1
+	mov	dword ptr [rdi + 4*r15 - 4], edx
+	or	rax, r14
+	jmp	.LBB0_30
+.Lfunc_end0:
+	.size	"julia_vector_update!_1993", .Lfunc_end0-"julia_vector_update!_1993"
+                                        # -- End function
+	.section	".note.GNU-stack","",@progbits
+	.text
+	.file	"compiler_update!"
+	.section	.rodata.cst32,"aM",@progbits,32
+	.p2align	5, 0x0                          # -- Begin function julia_compiler_update!_2000
+.LCPI0_0:
+	.quad	0                               # 0x0
+	.quad	1                               # 0x1
+	.quad	2                               # 0x2
+	.quad	3                               # 0x3
+.LCPI0_8:
+	.quad	4                               # 0x4
+	.quad	5                               # 0x5
+	.quad	6                               # 0x6
+	.quad	7                               # 0x7
+	.section	.rodata.cst8,"aM",@progbits,8
+	.p2align	3, 0x0
+.LCPI0_1:
+	.quad	4                               # 0x4
+.LCPI0_2:
+	.quad	8                               # 0x8
+.LCPI0_3:
+	.quad	12                              # 0xc
+.LCPI0_4:
+	.quad	1                               # 0x1
+.LCPI0_5:
+	.quad	-9223372036854775808            # 0x8000000000000000
+.LCPI0_6:
+	.quad	-9223372036854775745            # 0x800000000000003f
+.LCPI0_7:
+	.quad	16                              # 0x10
+	.section	.ltext,"axl",@progbits
+	.globl	"julia_compiler_update!_2000"
+	.p2align	4, 0x90
+	.type	"julia_compiler_update!_2000",@function
+"julia_compiler_update!_2000":          # @"julia_compiler_update!_2000"
+; Function Signature: compiler_update!(Array{UInt32, 2}, Int64, UInt32, UInt64)
+# %bb.0:                                # %top
+	#DEBUG_VALUE: compiler_update!:labels <- [$rdi+0]
+	#DEBUG_VALUE: compiler_update!:state <- $rsi
+	#DEBUG_VALUE: compiler_update!:time <- $edx
+	#DEBUG_VALUE: compiler_update!:mask <- $rcx
+	mov	r8, qword ptr [rdi + 16]
+	test	r8, r8
+	jle	.LBB0_1
+# %bb.3:                                # %L16.preheader
+	push	rbp
+	mov	rbp, rsp
+	push	rbx
+	and	rsp, -32
+	sub	rsp, 128
+	movabs	rax, 4611686018427387903
+	add	rsi, rax
+	mov	rdi, qword ptr [rdi]
+	cmp	r8, 16
+	jae	.LBB0_5
+# %bb.4:
+	xor	r9d, r9d
+	xor	eax, eax
+	jmp	.LBB0_8
+.LBB0_1:
+	xor	eax, eax
+	ret
+.LBB0_5:                                # %vector.ph
+	movabs	r9, 9223372036854775792
+	and	r9, r8
+	vmovd	xmm0, edx
+	vpbroadcastd	xmm0, xmm0
+	mov	rax, r8
+	imul	rax, rsi
+	lea	rax, [rdi + 4*rax]
+	add	rax, 48
+	movabs	r10, offset .LCPI0_0
+	vmovdqa	ymm2, ymmword ptr [r10]
+	vpxor	xmm1, xmm1, xmm1
+	xor	r10d, r10d
+	movabs	r11, offset .LCPI0_1
+	vbroadcastsd	ymm3, qword ptr [r11]
+	vmovaps	ymmword ptr [rsp + 64], ymm3    # 32-byte Spill
+	movabs	r11, offset .LCPI0_2
+	vbroadcastsd	ymm3, qword ptr [r11]
+	vmovaps	ymmword ptr [rsp + 32], ymm3    # 32-byte Spill
+	movabs	r11, offset .LCPI0_3
+	vpbroadcastq	ymm3, qword ptr [r11]
+	vmovdqa	ymmword ptr [rsp], ymm3         # 32-byte Spill
+	vpcmpeqd	xmm6, xmm6, xmm6
+	movabs	r11, offset .LCPI0_4
+	vpbroadcastq	ymm7, qword ptr [r11]
+	movabs	r11, offset .LCPI0_5
+	vpbroadcastq	ymm8, qword ptr [r11]
+	movabs	r11, offset .LCPI0_6
+	vpbroadcastq	ymm9, qword ptr [r11]
+	movabs	r11, offset .LCPI0_7
+	vpbroadcastq	ymm10, qword ptr [r11]
+	vpxor	xmm11, xmm11, xmm11
+	vpxor	xmm12, xmm12, xmm12
+	vpxor	xmm13, xmm13, xmm13
+	.p2align	4, 0x90
+.LBB0_6:                                # %vector.body
+                                        # =>This Inner Loop Header: Depth=1
+	vmovdqu	xmm14, xmmword ptr [rax + 4*r10 - 48]
+	vmovdqu	xmm15, xmmword ptr [rax + 4*r10 - 32]
+	vmovdqu	xmm3, xmmword ptr [rax + 4*r10 - 16]
+	vmovdqu	xmm4, xmmword ptr [rax + 4*r10]
+	vpminud	xmm5, xmm14, xmm0
+	vpcmpeqd	xmm5, xmm14, xmm5
+	vpxor	xmm5, xmm5, xmm6
+	vpmovzxdq	ymm5, xmm5              # ymm5 = xmm5[0],zero,xmm5[1],zero,xmm5[2],zero,xmm5[3],zero
+	vpand	ymm5, ymm5, ymm7
+	vpminud	xmm14, xmm15, xmm0
+	vpcmpeqd	xmm14, xmm15, xmm14
+	vpminud	xmm15, xmm3, xmm0
+	vpcmpeqd	xmm3, xmm15, xmm3
+	vpminud	xmm15, xmm4, xmm0
+	vpcmpeqd	xmm4, xmm15, xmm4
+	vpsllvq	ymm5, ymm5, ymm2
+	vpxor	ymm15, ymm8, ymm2
+	vpcmpgtq	ymm15, ymm15, ymm9
+	vpandn	ymm5, ymm15, ymm5
+	vpor	ymm1, ymm5, ymm1
+	vpaddq	ymm5, ymm2, ymmword ptr [rsp + 64] # 32-byte Folded Reload
+	vpxor	xmm14, xmm14, xmm6
+	vpmovzxdq	ymm14, xmm14            # ymm14 = xmm14[0],zero,xmm14[1],zero,xmm14[2],zero,xmm14[3],zero
+	vpand	ymm14, ymm14, ymm7
+	vpsllvq	ymm14, ymm14, ymm5
+	vpxor	ymm5, ymm8, ymm5
+	vpcmpgtq	ymm5, ymm5, ymm9
+	vpandn	ymm5, ymm5, ymm14
+	vpor	ymm11, ymm11, ymm5
+	vpaddq	ymm5, ymm2, ymmword ptr [rsp + 32] # 32-byte Folded Reload
+	vpxor	xmm3, xmm3, xmm6
+	vpmovzxdq	ymm3, xmm3              # ymm3 = xmm3[0],zero,xmm3[1],zero,xmm3[2],zero,xmm3[3],zero
+	vpand	ymm3, ymm3, ymm7
+	vpsllvq	ymm3, ymm3, ymm5
+	vpxor	ymm5, ymm8, ymm5
+	vpcmpgtq	ymm5, ymm5, ymm9
+	vpandn	ymm3, ymm5, ymm3
+	vpor	ymm12, ymm12, ymm3
+	vpaddq	ymm3, ymm2, ymmword ptr [rsp]   # 32-byte Folded Reload
+	vpxor	xmm4, xmm4, xmm6
+	vpmovzxdq	ymm4, xmm4              # ymm4 = xmm4[0],zero,xmm4[1],zero,xmm4[2],zero,xmm4[3],zero
+	vpand	ymm4, ymm4, ymm7
+	vpsllvq	ymm4, ymm4, ymm3
+	vpxor	ymm3, ymm8, ymm3
+	vpcmpgtq	ymm3, ymm3, ymm9
+	vpandn	ymm3, ymm3, ymm4
+	vpor	ymm13, ymm13, ymm3
+	add	r10, 16
+	vpaddq	ymm2, ymm10, ymm2
+	cmp	r9, r10
+	jne	.LBB0_6
+# %bb.7:                                # %middle.block
+	vpor	ymm0, ymm11, ymm1
+	vpor	ymm0, ymm12, ymm0
+	vpor	ymm0, ymm13, ymm0
+	vextracti128	xmm1, ymm0, 1
+	vpor	xmm0, xmm0, xmm1
+	vpshufd	xmm1, xmm0, 238                 # xmm1 = xmm0[2,3,2,3]
+	vpor	xmm0, xmm0, xmm1
+	vmovq	rax, xmm0
+	cmp	r8, r9
+	je	.LBB0_10
+.LBB0_8:                                # %scalar.ph
+	mov	r10, r8
+	imul	r10, rsi
+	lea	r10, [rdi + 4*r10]
+	xor	r11d, r11d
+	.p2align	4, 0x90
+.LBB0_9:                                # %L20
+                                        # =>This Inner Loop Header: Depth=1
+	xor	ebx, ebx
+	cmp	dword ptr [r10 + 4*r9], edx
+	seta	bl
+	shlx	rbx, rbx, r9
+	cmp	r9, 64
+	cmovae	rbx, r11
+	or	rax, rbx
+	inc	r9
+	cmp	r8, r9
+	jne	.LBB0_9
+.LBB0_10:                               # %L116
+	and	rax, rcx
+	je	.LBB0_11
+# %bb.12:                               # %L138.preheader
+	cmp	r8, 8
+	jae	.LBB0_14
+# %bb.13:
+	xor	ecx, ecx
+	jmp	.LBB0_17
+.LBB0_11:
+	xor	eax, eax
+	jmp	.LBB0_21
+.LBB0_14:                               # %vector.ph102
+	movabs	rcx, 9223372036854775792
+	or	rcx, 8
+	and	rcx, r8
+	vmovq	xmm0, rax
+	vpbroadcastq	ymm0, xmm0
+	vmovd	xmm1, edx
+	vpbroadcastd	ymm1, xmm1
+	mov	r9, r8
+	imul	r9, rsi
+	lea	r9, [rdi + 4*r9]
+	movabs	r10, offset .LCPI0_8
+	vmovdqa	ymm2, ymmword ptr [r10]
+	movabs	r10, offset .LCPI0_0
+	vmovdqa	ymm3, ymmword ptr [r10]
+	xor	r10d, r10d
+	movabs	r11, offset .LCPI0_4
+	vpbroadcastq	ymm4, qword ptr [r11]
+	movabs	r11, offset .LCPI0_5
+	vpbroadcastq	ymm5, qword ptr [r11]
+	movabs	r11, offset .LCPI0_6
+	vpbroadcastq	ymm6, qword ptr [r11]
+	vpxor	xmm7, xmm7, xmm7
+	movabs	r11, offset .LCPI0_2
+	vpbroadcastq	ymm8, qword ptr [r11]
+	.p2align	4, 0x90
+.LBB0_15:                               # %vector.body107
+                                        # =>This Inner Loop Header: Depth=1
+	vpsllvq	ymm9, ymm4, ymm3
+	vpsllvq	ymm10, ymm4, ymm2
+	vpxor	ymm11, ymm2, ymm5
+	vpcmpgtq	ymm11, ymm11, ymm6
+	vpandn	ymm10, ymm11, ymm10
+	vpxor	ymm11, ymm3, ymm5
+	vpcmpgtq	ymm11, ymm11, ymm6
+	vpandn	ymm9, ymm11, ymm9
+	vpand	ymm9, ymm9, ymm0
+	vpand	ymm10, ymm10, ymm0
+	vpcmpeqq	ymm10, ymm10, ymm7
+	vpcmpeqq	ymm9, ymm9, ymm7
+	vpackssdw	ymm9, ymm9, ymm10
+	vpermq	ymm9, ymm9, 216                 # ymm9 = ymm9[0,2,1,3]
+	vblendvps	ymm9, ymm1, ymmword ptr [r9 + 4*r10], ymm9
+	vmovups	ymmword ptr [r9 + 4*r10], ymm9
+	add	r10, 8
+	vpaddq	ymm2, ymm8, ymm2
+	vpaddq	ymm3, ymm8, ymm3
+	cmp	rcx, r10
+	jne	.LBB0_15
+# %bb.16:                               # %middle.block99
+	cmp	r8, rcx
+	jne	.LBB0_17
+.LBB0_21:
+	lea	rsp, [rbp - 8]
+	pop	rbx
+	pop	rbp
+	vzeroupper
+	ret
+.LBB0_17:                               # %scalar.ph100
+	imul	rsi, r8
+	lea	rsi, [rdi + 4*rsi]
+	mov	edi, 1
+	xor	r9d, r9d
+	jmp	.LBB0_18
+	.p2align	4, 0x90
+.LBB0_20:                               # %L141
+                                        #   in Loop: Header=BB0_18 Depth=1
+	mov	dword ptr [rsi + 4*rcx], r10d
+	inc	rcx
+	cmp	r8, rcx
+	je	.LBB0_21
+.LBB0_18:                               # %L141
+                                        # =>This Inner Loop Header: Depth=1
+	shlx	r11, rdi, rcx
+	cmp	rcx, 64
+	cmovae	r11, r9
+	mov	r10d, edx
+	test	r11, rax
+	jne	.LBB0_20
+# %bb.19:                               # %L141
+                                        #   in Loop: Header=BB0_18 Depth=1
+	mov	r10d, dword ptr [rsi + 4*rcx]
+	jmp	.LBB0_20
+.Lfunc_end0:
+	.size	"julia_compiler_update!_2000", .Lfunc_end0-"julia_compiler_update!_2000"
+                                        # -- End function
+	.section	".note.GNU-stack","",@progbits
+	.text
+	.file	"sparse_update!"
+	.section	.ltext,"axl",@progbits
+	.globl	"julia_sparse_update!_2005"     # -- Begin function julia_sparse_update!_2005
+	.p2align	4, 0x90
+	.type	"julia_sparse_update!_2005",@function
+"julia_sparse_update!_2005":            # @"julia_sparse_update!_2005"
+; Function Signature: sparse_update!(Array{UInt32, 2}, Int64, UInt32, UInt64)
+# %bb.0:                                # %top
+	#DEBUG_VALUE: sparse_update!:labels <- [$rdi+0]
+	#DEBUG_VALUE: sparse_update!:state <- $rsi
+	#DEBUG_VALUE: sparse_update!:time <- $edx
+	#DEBUG_VALUE: sparse_update!:mask <- $rcx
+	push	rbp
+	mov	rbp, rsp
+	push	r14
+	push	rbx
+	sub	rsp, 16
+	test	rcx, rcx
+	je	.LBB0_1
+# %bb.2:                                # %L7.lr.ph
+	lea	rax, [rsi - 1]
+	cmp	rax, qword ptr [rdi + 24]
+	jae	.LBB0_9
+# %bb.3:                                # %L7.preheader
+	mov	r8, qword ptr [rdi]
+	mov	r9, qword ptr [rdi + 16]
+	movabs	r10, 4611686018427387903
+	add	r10, rsi
+	imul	r10, r9
+	xor	eax, eax
+	mov	r11d, 1
+	jmp	.LBB0_4
+	.p2align	4, 0x90
+.LBB0_7:                                # %L124
+                                        #   in Loop: Header=BB0_4 Depth=1
+	blsr	rcx, rcx
+	je	.LBB0_8
+.LBB0_4:                                # %L7
+                                        # =>This Inner Loop Header: Depth=1
+	tzcnt	rbx, rcx
+	cmp	rbx, r9
+	jae	.LBB0_10
+# %bb.5:                                # %L46
+                                        #   in Loop: Header=BB0_4 Depth=1
+	lea	r14, [r10 + rbx]
+	cmp	dword ptr [r8 + 4*r14], edx
+	jbe	.LBB0_7
+# %bb.6:                                # %L108
+                                        #   in Loop: Header=BB0_4 Depth=1
+	shlx	rbx, r11, rbx
+	mov	dword ptr [r8 + 4*r14], edx
+	or	rax, rbx
+	jmp	.LBB0_7
+.LBB0_1:
+	xor	eax, eax
+.LBB0_8:                                # %L128
+	add	rsp, 16
+	pop	rbx
+	pop	r14
+	pop	rbp
+	ret
+.LBB0_9:                                # %L7.lr.ph.split.us
+	tzcnt	rbx, rcx
+.LBB0_10:                               # %L43
+	inc	rbx
+	mov	qword ptr [rbp - 32], rbx
+	mov	qword ptr [rbp - 24], rsi
+	movabs	rax, offset j_throw_boundserror_2007
+	lea	rsi, [rbp - 32]
+	call	rax
+.Lfunc_end0:
+	.size	"julia_sparse_update!_2005", .Lfunc_end0-"julia_sparse_update!_2005"
+                                        # -- End function
+	.section	".note.GNU-stack","",@progbits

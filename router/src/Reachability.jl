@@ -476,6 +476,11 @@ function make_handler(graph::Graph; request_lock=ReentrantLock(), progress::Bool
     walking_index = prepare_walking(walking_index; progress)
     prepared_population = isnothing(population) || graph.resolution > 8 ? nothing :
         _prepare_population(population, walking_index; progress)
+    if !isnothing(prepared_population)
+        _startup_stage(progress, "Preparing population schedule bounds") do _
+            _population_schedule_hints(population, graph)
+        end
+    end
     return function (request)
         headers = _response_headers()
         query = try

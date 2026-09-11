@@ -3,6 +3,10 @@
 The earlier observations remain in the original report as history. They used an
 idle gate and do not support the decisions here. This appendix uses new trials.
 
+For the current adaptive engine and retained graph-specific schedule bounds,
+see the [three-experiment report](population-approved3-results.md). The measurements
+below remain the record of the earlier engine and candidate decisions.
+
 ## Method
 
 These are measured shared-host trials, not isolated or idle-host trials. The

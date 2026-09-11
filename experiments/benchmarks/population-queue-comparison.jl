@@ -5,8 +5,9 @@ end
 
 function shared_inputs(M)
     g, w, pp = borrow(M, graph), borrow(M, walking), borrow(M, prepared)
+    hints = hasfield(M.Population, :schedule_hints) ? (IdDict{M.Graph,Matrix{Int32}}(),) : ()
     p = M.Population(population.h3, population.weights, population.rollups,
-        IdDict{M.WalkingIndex,M.PreparedPopulation}(w => pp), ReentrantLock())
+        IdDict{M.WalkingIndex,M.PreparedPopulation}(w => pp), hints..., ReentrantLock())
     @assert g.departure === graph.departure
     @assert w.prepared.graph.targets === walking.prepared.graph.targets
     @assert M._prepare_population(p, w).weights === prepared.weights

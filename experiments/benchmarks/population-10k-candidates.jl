@@ -1,9 +1,9 @@
 # Load only in the resident benchmark. Each module shares the graph vectors.
-function candidate_module(name; incremental=false, expiry=false, bins=0, workers=0)
+function candidate_module(name; incremental=false, expiry=false, bins=0, workers=0, source_root=ROOT)
     wrapper = Module(name)
-    source = read(joinpath(ROOT, "router/src/Reachability.jl"), String)
+    source = read(joinpath(source_root, "router/src/Reachability.jl"), String)
     for file in ("population_packed.jl", "population_range.jl")
-        text = read(joinpath(ROOT, "router/src", file), String)
+        text = read(joinpath(source_root, "router/src", file), String)
         workers > 0 && (text = replace(text, "min(Threads.nthreads(:default), tiles)" => "min($workers, tiles)"))
         if expiry && file == "population_packed.jl"
             text = replace(text,
@@ -60,12 +60,12 @@ function candidate_module(name; incremental=false, expiry=false, bins=0, workers
     end
     # Keep all remaining includes relative to the production source directory.
     source = replace(source, r"include\(\"([^\"]+)\"\)" => text ->
-        "include($(repr(joinpath(ROOT, "router/src", match(r"\"([^\"]+)\"", text)[1]))))")
-    Base.include_string(wrapper, source, joinpath(ROOT, "router/src/Reachability.jl"))
+        "include($(repr(joinpath(source_root, "router/src", match(r"\"([^\"]+)\"", text)[1]))))")
+    Base.include_string(wrapper, source, joinpath(source_root, "router/src/Reachability.jl"))
     M = Base.invokelatest(getproperty, wrapper, :Reachability)
     if expiry
         text = read(joinpath(@__DIR__, "population-expiry.jl"), String)
-        kernel = read(joinpath(ROOT, "router/src/population_range.jl"), String)
+        kernel = read(joinpath(source_root, "router/src/population_range.jl"), String)
         start = findfirst("        for (slot, i) in enumerate(ids)", kernel).start
         stop = findfirst("        # Unchanged labels", kernel).start
         kernel = kernel[start:stop-1]

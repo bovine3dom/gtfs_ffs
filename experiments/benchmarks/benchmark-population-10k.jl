@@ -44,8 +44,9 @@ function parity(a, b)
 end
 function shared_inputs(M)
     g, w, pp = borrow(M, graph), borrow(M, walking), borrow(M, prepared)
+    hints = hasfield(M.Population, :schedule_hints) ? (IdDict{M.Graph,Matrix{Int32}}(),) : ()
     p = M.Population(population.h3, population.weights, population.rollups,
-        IdDict{M.WalkingIndex,M.PreparedPopulation}(w => pp), ReentrantLock())
+        IdDict{M.WalkingIndex,M.PreparedPopulation}(w => pp), hints..., ReentrantLock())
     @assert g.departure === graph.departure
     @assert w.prepared.graph.targets === walking.prepared.graph.targets
     @assert M._prepare_population(p, w).weights === prepared.weights
@@ -61,7 +62,7 @@ function query10(args; origin=PARIS, radius=18, budget=3, samples=96,
         step_ms=900_000, max_walk_ms=3_600_000, window_mode=mode, walking_index=w,
         exclude_origin_population=exclude, origin_batch_size=tile)
 end
-function main10()
+function main10(; inputs=("everything_res6.arrow", "everything_res7.arrow", "everything_res8.arrow", "kontur_h3.arrow"))
     logline("ENV julia=$VERSION threads=$(Threads.nthreads(:default)) cpu=$(Sys.cpu_info()[1].model) pid=$(getpid()) memory=$(memory_stats())")
     for directory in (joinpath(SNAPSHOT, "router/src"), joinpath(ROOT, "router/src"))
         for path in sort!(readdir(directory; join=true))
@@ -69,7 +70,7 @@ function main10()
             logline("SOURCE path=$path bytes=$(filesize(path)) sha256=$(bytes2hex(open(sha256, path)))")
         end
     end
-    for file in ("everything_res6.arrow", "everything_res7.arrow", "everything_res8.arrow", "kontur_h3.arrow")
+    for file in inputs
         path = joinpath(ROOT, "data", file)
         table = Arrow.Table(path)
         logline("INPUT file=$file bytes=$(filesize(path)) rows=$(length(first(Tuple(table)))) sha256=$(bytes2hex(open(sha256, path)))")

@@ -1,4 +1,4 @@
-struct PopulationWorkspace
+struct PopulationWorkspace{H}
     settled::Vector{UInt64}
     settled_ids::Vector{Int}
     reached::Vector{UInt64}
@@ -16,13 +16,39 @@ struct PopulationWorkspace
     projected::Dict{UInt64,UInt64}
     totals::Dict{UInt64,Float64}
     arrivals::Matrix{UInt32}
+    schedule_hints::H
 end
 
-PopulationWorkspace(n, destinations, origins=0) = PopulationWorkspace(zeros(UInt64, 2n), Int[],
+PopulationWorkspace(n, destinations, origins=0; schedule_hints=nothing) = PopulationWorkspace(zeros(UInt64, 2n), Int[],
     zeros(UInt64, destinations), Int32[], zeros(UInt64, destinations), Int32[],
     Dict{UInt64,UInt64}(), BinaryMinHeap{UInt64}(), zeros(Int, n), Int32[],
     UInt32[], UInt64[], Int[], Tuple{UInt32,UInt64}[], Dict{UInt64,UInt64}(), Dict{UInt64,Float64}(),
-    Matrix{UInt32}(undef, origins, 2n))
+    Matrix{UInt32}(undef, origins, 2n), schedule_hints)
+
+@inline _population_next_arrival(::Nothing, graph, edge, ready, cutoff) =
+    next_arrival(graph.schedule_ptr, graph.departure, graph.arrival, edge, ready, cutoff)
+
+@inline function _population_next_arrival(hints::Matrix{Int32}, graph, edge, ready::UInt32, cutoff::UInt32)
+    base = div(ready, PERIOD) * PERIOD
+    base > cutoff && return INF
+    time = ready % PERIOD
+    bin = Int(div(time, div(PERIOD, UInt32(8)))) + 1
+    @inbounds lo, stop = hints[bin, edge], graph.schedule_ptr[edge + 1]
+    # Include the first departure beyond the bin, including next-day profiles.
+    @inbounds hi = bin == 8 ? stop : min(stop - Int32(1), hints[bin + 1, edge]) + Int32(1)
+    while lo < hi
+        mid = lo + ((hi - lo) >> 1)
+        @inbounds if graph.departure[mid] < time
+            lo = mid + Int32(1)
+        else
+            hi = mid
+        end
+    end
+    lo == stop && return INF
+    @inbounds relative = graph.arrival[lo]
+    relative <= cutoff - base || return INF
+    return base + relative
+end
 
 @inline function _population_deadline(cutoffs, time)
     first = searchsortedfirst(cutoffs, time)
@@ -144,7 +170,7 @@ function _population_sample_packed!(w, graph, network, population, sources, ids,
             population.weights[node] > 0 && _population_credit!(w, Int32(node), mask)
             graph.out_ptr[node] == graph.out_ptr[node + 1] && continue
             for edge in graph.out_ptr[node]:(graph.out_ptr[node + 1] - Int32(1))
-                arrival = next_arrival(graph.schedule_ptr, graph.departure, graph.arrival, edge, time, cutoff)
+                arrival = _population_next_arrival(w.schedule_hints, graph, edge, time, cutoff)
                 arrival == INF && continue
                 target = graph.edge_to[edge]
                 _population_enqueue!(w, arrival, target, false, mask, cutoffs, population, limit)
@@ -353,7 +379,8 @@ function route_population(graph, population::Population, origin, departure_ms, b
     tiles = cld(length(heavy), tile_size)
     workers = min(Threads.nthreads(:default), tiles)
     range_origins = samples > fld(64, tile_size) ? tile_size : 0
-    workspaces = [PopulationWorkspace(prepared.node_count, length(sources.weights), range_origins) for _ in 1:workers]
+    schedule_hints = _population_schedule_hints(population, graph)
+    workspaces = [PopulationWorkspace(prepared.node_count, length(sources.weights), range_origins; schedule_hints) for _ in 1:workers]
     next_tile = Threads.Atomic{Int}(1)
     failed = Threads.Atomic{Bool}(false)
     counts = Vector{Tuple{Int,Int}}(undef, workers)
