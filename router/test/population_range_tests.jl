@@ -6,6 +6,61 @@ using ..PopulationPackedTests
 
 allocated_range(args::Vararg{Any,N}) where N = @allocated Reachability._population_sample_range!(args...)
 
+@testset "Range queue equal times, stale keys, and sample reset" begin
+    R = Reachability
+    origin = H3.API.latLngToCell(H3.API.LatLng(0.5, 0.1), 7)::UInt64
+    a, b, c, d, e = sort!(H3.API.gridDisk(origin, 1))[1:5]
+    # Node a pops before b adds another origin at the same time; e has stale later keys.
+    graph = R.pack_graph((from_h3=[c, d, c, b, b, a, a, e], to_h3=[a, b, e, e, a, e, a, e],
+        departure_ms=UInt32[20, 20, 0, 0, 20, 20, 20, 20], duration_ms=Int64[0, 0, 30, 25, 0, 0, 0, 0]))
+    index = R.prepare_walking(R.WalkingIndex(graph); max_walk_ms=0)
+    population = R._population(UInt64[first(H3.API.cellToChildren(h, 8)) for h in graph.h3], ones(5))
+    prepared = R._prepare_population(population, index)
+    weights = R._population_rollup(population, 7)
+    origins = [c, d, b]
+    sources = R._population_sources(index, prepared, weights, origins, UInt32(0))
+    w = R.PopulationWorkspace(5, length(sources.weights), 8)
+    fill!(w.arrivals, R.INF)
+    topology = R.WalkingTopology(index, 0)
+    for departure in reverse(0:4:100)
+        ready = UInt32[departure + sample for sample in 0:3 for _ in origins]
+        cutoffs = ready .+ UInt32(40)
+        R._population_sample_range!(w, graph, index.prepared.graph, prepared, sources,
+            1:3, ready, cutoffs, UInt32(0), w.arrivals)
+        expected = first(R._population_sample(graph, topology, repeat(origins, 4), ready, cutoffs, weights))
+        @test w.reached == [get(expected, cell, UInt64(0)) for cell in prepared.cells]
+        for (lane, cell) in enumerate(origins)
+            labels = [time <= first(cutoffs) ? time : R.INF for time in w.arrivals[lane, 1:2:end]]
+            @test labels == R.route_cpu(graph, cell, departure, 40)
+        end
+        @test all(==(R.INF), w.arrivals[:, 2:2:end])
+        @test all(==(R.INF), w.arrivals[4:end, :])
+        @test all(iszero, w.range_pending)
+        @test all(==(R.INF), w.range_queued)
+        @test isempty(w.queue) && isempty(w.pending)
+    end
+    huge = R._population(population.h3, fill(floatmax(Float64), 5))
+    cache = R.PopulationResultCache(graph, huge, index)
+    @test_throws ArgumentError R._cached_route_population(cache, c, 0, 40;
+        origin_radius=1, window_ms=96, step_ms=1, max_walk_ms=0, window_mode=:min_union)
+    @test isempty(cache.totals) && isempty(cache.order)
+end
+
+@testset "Range repair near the reserved time boundary" begin
+    R = Reachability
+    (; graph, population, origin, index) = PopulationPackedTests.fixture(7)
+    step = div(Int(R.MAX_TIME_MS) - 100, 95)
+    for mode in PopulationPackedTests.MODES, exclude in (false, true)
+        options = (; walking_index=index, max_walk_ms=0, origin_radius=1,
+            window_ms=95step + 1, step_ms=step, window_mode=mode, exclude_origin_population=exclude)
+        actual = R.route_population(graph, population, origin, 0, 100; options...)
+        expected = PopulationPackedTests.oracle(graph, population, index, actual.h3,
+            0, 100, step, 96, 0, mode; exclude_origin_population=exclude)
+        @test iszero.(actual.value) == iszero.(expected)
+        @test isapprox(actual.value, expected; rtol=1e-12, atol=1e-6)
+    end
+end
+
 @testset "Adaptive tiles use classified transit origins" begin
     R = Reachability
     origin = H3.API.latLngToCell(H3.API.LatLng(0.5, 0.1), 7)::UInt64
@@ -138,6 +193,7 @@ end
         @test all(isapprox.(actual.value, expected; rtol=1e-12, atol=1e-9))
         @test w.arrivals === labels
         @test isempty(w.pending) && isempty(w.queue) && isempty(w.times) && isempty(w.coverage_ids)
+        @test all(iszero, w.range_pending) && all(==(R.INF), w.range_queued)
         @test all(iszero, w.heads)
     end
     other = R.PopulationWorkspace(length(graph.h3), length(sources.weights), 16)

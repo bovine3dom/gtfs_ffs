@@ -13,7 +13,8 @@ differential tests and benchmark harnesses.
 
 `benchmarks/` contains reusable CPU harnesses and measurement reports.
 The [CPU research decisions](benchmarks/cpu-research-results.md) record accepted
-and rejected population changes. The [roadmap](benchmarks/roadmap.md) lists
+and rejected population changes. The [dense-network results](benchmarks/dense-population-results.md)
+cover range pending masks and exact label pruning. The [roadmap](benchmarks/roadmap.md) lists
 conditional research ideas. Reports describe measured snapshots, not the current API.
 
 ```sh

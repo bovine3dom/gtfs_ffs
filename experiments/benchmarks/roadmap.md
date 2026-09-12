@@ -1,11 +1,12 @@
 # Research Roadmap
 
-Use the [CPU decisions](cpu-research-results.md) as the population baseline.
+Use the [CPU decisions](cpu-research-results.md) and
+[dense-network results](dense-population-results.md) as the population baseline.
 Use the [GPU plan](../../gpu_todo.md) for active hardware work.
 
 ## CPU Measurement
 
-- Profile timetable lookup and queue work before another population change.
+- Measure shared timed events across origin tiles before changing the batching model. Preserve worker balance and bound label storage.
 - Measure kilometre replay and its heap before workspace changes.
 - Measure sparse-query clearing and output storage before adding sparse buffers.
 - Consider destination-parallel aggregation only if its measured cost warrants it. Preserve chronological reduction order.

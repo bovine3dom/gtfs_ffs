@@ -7,6 +7,8 @@ adaptive origin tiles, and eight-bin schedule bounds. Stop the closed CPU
 prototype paths. These results do not measure the handler's population-result
 cache. The current [population benchmark](benchmark-population.jl) and
 [cache benchmark](benchmark-population-cache.jl) remain available.
+The [dense-network follow-up](dense-population-results.md) adds range pending
+masks and exact label pruning to this baseline.
 
 Measurements used Julia 1.12.7 on a Xeon E3-1275 v6 with four cores, eight
 hardware threads, and 62 GiB RAM. Later trials used eight routing threads and

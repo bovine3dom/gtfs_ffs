@@ -15,6 +15,8 @@ struct PopulationWorkspace{H}
     radii::Vector{Tuple{UInt32,UInt64}}
     projected::Dict{UInt64,UInt64}
     totals::Dict{UInt64,Float64}
+    range_pending::Vector{UInt64}
+    range_queued::Vector{UInt32}
     arrivals::Matrix{UInt32}
     schedule_hints::H
 end
@@ -23,6 +25,7 @@ PopulationWorkspace(n, destinations, origins=0; schedule_hints=nothing) = Popula
     zeros(UInt64, destinations), Int32[], zeros(UInt64, destinations), Int32[],
     Dict{UInt64,UInt64}(), BinaryMinHeap{UInt64}(), zeros(Int, n), Int32[],
     UInt32[], UInt64[], Int[], Tuple{UInt32,UInt64}[], Dict{UInt64,UInt64}(), Dict{UInt64,Float64}(),
+    zeros(UInt64, iszero(origins) ? 0 : 2n), fill(INF, iszero(origins) ? 0 : 2n),
     Matrix{UInt32}(undef, origins, 2n), schedule_hints)
 
 @inline _population_next_arrival(::Nothing, graph, edge, ready, cutoff) =

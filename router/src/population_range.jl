@@ -19,9 +19,12 @@
     iszero(w.settled[state]) && push!(w.settled_ids, state)
     w.settled[state] |= improved
     key = (UInt64(time) << 32) | UInt64(state - 1)
-    previous = get(w.pending, key, UInt64(0))
-    iszero(previous) && push!(w.queue, key)
-    w.pending[key] = previous | improved
+    w.range_pending[state] |= improved
+    # Labels identify each pending lane's time; duplicate heap keys are harmless.
+    if w.range_queued[state] != time
+        push!(w.queue, key)
+        w.range_queued[state] = time
+    end
     return nothing
 end
 
@@ -58,13 +61,16 @@ function _population_sample_range!(w, graph, network, population, sources, ids, 
             key = pop!(w.queue)
             time, state = UInt32(key >> 32), Int(key % UInt32) + 1
             node, walk = (state + 1) >> 1, iseven(state)
-            mask = pop!(w.pending, key)
+            # Clear before relaxation: a zero-time edge can add another lane at this time.
+            w.range_queued[state] == time && (w.range_queued[state] = INF)
+            mask = w.range_pending[state]
             valid = UInt64(0)
             while !iszero(mask)
                 lane = trailing_zeros(mask) + 1
                 labels[lane, state] == time && (valid |= UInt64(1) << (lane - 1))
                 mask &= mask - UInt64(1)
             end
+            w.range_pending[state] &= ~valid
             mask = valid
             iszero(mask) && continue
             shared += 1
@@ -78,9 +84,19 @@ function _population_sample_range!(w, graph, network, population, sources, ids, 
                 end
             else
                 for edge in graph.out_ptr[node]:(graph.out_ptr[node + 1] - Int32(1))
+                    target = graph.edge_to[edge]
+                    state_a = 2Int(target) - 1
+                    walking = population.walk_min[target] <= min(limit, cutoff - time) && !iszero(limit)
+                    possible = mask
+                    # Nonnegative travel cannot improve labels already at or before time.
+                    while !iszero(possible)
+                        lane = trailing_zeros(possible) + 1
+                        (time < labels[lane, state_a] || (walking && time < labels[lane, state_a + 1])) && break
+                        possible &= possible - UInt64(1)
+                    end
+                    iszero(possible) && continue
                     arrival = _population_next_arrival(w.schedule_hints, graph, edge, time, cutoff)
                     arrival == INF && continue
-                    target = graph.edge_to[edge]
                     _population_range_enqueue!(w, labels, arrival, target, false, mask, cutoff, population, limit)
                     _population_range_enqueue!(w, labels, arrival, target, true, mask, cutoff, population, limit)
                 end
