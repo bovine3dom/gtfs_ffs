@@ -1,0 +1,227 @@
+PROMOTION=false status=started pid=1249951 Julia=1.12.7 threads=8 HEAD=952698e51902c10c3c6b6304d862bec530d96312
+batch=64 history=descending hints=8 max_walk_ms=3600000 skip_invalid_durations=true badajoz_shuttle=true distance=retained result_cache=false
+SOURCE /home/olie/projects/gtfs_ffs/router/src/Reachability.jl df9943e07b82f3265fde443a84033a03345a51ecb1cfda92e223393a2fd96bea
+SOURCE /home/olie/projects/gtfs_ffs/router/src/catchup.jl cc60fc5deede1be18c51f1052b28296d4e243522a18c8dd300d452de6a59dbb0
+SOURCE /home/olie/projects/gtfs_ffs/router/src/graph_resolution.jl 1a0f7e0ddf53712e3466d1b021652539c09d1b06d07644fc6eb87da0a1f578bf
+SOURCE /home/olie/projects/gtfs_ffs/router/src/missing_data.jl c0526f17e0471f5a4dc6b45a794fbdb4fb1f9ba5d9451c9de2e2e5ef5526d7cf
+SOURCE /home/olie/projects/gtfs_ffs/router/src/population.jl 9735689e5e9652882f31e84f0adb81dcbee274b8ca60f92daeb1fa034cdaee79
+SOURCE /home/olie/projects/gtfs_ffs/router/src/population_packed.jl 8636defa35ca9b59696793721f7d555f77402d95e9e96f1c51e9dce286d88171
+SOURCE /home/olie/projects/gtfs_ffs/router/src/population_range.jl f9c9df8c5e84d218bae927948f18f0d86cd273b5a811d77b9c66c9ea1fb6b5be
+SOURCE /home/olie/projects/gtfs_ffs/router/src/walking.jl a4394cd1c8e5fd0ea88d87af9ce5b45b4ba7f2d18110f477dd0ae47b96efe5d0
+SOURCE /home/olie/projects/gtfs_ffs/router/src/walking_catchup.jl 3a8f44ba29a7ad4286215dede44fe7f4f1d052937a4d7437f59c8838ba80af40
+SOURCE /home/olie/projects/gtfs_ffs/router/src/walking_geometry.jl 00f1436a6767cba37acf8cdbf64ea0a2740cc22268683c9512b3eac2bf5a65f9
+SOURCE /home/olie/projects/gtfs_ffs/router/src/walking_output.jl 0625078ab98435dc84066759a2b2853763861c2ff829b78db7fd80f9d63db6f3
+SOURCE /home/olie/projects/gtfs_ffs/router/src/walking_window.jl 18820d429056b077ac2b48ffe10607052296add3146c159356df2d09cce44da9
+SOURCE /home/olie/projects/gtfs_ffs/router/src/warmup.jl fbf6eed61fd6d559da9597f073a470e53c7b26534b71d0dd3472a2265f9f3022
+SOURCE /home/olie/projects/gtfs_ffs/router/src/websocket.jl 9a5d856825f9cfd3f912458d1ffe72aa0e64997ad83c54454af19b5b08075c45
+SOURCE /home/olie/projects/gtfs_ffs/router/src/window.jl efecaf1da514ac7a4233ee6e2980589923e06c176c5302274243fe0a5ee32967
+SOURCE /home/olie/projects/gtfs_ffs/experiments/hierarchy/Hierarchy.jl 4f2ed2632dafdc7e3ee8bae20061cbd2dfd92245de72103bc489696c8a812e76
+SOURCE /home/olie/projects/gtfs_ffs/experiments/hierarchy/Boarding.jl 314a7d49df2008e03ee2bef0400b7617bdf00cab8de1cb676ee319eaf5c11bca
+SOURCE /home/olie/projects/gtfs_ffs/experiments/hierarchy/benchmark.jl 6452737a886fc0c4e7b1a4f19b7dffa8173333e91b10e6fb48ec45795a867316
+SOURCE /home/olie/projects/gtfs_ffs/experiments/hierarchy/benchmark-full.jl c627883eb080a5de171d890dbd7e2217b921f0d16c627941dca627b9abfdaeb9
+INPUT path=/home/olie/projects/gtfs_ffs/data/everything_res8.arrow bytes=7402563314 sha256=eb0b3d7e26bed7535522a4ce34aa1f4439053676a3d99356e8887c1b86b06ada
+POPULATION sha256=c21eaf6c3eb65563e80f2055347ad13f979014a190f8472817c25a591f427eb3
+START fine_load rss=669356032 available=58565099520
+[ Info: Startup: Opening Arrow file /home/olie/projects/gtfs_ffs/data/everything_res8.arrow
+┌ Info: Startup complete: Opening Arrow file /home/olie/projects/gtfs_ffs/data/everything_res8.arrow
+└   elapsed_s = 1.594491183
+[ Info: Startup: Validating and filtering rows
+┌ Warning: Skipping 88936 of 205591459 connections: duration_ms outside the two-day UInt32 profile range (3205 negative, 85731 overflowing; range (-20280000, 1767361200000))
+└ @ Main.FullNetworkBenchmark.HierarchyBenchmark.Reachability ~/projects/gtfs_ffs/router/src/Reachability.jl:99
+┌ Info: Startup complete: Validating and filtering rows
+└   elapsed_s = 14.24145536
+[ Info: Startup: Materializing sort columns
+┌ Info: Startup complete: Materializing sort columns
+└   elapsed_s = 2.70086824
+[ Info: Startup: Indexing and validating H3 endpoints
+┌ Info: Startup complete: Indexing and validating H3 endpoints
+└   elapsed_s = 4.010791952
+┌ Info: Added Elvas-Badajoz fantasy rail shuttle
+│   resolution = 8
+└   connections = 2342
+[ Info: Startup: Sorting connections by edge
+┌ Info: Startup complete: Sorting connections by edge
+└   elapsed_s = 36.270479205
+[ Info: Startup: Packing daily profiles
+┌ Info: Startup complete: Packing daily profiles
+└   elapsed_s = 31.969585514
+END fine_load seconds=93.851544639 allocated=55602829576 gc_s=2.669016793 compile_s=12.035525885 rss=13734866944 available=51137671168 maxrss=29107601408
+FINE resolution=8 nodes=900197 edges=2984575 profiles=316136664 distance=316136664
+START fine_walking rss=13725118464 available=51156647936
+WALK_COUNTS geographic=105273069 network=33030524 packed_bytes=3069445208 available=52395417600
+END fine_walking seconds=148.703360854 allocated=31200345576 gc_s=2.146577654 compile_s=2.068037279 rss=10660642816 available=48703201280 maxrss=29107601408
+START fine_population rss=10660642816 available=48703201280
+END fine_population seconds=12.929891227 allocated=10403747240 gc_s=0.583125 compile_s=1.18556898 rss=12680941568 available=45548515328 maxrss=29107601408
+CENTRE city=Paris lat=48.85 lon=2.35 h3=881fb46625fffff resolution=8 prepared=1141 query=1027
+START hierarchy_Paris rss=12681117696 available=45586657280
+END hierarchy_Paris seconds=49.981603515 allocated=40837703792 gc_s=2.095040661 compile_s=1.605483438 rss=18813538304 available=38262181888 maxrss=29107601408
+HIERARCHY city=Paris stats=(preparation_s = 49.981578067, core_s = 19.188048276, access_s = 6.290456012, origins = 1141, core_nodes = 117777, core_edges = 544603, core_profiles = 100385985, source_profiles = 10427547, network_walks = 560836, output_walks = 14933426, fine_destinations = 4654477, access_nodes = 124047)
+START boarding_Paris rss=18813870080 available=38262181888
+END boarding_Paris seconds=66.862771437 allocated=68522965856 gc_s=1.361620001 compile_s=1.756907218 rss=21254471680 available=38092566528 maxrss=29107601408
+TRIAL city=Paris radius=6 samples=4 step=60000 hours=3 mode=mean_intersection variant=fine pair=0 seconds=1.325292079
+TRIAL city=Paris radius=6 samples=4 step=60000 hours=3 mode=mean_intersection variant=boarding pair=0 seconds=0.651774002
+TRIAL city=Paris radius=6 samples=4 step=60000 hours=3 mode=mean_intersection variant=boarding pair=1 seconds=0.128331852
+TRIAL city=Paris radius=6 samples=4 step=60000 hours=3 mode=mean_intersection variant=fine pair=1 seconds=0.555075934
+TRIAL city=Paris radius=6 samples=4 step=60000 hours=3 mode=mean_intersection variant=fine pair=2 seconds=0.594801156
+TRIAL city=Paris radius=6 samples=4 step=60000 hours=3 mode=mean_intersection variant=boarding pair=2 seconds=0.19909745
+TRIAL city=Paris radius=6 samples=4 step=60000 hours=3 mode=mean_intersection variant=boarding pair=3 seconds=0.118915897
+TRIAL city=Paris radius=6 samples=4 step=60000 hours=3 mode=mean_intersection variant=fine pair=3 seconds=0.521782003
+TRIAL city=Paris radius=6 samples=4 step=60000 hours=3 mode=reachable_union variant=fine pair=0 seconds=0.513137755
+TRIAL city=Paris radius=6 samples=4 step=60000 hours=3 mode=reachable_union variant=boarding pair=0 seconds=0.175776126
+TRIAL city=Paris radius=6 samples=4 step=60000 hours=3 mode=reachable_union variant=boarding pair=1 seconds=0.17249879
+TRIAL city=Paris radius=6 samples=4 step=60000 hours=3 mode=reachable_union variant=fine pair=1 seconds=0.572043964
+TRIAL city=Paris radius=6 samples=4 step=60000 hours=3 mode=reachable_union variant=fine pair=2 seconds=0.496148985
+TRIAL city=Paris radius=6 samples=4 step=60000 hours=3 mode=reachable_union variant=boarding pair=2 seconds=0.204260911
+TRIAL city=Paris radius=6 samples=4 step=60000 hours=3 mode=reachable_union variant=boarding pair=3 seconds=0.17263356
+TRIAL city=Paris radius=6 samples=4 step=60000 hours=3 mode=reachable_union variant=fine pair=3 seconds=0.620535729
+TRIAL city=Paris radius=18 samples=96 step=900000 hours=3 mode=mean_intersection variant=fine pair=0 seconds=34.410498496
+TRIAL city=Paris radius=18 samples=96 step=900000 hours=3 mode=mean_intersection variant=boarding pair=0 seconds=5.219518015
+TRIAL city=Paris radius=18 samples=96 step=900000 hours=3 mode=mean_intersection variant=boarding pair=1 seconds=5.187575479
+TRIAL city=Paris radius=18 samples=96 step=900000 hours=3 mode=mean_intersection variant=fine pair=1 seconds=33.933007814
+TRIAL city=Paris radius=18 samples=96 step=900000 hours=3 mode=mean_intersection variant=fine pair=2 seconds=33.952613719
+TRIAL city=Paris radius=18 samples=96 step=900000 hours=3 mode=mean_intersection variant=boarding pair=2 seconds=5.224527366
+TRIAL city=Paris radius=18 samples=96 step=900000 hours=3 mode=mean_intersection variant=boarding pair=3 seconds=5.195262019
+TRIAL city=Paris radius=18 samples=96 step=900000 hours=3 mode=mean_intersection variant=fine pair=3 seconds=33.955184549
+TRIAL city=Paris radius=18 samples=96 step=900000 hours=3 mode=reachable_union variant=fine pair=0 seconds=34.427564847
+TRIAL city=Paris radius=18 samples=96 step=900000 hours=3 mode=reachable_union variant=boarding pair=0 seconds=5.09945522
+TRIAL city=Paris radius=18 samples=96 step=900000 hours=3 mode=reachable_union variant=boarding pair=1 seconds=5.157454556
+TRIAL city=Paris radius=18 samples=96 step=900000 hours=3 mode=reachable_union variant=fine pair=1 seconds=34.200598688
+TRIAL city=Paris radius=18 samples=96 step=900000 hours=3 mode=reachable_union variant=fine pair=2 seconds=34.232508698
+TRIAL city=Paris radius=18 samples=96 step=900000 hours=3 mode=reachable_union variant=boarding pair=2 seconds=5.435986556
+TRIAL city=Paris radius=18 samples=96 step=900000 hours=3 mode=reachable_union variant=boarding pair=3 seconds=5.11493704
+TRIAL city=Paris radius=18 samples=96 step=900000 hours=3 mode=reachable_union variant=fine pair=3 seconds=34.441339881
+TRIAL city=Paris radius=18 samples=96 step=60000 hours=3 mode=mean_intersection variant=fine pair=0 seconds=20.990563039
+TRIAL city=Paris radius=18 samples=96 step=60000 hours=3 mode=mean_intersection variant=boarding pair=0 seconds=3.163633952
+TRIAL city=Paris radius=18 samples=96 step=60000 hours=3 mode=mean_intersection variant=boarding pair=1 seconds=3.192238998
+TRIAL city=Paris radius=18 samples=96 step=60000 hours=3 mode=mean_intersection variant=fine pair=1 seconds=20.816875649
+TRIAL city=Paris radius=18 samples=96 step=60000 hours=3 mode=mean_intersection variant=fine pair=2 seconds=20.788976205
+TRIAL city=Paris radius=18 samples=96 step=60000 hours=3 mode=mean_intersection variant=boarding pair=2 seconds=3.203004552
+TRIAL city=Paris radius=18 samples=96 step=60000 hours=3 mode=mean_intersection variant=boarding pair=3 seconds=3.294619929
+TRIAL city=Paris radius=18 samples=96 step=60000 hours=3 mode=mean_intersection variant=fine pair=3 seconds=20.670578287
+TRIAL city=Paris radius=18 samples=96 step=60000 hours=3 mode=reachable_union variant=fine pair=0 seconds=20.579845175
+TRIAL city=Paris radius=18 samples=96 step=60000 hours=3 mode=reachable_union variant=boarding pair=0 seconds=3.425002007
+TRIAL city=Paris radius=18 samples=96 step=60000 hours=3 mode=reachable_union variant=boarding pair=1 seconds=3.047275011
+TRIAL city=Paris radius=18 samples=96 step=60000 hours=3 mode=reachable_union variant=fine pair=1 seconds=20.602409619
+TRIAL city=Paris radius=18 samples=96 step=60000 hours=3 mode=reachable_union variant=fine pair=2 seconds=20.681416278
+TRIAL city=Paris radius=18 samples=96 step=60000 hours=3 mode=reachable_union variant=boarding pair=2 seconds=3.04476918
+TRIAL city=Paris radius=18 samples=96 step=60000 hours=3 mode=reachable_union variant=boarding pair=3 seconds=3.050203829
+TRIAL city=Paris radius=18 samples=96 step=60000 hours=3 mode=reachable_union variant=fine pair=3 seconds=20.484513011
+TRIAL city=Paris radius=6 samples=180 step=60000 hours=6 mode=mean_intersection variant=fine pair=0 seconds=68.505425325
+TRIAL city=Paris radius=6 samples=180 step=60000 hours=6 mode=mean_intersection variant=boarding pair=0 seconds=12.707925742
+TRIAL city=Paris radius=6 samples=180 step=60000 hours=6 mode=mean_intersection variant=boarding pair=1 seconds=12.853535036
+TRIAL city=Paris radius=6 samples=180 step=60000 hours=6 mode=mean_intersection variant=fine pair=1 seconds=66.134946016
+TRIAL city=Paris radius=6 samples=180 step=60000 hours=6 mode=mean_intersection variant=fine pair=2 seconds=66.517301504
+TRIAL city=Paris radius=6 samples=180 step=60000 hours=6 mode=mean_intersection variant=boarding pair=2 seconds=12.955404197
+TRIAL city=Paris radius=6 samples=180 step=60000 hours=6 mode=mean_intersection variant=boarding pair=3 seconds=12.986529038
+TRIAL city=Paris radius=6 samples=180 step=60000 hours=6 mode=mean_intersection variant=fine pair=3 seconds=67.393926057
+TRIAL city=Paris radius=6 samples=180 step=60000 hours=6 mode=reachable_union variant=fine pair=0 seconds=66.823599468
+TRIAL city=Paris radius=6 samples=180 step=60000 hours=6 mode=reachable_union variant=boarding pair=0 seconds=12.554357423
+TRIAL city=Paris radius=6 samples=180 step=60000 hours=6 mode=reachable_union variant=boarding pair=1 seconds=12.606047143
+TRIAL city=Paris radius=6 samples=180 step=60000 hours=6 mode=reachable_union variant=fine pair=1 seconds=67.231859351
+TRIAL city=Paris radius=6 samples=180 step=60000 hours=6 mode=reachable_union variant=fine pair=2 seconds=68.08150709
+TRIAL city=Paris radius=6 samples=180 step=60000 hours=6 mode=reachable_union variant=boarding pair=2 seconds=12.669212727
+TRIAL city=Paris radius=6 samples=180 step=60000 hours=6 mode=reachable_union variant=boarding pair=3 seconds=12.711469649
+TRIAL city=Paris radius=6 samples=180 step=60000 hours=6 mode=reachable_union variant=fine pair=3 seconds=68.014645306
+TRIAL city=Paris radius=6 samples=180 step=60000 hours=12 mode=mean_intersection variant=fine pair=0 seconds=132.74463858
+TRIAL city=Paris radius=6 samples=180 step=60000 hours=12 mode=mean_intersection variant=boarding pair=0 seconds=28.187322372
+TRIAL city=Paris radius=6 samples=180 step=60000 hours=12 mode=mean_intersection variant=boarding pair=1 seconds=28.224030834
+TRIAL city=Paris radius=6 samples=180 step=60000 hours=12 mode=mean_intersection variant=fine pair=1 seconds=129.66256673
+TRIAL city=Paris radius=6 samples=180 step=60000 hours=12 mode=mean_intersection variant=fine pair=2 seconds=131.138288436
+TRIAL city=Paris radius=6 samples=180 step=60000 hours=12 mode=mean_intersection variant=boarding pair=2 seconds=28.616096807
+TRIAL city=Paris radius=6 samples=180 step=60000 hours=12 mode=mean_intersection variant=boarding pair=3 seconds=28.753359148
+TRIAL city=Paris radius=6 samples=180 step=60000 hours=12 mode=mean_intersection variant=fine pair=3 seconds=129.828598992
+TRIAL city=Paris radius=6 samples=180 step=60000 hours=12 mode=reachable_union variant=fine pair=0 seconds=128.704328361
+TRIAL city=Paris radius=6 samples=180 step=60000 hours=12 mode=reachable_union variant=boarding pair=0 seconds=26.918301703
+TRIAL city=Paris radius=6 samples=180 step=60000 hours=12 mode=reachable_union variant=boarding pair=1 seconds=27.044142389
+TRIAL city=Paris radius=6 samples=180 step=60000 hours=12 mode=reachable_union variant=fine pair=1 seconds=130.635619527
+TRIAL city=Paris radius=6 samples=180 step=60000 hours=12 mode=reachable_union variant=fine pair=2 seconds=131.75882932
+TRIAL city=Paris radius=6 samples=180 step=60000 hours=12 mode=reachable_union variant=boarding pair=2 seconds=27.617561579
+TRIAL city=Paris radius=6 samples=180 step=60000 hours=12 mode=reachable_union variant=boarding pair=3 seconds=27.760059427
+TRIAL city=Paris radius=6 samples=180 step=60000 hours=12 mode=reachable_union variant=fine pair=3 seconds=130.768988835
+CENTRE city=London lat=51.5 lon=-0.12 h3=88194ad14dfffff resolution=8 prepared=1141 query=1027
+START hierarchy_London rss=25428357120 available=33908117504
+END hierarchy_London seconds=47.054733121 allocated=44977115760 gc_s=2.295418716 compile_s=0.0 rss=24807411712 available=32917606400 maxrss=30500417536
+HIERARCHY city=London stats=(preparation_s = 47.0546667, core_s = 18.153014441, access_s = 7.511020924, origins = 1141, core_nodes = 117777, core_edges = 544603, core_profiles = 100385985, source_profiles = 13178436, network_walks = 560836, output_walks = 14933426, fine_destinations = 4654477, access_nodes = 127123)
+START boarding_London rss=24134725632 available=33588125696
+END boarding_London seconds=73.001165669 allocated=77511536208 gc_s=1.371525471 compile_s=0.0 rss=26540654592 available=32583929856 maxrss=30854586368
+TRIAL city=London radius=6 samples=4 step=60000 hours=3 mode=mean_intersection variant=fine pair=0 seconds=0.819605583
+TRIAL city=London radius=6 samples=4 step=60000 hours=3 mode=mean_intersection variant=boarding pair=0 seconds=0.177394164
+TRIAL city=London radius=6 samples=4 step=60000 hours=3 mode=mean_intersection variant=boarding pair=1 seconds=0.152798568
+TRIAL city=London radius=6 samples=4 step=60000 hours=3 mode=mean_intersection variant=fine pair=1 seconds=0.828266905
+TRIAL city=London radius=6 samples=4 step=60000 hours=3 mode=mean_intersection variant=fine pair=2 seconds=0.824944625
+TRIAL city=London radius=6 samples=4 step=60000 hours=3 mode=mean_intersection variant=boarding pair=2 seconds=0.157043293
+TRIAL city=London radius=6 samples=4 step=60000 hours=3 mode=mean_intersection variant=boarding pair=3 seconds=0.19510201
+TRIAL city=London radius=6 samples=4 step=60000 hours=3 mode=mean_intersection variant=fine pair=3 seconds=0.821894318
+TRIAL city=London radius=6 samples=4 step=60000 hours=3 mode=reachable_union variant=fine pair=0 seconds=0.812815152
+TRIAL city=London radius=6 samples=4 step=60000 hours=3 mode=reachable_union variant=boarding pair=0 seconds=0.169826203
+TRIAL city=London radius=6 samples=4 step=60000 hours=3 mode=reachable_union variant=boarding pair=1 seconds=0.152305714
+TRIAL city=London radius=6 samples=4 step=60000 hours=3 mode=reachable_union variant=fine pair=1 seconds=0.833071278
+TRIAL city=London radius=6 samples=4 step=60000 hours=3 mode=reachable_union variant=fine pair=2 seconds=0.834657733
+TRIAL city=London radius=6 samples=4 step=60000 hours=3 mode=reachable_union variant=boarding pair=2 seconds=0.168308267
+TRIAL city=London radius=6 samples=4 step=60000 hours=3 mode=reachable_union variant=boarding pair=3 seconds=0.167516614
+TRIAL city=London radius=6 samples=4 step=60000 hours=3 mode=reachable_union variant=fine pair=3 seconds=0.866951276
+TRIAL city=London radius=18 samples=96 step=900000 hours=3 mode=mean_intersection variant=fine pair=0 seconds=64.128100273
+TRIAL city=London radius=18 samples=96 step=900000 hours=3 mode=mean_intersection variant=boarding pair=0 seconds=9.621678367
+TRIAL city=London radius=18 samples=96 step=900000 hours=3 mode=mean_intersection variant=boarding pair=1 seconds=9.704846627
+TRIAL city=London radius=18 samples=96 step=900000 hours=3 mode=mean_intersection variant=fine pair=1 seconds=64.801477483
+TRIAL city=London radius=18 samples=96 step=900000 hours=3 mode=mean_intersection variant=fine pair=2 seconds=64.601952357
+TRIAL city=London radius=18 samples=96 step=900000 hours=3 mode=mean_intersection variant=boarding pair=2 seconds=9.617486529
+TRIAL city=London radius=18 samples=96 step=900000 hours=3 mode=mean_intersection variant=boarding pair=3 seconds=9.648927122
+TRIAL city=London radius=18 samples=96 step=900000 hours=3 mode=mean_intersection variant=fine pair=3 seconds=64.48347963
+TRIAL city=London radius=18 samples=96 step=900000 hours=3 mode=reachable_union variant=fine pair=0 seconds=64.7955334
+TRIAL city=London radius=18 samples=96 step=900000 hours=3 mode=reachable_union variant=boarding pair=0 seconds=9.170009939
+TRIAL city=London radius=18 samples=96 step=900000 hours=3 mode=reachable_union variant=boarding pair=1 seconds=9.301885133
+TRIAL city=London radius=18 samples=96 step=900000 hours=3 mode=reachable_union variant=fine pair=1 seconds=63.400133814
+TRIAL city=London radius=18 samples=96 step=900000 hours=3 mode=reachable_union variant=fine pair=2 seconds=63.65292555
+TRIAL city=London radius=18 samples=96 step=900000 hours=3 mode=reachable_union variant=boarding pair=2 seconds=9.335326183
+TRIAL city=London radius=18 samples=96 step=900000 hours=3 mode=reachable_union variant=boarding pair=3 seconds=9.395023079
+TRIAL city=London radius=18 samples=96 step=900000 hours=3 mode=reachable_union variant=fine pair=3 seconds=63.915460411
+TRIAL city=London radius=18 samples=96 step=60000 hours=3 mode=mean_intersection variant=fine pair=0 seconds=43.103334182
+TRIAL city=London radius=18 samples=96 step=60000 hours=3 mode=mean_intersection variant=boarding pair=0 seconds=5.907305459
+TRIAL city=London radius=18 samples=96 step=60000 hours=3 mode=mean_intersection variant=boarding pair=1 seconds=6.223723489
+TRIAL city=London radius=18 samples=96 step=60000 hours=3 mode=mean_intersection variant=fine pair=1 seconds=43.541550459
+TRIAL city=London radius=18 samples=96 step=60000 hours=3 mode=mean_intersection variant=fine pair=2 seconds=43.004291021
+TRIAL city=London radius=18 samples=96 step=60000 hours=3 mode=mean_intersection variant=boarding pair=2 seconds=5.955469493
+TRIAL city=London radius=18 samples=96 step=60000 hours=3 mode=mean_intersection variant=boarding pair=3 seconds=5.879594594
+TRIAL city=London radius=18 samples=96 step=60000 hours=3 mode=mean_intersection variant=fine pair=3 seconds=42.584206144
+TRIAL city=London radius=18 samples=96 step=60000 hours=3 mode=reachable_union variant=fine pair=0 seconds=42.609882616
+TRIAL city=London radius=18 samples=96 step=60000 hours=3 mode=reachable_union variant=boarding pair=0 seconds=5.768581349
+TRIAL city=London radius=18 samples=96 step=60000 hours=3 mode=reachable_union variant=boarding pair=1 seconds=5.737752019
+TRIAL city=London radius=18 samples=96 step=60000 hours=3 mode=reachable_union variant=fine pair=1 seconds=43.075557453
+TRIAL city=London radius=18 samples=96 step=60000 hours=3 mode=reachable_union variant=fine pair=2 seconds=42.992912809
+TRIAL city=London radius=18 samples=96 step=60000 hours=3 mode=reachable_union variant=boarding pair=2 seconds=5.86385521
+TRIAL city=London radius=18 samples=96 step=60000 hours=3 mode=reachable_union variant=boarding pair=3 seconds=5.83685885
+TRIAL city=London radius=18 samples=96 step=60000 hours=3 mode=reachable_union variant=fine pair=3 seconds=42.966634452
+TRIAL city=London radius=6 samples=180 step=60000 hours=6 mode=mean_intersection variant=fine pair=0 seconds=48.450885759
+TRIAL city=London radius=6 samples=180 step=60000 hours=6 mode=mean_intersection variant=boarding pair=0 seconds=10.433276115
+TRIAL city=London radius=6 samples=180 step=60000 hours=6 mode=mean_intersection variant=boarding pair=1 seconds=10.383793369
+TRIAL city=London radius=6 samples=180 step=60000 hours=6 mode=mean_intersection variant=fine pair=1 seconds=48.971713491
+TRIAL city=London radius=6 samples=180 step=60000 hours=6 mode=mean_intersection variant=fine pair=2 seconds=49.07257631
+TRIAL city=London radius=6 samples=180 step=60000 hours=6 mode=mean_intersection variant=boarding pair=2 seconds=10.440236103
+TRIAL city=London radius=6 samples=180 step=60000 hours=6 mode=mean_intersection variant=boarding pair=3 seconds=10.465074447
+TRIAL city=London radius=6 samples=180 step=60000 hours=6 mode=mean_intersection variant=fine pair=3 seconds=48.878962037
+TRIAL city=London radius=6 samples=180 step=60000 hours=6 mode=reachable_union variant=fine pair=0 seconds=48.805516662
+TRIAL city=London radius=6 samples=180 step=60000 hours=6 mode=reachable_union variant=boarding pair=0 seconds=10.183328605
+TRIAL city=London radius=6 samples=180 step=60000 hours=6 mode=reachable_union variant=boarding pair=1 seconds=10.312233824
+TRIAL city=London radius=6 samples=180 step=60000 hours=6 mode=reachable_union variant=fine pair=1 seconds=48.9996291
+TRIAL city=London radius=6 samples=180 step=60000 hours=6 mode=reachable_union variant=fine pair=2 seconds=47.597743448
+TRIAL city=London radius=6 samples=180 step=60000 hours=6 mode=reachable_union variant=boarding pair=2 seconds=9.610368928
+TRIAL city=London radius=6 samples=180 step=60000 hours=6 mode=reachable_union variant=boarding pair=3 seconds=9.594088582
+TRIAL city=London radius=6 samples=180 step=60000 hours=6 mode=reachable_union variant=fine pair=3 seconds=46.433216474
+TRIAL city=London radius=6 samples=180 step=60000 hours=12 mode=mean_intersection variant=fine pair=0 seconds=115.205719159
+TRIAL city=London radius=6 samples=180 step=60000 hours=12 mode=mean_intersection variant=boarding pair=0 seconds=28.43784025
+TRIAL city=London radius=6 samples=180 step=60000 hours=12 mode=mean_intersection variant=boarding pair=1 seconds=29.859129241
+TRIAL city=London radius=6 samples=180 step=60000 hours=12 mode=mean_intersection variant=fine pair=1 seconds=130.968146898
+TRIAL city=London radius=6 samples=180 step=60000 hours=12 mode=mean_intersection variant=fine pair=2 seconds=121.23590553
+TRIAL city=London radius=6 samples=180 step=60000 hours=12 mode=mean_intersection variant=boarding pair=2 seconds=25.720808908
+TRIAL city=London radius=6 samples=180 step=60000 hours=12 mode=mean_intersection variant=boarding pair=3 seconds=25.649807789
+TRIAL city=London radius=6 samples=180 step=60000 hours=12 mode=mean_intersection variant=fine pair=3 seconds=116.379919286
+TRIAL city=London radius=6 samples=180 step=60000 hours=12 mode=reachable_union variant=fine pair=0 seconds=114.164605412
+TRIAL city=London radius=6 samples=180 step=60000 hours=12 mode=reachable_union variant=boarding pair=0 seconds=24.116458605
+TRIAL city=London radius=6 samples=180 step=60000 hours=12 mode=reachable_union variant=boarding pair=1 seconds=24.267406491
+TRIAL city=London radius=6 samples=180 step=60000 hours=12 mode=reachable_union variant=fine pair=1 seconds=113.557082982
+TRIAL city=London radius=6 samples=180 step=60000 hours=12 mode=reachable_union variant=fine pair=2 seconds=115.930485981
+TRIAL city=London radius=6 samples=180 step=60000 hours=12 mode=reachable_union variant=boarding pair=2 seconds=26.667652533
+TRIAL city=London radius=6 samples=180 step=60000 hours=12 mode=reachable_union variant=boarding pair=3 seconds=27.880612156
+TRIAL city=London radius=6 samples=180 step=60000 hours=12 mode=reachable_union variant=fine pair=3 seconds=128.862018694
+PROMOTION=false status=completed_requires_quality_review maxrss=30854586368

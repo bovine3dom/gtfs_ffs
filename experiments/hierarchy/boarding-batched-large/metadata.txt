@@ -1,0 +1,42 @@
+Julia=1.12.7 threads=8 CPU=Intel(R) Xeon(R) CPU E3-1275 v6 @ 3.80GHz large=true batch=64 history=descending
+SOURCE Reachability.jl de01db57ff2169c5af0be269ed7fb785afb30f31a109fc60c110e11c58f91c04
+SOURCE catchup.jl cc60fc5deede1be18c51f1052b28296d4e243522a18c8dd300d452de6a59dbb0
+SOURCE missing_data.jl c0526f17e0471f5a4dc6b45a794fbdb4fb1f9ba5d9451c9de2e2e5ef5526d7cf
+SOURCE population.jl 9735689e5e9652882f31e84f0adb81dcbee274b8ca60f92daeb1fa034cdaee79
+SOURCE population_packed.jl 8636defa35ca9b59696793721f7d555f77402d95e9e96f1c51e9dce286d88171
+SOURCE population_range.jl f9c9df8c5e84d218bae927948f18f0d86cd273b5a811d77b9c66c9ea1fb6b5be
+SOURCE walking.jl a4394cd1c8e5fd0ea88d87af9ce5b45b4ba7f2d18110f477dd0ae47b96efe5d0
+SOURCE walking_catchup.jl 3a8f44ba29a7ad4286215dede44fe7f4f1d052937a4d7437f59c8838ba80af40
+SOURCE walking_geometry.jl 00f1436a6767cba37acf8cdbf64ea0a2740cc22268683c9512b3eac2bf5a65f9
+SOURCE walking_output.jl 0625078ab98435dc84066759a2b2853763861c2ff829b78db7fd80f9d63db6f3
+SOURCE walking_window.jl 18820d429056b077ac2b48ffe10607052296add3146c159356df2d09cce44da9
+SOURCE warmup.jl fbf6eed61fd6d559da9597f073a470e53c7b26534b71d0dd3472a2265f9f3022
+SOURCE websocket.jl 9a5d856825f9cfd3f912458d1ffe72aa0e64997ad83c54454af19b5b08075c45
+SOURCE window.jl efecaf1da514ac7a4233ee6e2980589923e06c176c5302274243fe0a5ee32967
+SOURCE Hierarchy.jl 986fff688c0edc2c24cd3a10eb5b2950ef97b094aef87cd249808244decb6933
+SOURCE Boarding.jl da946e578d99ad532faa5f091b79a6b583e463b88c0598ec605e7f825dd6380e
+SOURCE benchmark-boarding.jl b3672aec5b4322f18a18c7453ca8f9ebce56a55e08292e05d700f581cd1f424d
+SOURCE benchmark-batched.jl 972e588f5c76eaedfb8e290c0f6835190b7b67dfd174e3bf72f07624af7d2aa1
+SCALAR_SOURCE 01d002974d17fc88c63fe5780d01edd6e313f4af290ce5d8d2c92d7f0a72aa2c
+INPUT 1f7868950158495ad72cfc47b2d1659ffc21329805de558ac312be2a2b0b1de7
+PREP city=Vienna core=6 stats=(preparation_s = 5.843917051, core_s = 0.475108543, access_s = 4.411614906, origins = 9919, core_nodes = 2146, core_edges = 10494, core_profiles = 1752692, source_profiles = 14126281, network_walks = 12041, output_walks = 352862, fine_destinations = 97682, access_nodes = 253923) wall_s=5.844082433 allocated=4266172648 compile_s=1.455349629 index_bytes=183235028 rss=4579725312
+BOARDING res=6 prep_s=20.300458828 allocated=13569086744 profiles=18441306 hints_bytes=3886912 tag_bytes_64=1544320 used_bytes_64=6177280
+TRIAL city=Vienna res=6 origins=9919 variant=fine pair=0 time=59.035650562 shared=252349987 separate=2154505980
+TRIAL city=Vienna res=6 origins=9919 variant=free pair=0 time=9.153774261 shared=48394723 separate=475854774
+TRIAL city=Vienna res=6 origins=9919 variant=scalar pair=0 time=25.990143054 shared=127212043 separate=127212043
+TRIAL city=Vienna res=6 origins=9919 variant=batched pair=0 time=7.829089794 shared=24037093 separate=126833193
+TRIAL city=Vienna res=6 origins=9919 variant=batched pair=1 time=7.260525214 shared=24037093 separate=126833193
+TRIAL city=Vienna res=6 origins=9919 variant=fine pair=1 time=55.220697054 shared=252349987 separate=2154505980
+TRIAL city=Vienna res=6 origins=9919 variant=free pair=1 time=9.159344336 shared=48394723 separate=475854774
+TRIAL city=Vienna res=6 origins=9919 variant=scalar pair=1 time=26.629947385 shared=127212043 separate=127212043
+TRIAL city=Vienna res=6 origins=9919 variant=scalar pair=2 time=26.81997773 shared=127212043 separate=127212043
+TRIAL city=Vienna res=6 origins=9919 variant=batched pair=2 time=7.550953381 shared=24037093 separate=126833193
+TRIAL city=Vienna res=6 origins=9919 variant=fine pair=2 time=56.869793794 shared=252349987 separate=2154505980
+TRIAL city=Vienna res=6 origins=9919 variant=free pair=2 time=9.433544334 shared=48394723 separate=475854774
+TRIAL city=Vienna res=6 origins=9919 variant=free pair=3 time=9.462429601 shared=48394723 separate=475854774
+TRIAL city=Vienna res=6 origins=9919 variant=scalar pair=3 time=27.316294257 shared=127212043 separate=127212043
+TRIAL city=Vienna res=6 origins=9919 variant=batched pair=3 time=7.619632112 shared=24037093 separate=126833193
+TRIAL city=Vienna res=6 origins=9919 variant=fine pair=3 time=56.290763189 shared=252349987 separate=2154505980
+SCALAR_EQUIVALENCE city=Vienna res=6 max_error=0.0
+MEDIANS city=Vienna res=6 origins=9919 Dict(:batched => 7.550953381, :fine => 56.290763189, :scalar => 26.81997773, :free => 9.433544334)
+FINISHED maxrss=7902613504

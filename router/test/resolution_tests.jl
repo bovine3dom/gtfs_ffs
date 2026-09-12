@@ -69,7 +69,9 @@ import Sockets
     @test_throws r"usage:" load_handlers(String[])
     @test_throws r"usage:" load_handlers(["--demo", "nonexistent.arrow"])
     @test_throws r"usage:" load_handlers(["--demo", "--demo"])
-    @test load_handlers(["--demo"])(HTTP.Request("GET", "/reachable?index=85075dd7fffffff&departure_h=8&budget_h=1&max_walk_h=0")).status == 200
+    demo = load_handlers(["--demo"])
+    @test demo(HTTP.Request("GET", "/reachable?index=85075dd7fffffff&departure_h=8&budget_h=1&max_walk_h=0")).status == 200
+    @test demo(HTTP.Request("GET", missing)).status == 400
     mktempdir() do dir
         dir = mkpath(joinpath(dir, "paths with spaces"))
         files = [joinpath(dir, "$(res == 7 ? "everything" : "rail_and_friends")_res$res.arrow") for res in 5:7]
@@ -93,7 +95,10 @@ import Sockets
             @test_throws r"filename H3 resolution 7 does not match graph resolution 5" load_handlers([empty_file])
             leading_zero = joinpath(dir, "rail-\u00e9t\u00e9_res2 friends_res06.arrow")
             Arrow.write(leading_zero, tables[2])
-            @test load_handlers([leading_zero])(HTTP.Request("GET", paths[2] * "&network=rail-%C3%A9t%C3%A9_res2%20friends")).status == 200
+            standalone = load_handlers([leading_zero])
+            @test standalone(HTTP.Request("GET", paths[2] * "&network=rail-%C3%A9t%C3%A9_res2%20friends")).status == 200
+            @test standalone(HTTP.Request("GET", paths[1])).status == 400
+            @test standalone(HTTP.Request("GET", missing)).status == 400
         end
         push!(files, joinpath(dir, "everything_res5.arrow"))
         Arrow.write(last(files), other_table)
@@ -123,7 +128,7 @@ import Sockets
             @test !occursin('\e', startup_log)
             for stage in ("Opening Arrow file", "Validating and filtering rows", "Indexing and validating H3 endpoints",
                           "Sorting connections by edge", "Packing daily profiles",
-                          "Enumerating walking geometry", "Packing walking adjacency", "Indexing walking output IDs")
+                          "Counting walking geometry", "Packing walking adjacency", "Indexing walking output IDs")
                 @test occursin("Startup: $stage", startup_log)
                 @test occursin("Startup complete: $stage", startup_log)
             end

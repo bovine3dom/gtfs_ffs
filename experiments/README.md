@@ -41,6 +41,13 @@ use after router changes. Closed prototype harnesses are not retained.
 The [trip-pattern decision](trip-patterns/decision.md) records the stopped CPU
 implementation path, input audit, correctness checks, and final measurements.
 
+## Hierarchy
+
+[Fine-access hierarchy](hierarchy/README.md) uses a coarse core with fine initial
+walking, first boarding, and population destinations. Its API and tests use the
+current CPU kernels. [Results](hierarchy/results.md) compare with res8, not ground
+truth. Production defaults are unchanged.
+
 ## Data
 
 [`data/export.sql`](data/export.sql) is a dataset-specific ClickHouse export example.

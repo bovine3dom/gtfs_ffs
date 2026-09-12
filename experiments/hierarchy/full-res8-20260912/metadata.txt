@@ -1,0 +1,36 @@
+PROMOTION=false status=started Julia=1.12.7 threads=8 HEAD=952698e51902c10c3c6b6304d862bec530d96312
+batch=64 history=descending hints=8 max_walk_ms=3600000 skip_invalid_durations=true badajoz_shuttle=true distance=retained result_cache=false
+SOURCE /home/olie/projects/gtfs_ffs/router/src/Reachability.jl df9943e07b82f3265fde443a84033a03345a51ecb1cfda92e223393a2fd96bea
+SOURCE /home/olie/projects/gtfs_ffs/router/src/catchup.jl cc60fc5deede1be18c51f1052b28296d4e243522a18c8dd300d452de6a59dbb0
+SOURCE /home/olie/projects/gtfs_ffs/router/src/graph_resolution.jl 65ffafd05285251e0f287f1020d1da20edea407a43952508a9a91434a27b84eb
+SOURCE /home/olie/projects/gtfs_ffs/router/src/missing_data.jl c0526f17e0471f5a4dc6b45a794fbdb4fb1f9ba5d9451c9de2e2e5ef5526d7cf
+SOURCE /home/olie/projects/gtfs_ffs/router/src/population.jl 9735689e5e9652882f31e84f0adb81dcbee274b8ca60f92daeb1fa034cdaee79
+SOURCE /home/olie/projects/gtfs_ffs/router/src/population_packed.jl 8636defa35ca9b59696793721f7d555f77402d95e9e96f1c51e9dce286d88171
+SOURCE /home/olie/projects/gtfs_ffs/router/src/population_range.jl f9c9df8c5e84d218bae927948f18f0d86cd273b5a811d77b9c66c9ea1fb6b5be
+SOURCE /home/olie/projects/gtfs_ffs/router/src/walking.jl a4394cd1c8e5fd0ea88d87af9ce5b45b4ba7f2d18110f477dd0ae47b96efe5d0
+SOURCE /home/olie/projects/gtfs_ffs/router/src/walking_catchup.jl 3a8f44ba29a7ad4286215dede44fe7f4f1d052937a4d7437f59c8838ba80af40
+SOURCE /home/olie/projects/gtfs_ffs/router/src/walking_geometry.jl 00f1436a6767cba37acf8cdbf64ea0a2740cc22268683c9512b3eac2bf5a65f9
+SOURCE /home/olie/projects/gtfs_ffs/router/src/walking_output.jl 0625078ab98435dc84066759a2b2853763861c2ff829b78db7fd80f9d63db6f3
+SOURCE /home/olie/projects/gtfs_ffs/router/src/walking_window.jl 18820d429056b077ac2b48ffe10607052296add3146c159356df2d09cce44da9
+SOURCE /home/olie/projects/gtfs_ffs/router/src/warmup.jl fbf6eed61fd6d559da9597f073a470e53c7b26534b71d0dd3472a2265f9f3022
+SOURCE /home/olie/projects/gtfs_ffs/router/src/websocket.jl 9a5d856825f9cfd3f912458d1ffe72aa0e64997ad83c54454af19b5b08075c45
+SOURCE /home/olie/projects/gtfs_ffs/router/src/window.jl efecaf1da514ac7a4233ee6e2980589923e06c176c5302274243fe0a5ee32967
+SOURCE /home/olie/projects/gtfs_ffs/experiments/hierarchy/Hierarchy.jl 4f2ed2632dafdc7e3ee8bae20061cbd2dfd92245de72103bc489696c8a812e76
+SOURCE /home/olie/projects/gtfs_ffs/experiments/hierarchy/Boarding.jl 314a7d49df2008e03ee2bef0400b7617bdf00cab8de1cb676ee319eaf5c11bca
+SOURCE /home/olie/projects/gtfs_ffs/experiments/hierarchy/benchmark.jl 6452737a886fc0c4e7b1a4f19b7dffa8173333e91b10e6fb48ec45795a867316
+SOURCE /home/olie/projects/gtfs_ffs/experiments/hierarchy/benchmark-full.jl 9b25e6ad9d4476e05d7907e24a7928a44047d424e62caf3f7eb301fda3385526
+INPUT path=/home/olie/projects/gtfs_ffs/data/everything_res8.arrow bytes=7402563314 sha256=eb0b3d7e26bed7535522a4ce34aa1f4439053676a3d99356e8887c1b86b06ada
+POPULATION sha256=c21eaf6c3eb65563e80f2055347ad13f979014a190f8472817c25a591f427eb3)
+START fine_load rss=682274816 available=27763691520
+END fine_load seconds=273.366540282 allocated=55603119208 gc_s=2.936271673 compile_s=11.871707355 rss=13474512896 available=31944708096 maxrss=28844023808
+FINE resolution=8 nodes=900197 edges=2984575 profiles=316136664 distance=316136664
+START fine_walking rss=13465632768 available=31938957312
+WALK_COUNTS geographic=105273069 network=33030524 packed_bytes=3069445208 available=30670086144
+END fine_walking seconds=158.629522959 allocated=31200350808 gc_s=2.337956338 compile_s=2.353073216 rss=10098282496 available=27927175168 maxrss=28844023808
+START fine_population rss=10098290688 available=27926958080
+END fine_population seconds=14.50295368 allocated=10403527008 gc_s=0.634562134 compile_s=1.413770251 rss=12396650496 available=25254014976 maxrss=28844023808
+CENTRE city=Paris lat=48.85 lon=2.35 h3=881fb46625fffff resolution=8 prepared=1141 query=1027
+START hierarchy_Paris rss=12398108672 available=25280565248
+END hierarchy_Paris seconds=55.343657274 allocated=40837723504 gc_s=2.322696892 compile_s=2.13597582 rss=18057502720 available=18554118144 maxrss=28844023808
+HIERARCHY city=Paris stats=(preparation_s = 55.343616859, core_s = 21.676999947, access_s = 6.906867372, origins = 1141, core_nodes = 117777, core_edges = 544603, core_profiles = 100385985, source_profiles = 10427547, network_walks = 560836, output_walks = 14933426, fine_destinations = 4654477, access_nodes = 124047)
+START boarding_Paris rss=18057568256 available=18569646080

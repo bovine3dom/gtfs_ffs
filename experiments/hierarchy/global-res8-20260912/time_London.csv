@@ -1,0 +1,9 @@
+city,samples,distance,variant,wall_s,bytes,destinations
+London,1,itinerary,fine,0.116405384,40972120,92041
+London,1,itinerary,coarse,0.059731665,20878616,74435
+London,1,straight_line,fine,0.153959363,25319920,92041
+London,1,straight_line,coarse,0.094861978,21376000,74435
+London,4,itinerary,fine,0.249880959,725419424,94724
+London,4,itinerary,coarse,0.230145485,68585568,76920
+London,4,straight_line,fine,0.202325785,276175592,94724
+London,4,straight_line,coarse,0.400483274,75513224,76920

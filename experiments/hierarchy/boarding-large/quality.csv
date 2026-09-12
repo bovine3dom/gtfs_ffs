@@ -1,0 +1,3 @@
+city,res,origins,departure,budget,samples,mode,exclude,variant,fine_mean,actual_mean,bias,wmae,abs_relative_p50,abs_relative_p95,min_signed,max_signed,zero_fine,zero_max_abs
+Vienna,6,9919,28800000,10800000,96,mean_intersection,false,free,376025.9024095171,592558.1920556508,216532.2896461337,0.5758440795132131,0.0,10.558061084748207,0.0,2.442171e6,0,0.0
+Vienna,6,9919,28800000,10800000,96,mean_intersection,false,walking,376025.9024095171,373363.38622845046,-2662.51618106664,0.13433406767297262,0.0,0.7418078694915565,-1.900483e6,1.915817e6,0,0.0

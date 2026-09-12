@@ -1,0 +1,156 @@
+START pid=1253751 Julia=1.12.7 threads=8 CPU=Intel(R) Xeon(R) CPU E3-1275 v6 @ 3.80GHz HEAD=952698e51902c10c3c6b6304d862bec530d96312
+global_model=true result_cache=false access_cache=false batch=64 history=descending max_walk_ms=3600000 startup_outside_queries=true
+SOURCE /home/olie/projects/gtfs_ffs/router/src/Reachability.jl 06cffb6a85ea3b79420266ca527298b7bb611d25197aa71c595cff3f4b27e630
+SOURCE /home/olie/projects/gtfs_ffs/router/src/catchup.jl cc60fc5deede1be18c51f1052b28296d4e243522a18c8dd300d452de6a59dbb0
+SOURCE /home/olie/projects/gtfs_ffs/router/src/coarse.jl 416cf59cbe8fb58fe83f12fb07df446dde2d4f35402e5982b5b6741b33abc976
+SOURCE /home/olie/projects/gtfs_ffs/router/src/graph_resolution.jl 1a0f7e0ddf53712e3466d1b021652539c09d1b06d07644fc6eb87da0a1f578bf
+SOURCE /home/olie/projects/gtfs_ffs/router/src/missing_data.jl c0526f17e0471f5a4dc6b45a794fbdb4fb1f9ba5d9451c9de2e2e5ef5526d7cf
+SOURCE /home/olie/projects/gtfs_ffs/router/src/population.jl 9735689e5e9652882f31e84f0adb81dcbee274b8ca60f92daeb1fa034cdaee79
+SOURCE /home/olie/projects/gtfs_ffs/router/src/population_packed.jl 197c1afc8175ce5618f64b109d000628bd8b2b08ebbcf71fe62e18e9da066f40
+SOURCE /home/olie/projects/gtfs_ffs/router/src/population_range.jl f9c9df8c5e84d218bae927948f18f0d86cd273b5a811d77b9c66c9ea1fb6b5be
+SOURCE /home/olie/projects/gtfs_ffs/router/src/walking.jl a4394cd1c8e5fd0ea88d87af9ce5b45b4ba7f2d18110f477dd0ae47b96efe5d0
+SOURCE /home/olie/projects/gtfs_ffs/router/src/walking_catchup.jl 3a8f44ba29a7ad4286215dede44fe7f4f1d052937a4d7437f59c8838ba80af40
+SOURCE /home/olie/projects/gtfs_ffs/router/src/walking_geometry.jl abfcac218177122fbd02bee4b4b3dd4bb841f7648a2c87157c045c7fff2294b8
+SOURCE /home/olie/projects/gtfs_ffs/router/src/walking_output.jl 0625078ab98435dc84066759a2b2853763861c2ff829b78db7fd80f9d63db6f3
+SOURCE /home/olie/projects/gtfs_ffs/router/src/walking_window.jl 18820d429056b077ac2b48ffe10607052296add3146c159356df2d09cce44da9
+SOURCE /home/olie/projects/gtfs_ffs/router/src/warmup.jl d5b1f4769e888b5d5a23fe483418262ccbc8f8205a5809a75bfa2da8b04ffee4
+SOURCE /home/olie/projects/gtfs_ffs/router/src/websocket.jl 9a5d856825f9cfd3f912458d1ffe72aa0e64997ad83c54454af19b5b08075c45
+SOURCE /home/olie/projects/gtfs_ffs/router/src/window.jl efecaf1da514ac7a4233ee6e2980589923e06c176c5302274243fe0a5ee32967
+SOURCE /home/olie/projects/gtfs_ffs/experiments/hierarchy/benchmark-global.jl 659ee69b5390a9756e8b659d75506d50d32217666e772d40a7aac856e0ac828e
+INPUT bytes=7402563314 sha256=eb0b3d7e26bed7535522a4ce34aa1f4439053676a3d99356e8887c1b86b06ada
+POPULATION sha256=c21eaf6c3eb65563e80f2055347ad13f979014a190f8472817c25a591f427eb3
+START fine_load available=58002137088 rss=742273024
+END fine_load seconds=97.926152841 bytes=55529725080 compile=10.801634374 rss=13365551104 available=51563679744 maxrss=29146365952
+FINE resolution=8 nodes=900197 edges=2984575 profiles=316136664 distance_retained=true
+START fine_walking available=51578101760 rss=13351936000
+END fine_walking seconds=112.281397924 bytes=31201129512 compile=2.262457203 rss=10504908800 available=48283230208 maxrss=29146365952
+START population available=48283230208 rss=10505240576
+END population seconds=14.685595909 bytes=10500721552 compile=1.412866628 rss=12697899008 available=45629984768 maxrss=29146365952
+START global_8_6 available=45671432192 rss=12698034176
+END global_8_6 seconds=17.847941003 bytes=8012046304 compile=0.011496675 rss=14622650368 available=43170242560 maxrss=29146365952
+MODEL source=8 target=6 nodes=117777 edges=1556215 refs=251740470 max_tag=49 rss=14622720000
+START global_8_7 available=43177496576 rss=14623617024
+END global_8_7 seconds=19.412981341 bytes=11024697472 compile=0.0 rss=16778948608 available=40786149376 maxrss=29146365952
+MODEL source=8 target=7 nodes=379305 edges=2156496 refs=274199678 max_tag=7 rss=16778948608
+START global_8_5 available=40786292736 rss=16778948608
+END global_8_5 seconds=17.23358628 bytes=7460450432 compile=0.0 rss=18846302208 available=38848053248 maxrss=29146365952
+MODEL source=8 target=5 nodes=31917 edges=1216181 refs=241406317 max_tag=342 rss=18846302208
+START derive_res7 available=38848102400 rss=18846302208
+END derive_res7 seconds=23.267469252 bytes=11801337832 compile=0.715362327 rss=21928701952 available=35742765056 maxrss=29146365952
+START walking_res7 available=35751206912 rss=21928701952
+END walking_res7 seconds=15.076921662 bytes=2814827136 compile=0.0 rss=21939322880 available=36029714432 maxrss=29146365952
+START global_7_6 available=36029714432 rss=21939322880
+END global_7_6 seconds=10.972239167 bytes=6001496624 compile=0.0 rss=23499698176 available=34151608320 maxrss=29146365952
+MODEL source=7 target=6 nodes=117777 edges=926763 refs=160598351 max_tag=7 rss=23499698176
+START global_7_5 available=34151731200 rss=23499698176
+END global_7_5 seconds=8.237002562 bytes=3386481296 compile=0.0 rss=24392347648 available=33734262784 maxrss=29146365952
+MODEL source=7 target=5 nodes=31917 edges=638772 refs=146677723 max_tag=49 rss=24392347648
+START derive_res6 available=33734262784 rss=24392347648
+END derive_res6 seconds=28.983264908 bytes=5840587776 compile=0.0 rss=26033557504 available=32579674112 maxrss=29146365952
+START walking_res6 available=32579674112 rss=26033557504
+END walking_res6 seconds=1.967648087 bytes=179912488 compile=0.0 rss=26038505472 available=32489840640 maxrss=29146365952
+START global_6_5 available=32486817792 rss=26038505472
+END global_6_5 seconds=5.007524523 bytes=2397945664 compile=0.0 rss=26706743296 available=30909878272 maxrss=29146365952
+MODEL source=6 target=5 nodes=31917 edges=309101 refs=84323515 max_tag=7 rss=26706743296
+START derive_res5 available=30912581632 rss=26706743296
+END derive_res5 seconds=35.154085422 bytes=2833972120 compile=0.0 rss=27509641216 available=31117635584 maxrss=29204328448
+REGISTRY models=6 graphs=4 rss=27509641216 available=31117635584
+CENTRE city=Paris h3=881fb46625fffff origins=1027 same_model=true
+TRIAL city=Paris radius=18 samples=96 step=900000 mode=mean_intersection variant=fine pair=0 wall=36.588037426 compile=7.637281179
+TRIAL city=Paris radius=18 samples=96 step=900000 mode=mean_intersection variant=coarse pair=0 wall=10.40621494 compile=10.7954754
+TRIAL city=Paris radius=18 samples=96 step=900000 mode=mean_intersection variant=coarse pair=1 wall=8.034401364 compile=0.0
+TRIAL city=Paris radius=18 samples=96 step=900000 mode=mean_intersection variant=fine pair=1 wall=35.738141195 compile=0.0
+TRIAL city=Paris radius=18 samples=96 step=900000 mode=mean_intersection variant=fine pair=2 wall=34.318318744 compile=0.0
+TRIAL city=Paris radius=18 samples=96 step=900000 mode=mean_intersection variant=coarse pair=2 wall=7.670497654 compile=0.0
+TRIAL city=Paris radius=18 samples=96 step=900000 mode=mean_intersection variant=coarse pair=3 wall=7.788403428 compile=0.0
+TRIAL city=Paris radius=18 samples=96 step=900000 mode=mean_intersection variant=fine pair=3 wall=34.609306603 compile=0.0
+TRIAL city=Paris radius=18 samples=96 step=900000 mode=reachable_union variant=fine pair=0 wall=34.942703682 compile=0.0
+TRIAL city=Paris radius=18 samples=96 step=900000 mode=reachable_union variant=coarse pair=0 wall=7.769949762 compile=0.0
+TRIAL city=Paris radius=18 samples=96 step=900000 mode=reachable_union variant=coarse pair=1 wall=8.057790691 compile=0.0
+TRIAL city=Paris radius=18 samples=96 step=900000 mode=reachable_union variant=fine pair=1 wall=35.29466008 compile=0.0
+TRIAL city=Paris radius=18 samples=96 step=900000 mode=reachable_union variant=fine pair=2 wall=35.481923556 compile=0.0
+TRIAL city=Paris radius=18 samples=96 step=900000 mode=reachable_union variant=coarse pair=2 wall=7.76238692 compile=0.0
+TRIAL city=Paris radius=18 samples=96 step=900000 mode=reachable_union variant=coarse pair=3 wall=8.253212553 compile=0.0
+TRIAL city=Paris radius=18 samples=96 step=900000 mode=reachable_union variant=fine pair=3 wall=36.130015583 compile=0.0
+TRIAL city=Paris radius=18 samples=96 step=60000 mode=mean_intersection variant=fine pair=0 wall=21.475055429 compile=0.0
+TRIAL city=Paris radius=18 samples=96 step=60000 mode=mean_intersection variant=coarse pair=0 wall=5.329737312 compile=0.0
+TRIAL city=Paris radius=18 samples=96 step=60000 mode=mean_intersection variant=coarse pair=1 wall=5.442514968 compile=0.0
+TRIAL city=Paris radius=18 samples=96 step=60000 mode=mean_intersection variant=fine pair=1 wall=21.568353026 compile=0.0
+TRIAL city=Paris radius=18 samples=96 step=60000 mode=mean_intersection variant=fine pair=2 wall=20.756045218 compile=0.0
+TRIAL city=Paris radius=18 samples=96 step=60000 mode=mean_intersection variant=coarse pair=2 wall=4.963467369 compile=0.0
+TRIAL city=Paris radius=18 samples=96 step=60000 mode=mean_intersection variant=coarse pair=3 wall=5.059306707 compile=0.0
+TRIAL city=Paris radius=18 samples=96 step=60000 mode=mean_intersection variant=fine pair=3 wall=20.628986882 compile=0.0
+TRIAL city=Paris radius=18 samples=96 step=60000 mode=reachable_union variant=fine pair=0 wall=20.99997343 compile=0.0
+TRIAL city=Paris radius=18 samples=96 step=60000 mode=reachable_union variant=coarse pair=0 wall=4.988548957 compile=0.0
+TRIAL city=Paris radius=18 samples=96 step=60000 mode=reachable_union variant=coarse pair=1 wall=5.082716556 compile=0.0
+TRIAL city=Paris radius=18 samples=96 step=60000 mode=reachable_union variant=fine pair=1 wall=21.397440349 compile=0.0
+TRIAL city=Paris radius=18 samples=96 step=60000 mode=reachable_union variant=fine pair=2 wall=21.462360841 compile=0.0
+TRIAL city=Paris radius=18 samples=96 step=60000 mode=reachable_union variant=coarse pair=2 wall=5.130257681 compile=0.0
+TRIAL city=Paris radius=18 samples=96 step=60000 mode=reachable_union variant=coarse pair=3 wall=4.838909039 compile=0.0
+TRIAL city=Paris radius=18 samples=96 step=60000 mode=reachable_union variant=fine pair=3 wall=20.279048547 compile=0.0
+TRIAL city=Paris_moved radius=18 samples=96 step=60000 mode=mean_intersection variant=fine pair=0 wall=20.712744176 compile=0.0
+TRIAL city=Paris_moved radius=18 samples=96 step=60000 mode=mean_intersection variant=coarse pair=0 wall=4.868469314 compile=0.0
+TRIAL city=Paris_moved radius=18 samples=96 step=60000 mode=mean_intersection variant=coarse pair=1 wall=5.097866227 compile=0.0
+TRIAL city=Paris_moved radius=18 samples=96 step=60000 mode=mean_intersection variant=fine pair=1 wall=21.013693841 compile=0.0
+TRIAL city=Paris_moved radius=18 samples=96 step=60000 mode=mean_intersection variant=fine pair=2 wall=21.066356044 compile=0.0
+TRIAL city=Paris_moved radius=18 samples=96 step=60000 mode=mean_intersection variant=coarse pair=2 wall=5.113628357 compile=0.0
+TRIAL city=Paris_moved radius=18 samples=96 step=60000 mode=mean_intersection variant=coarse pair=3 wall=5.11822356 compile=0.0
+TRIAL city=Paris_moved radius=18 samples=96 step=60000 mode=mean_intersection variant=fine pair=3 wall=21.437751643 compile=0.0
+TIME city=Paris samples=1 distance=itinerary common=32806 missing=25151 extra=8905 signed_mean_ms=383411.4547948546 mae_ms=1.1191515551423521e6
+TIME city=Paris samples=1 distance=straight_line common=32806 missing=25151 extra=8905 signed_mean_ms=383411.4547948546 mae_ms=1.1191515551423521e6
+TIME city=Paris samples=4 distance=itinerary common=39926 missing=21475 extra=12766 signed_mean_ms=317218.3178066924 mae_ms=1.009646540543756e6
+TIME city=Paris samples=4 distance=straight_line common=39926 missing=21475 extra=12766 signed_mean_ms=317218.3178066924 mae_ms=1.009646540543756e6
+TRIAL city=Paris_large radius=57 samples=96 step=60000 mode=mean_intersection variant=fine pair=0 wall=113.275563015 compile=0.0
+TRIAL city=Paris_large radius=57 samples=96 step=60000 mode=mean_intersection variant=coarse pair=0 wall=22.034527602 compile=0.0
+TRIAL city=Paris_large radius=57 samples=96 step=60000 mode=mean_intersection variant=coarse pair=1 wall=22.132459686 compile=0.0
+TRIAL city=Paris_large radius=57 samples=96 step=60000 mode=mean_intersection variant=fine pair=1 wall=116.503409448 compile=0.0
+TRIAL city=Paris_large radius=57 samples=96 step=60000 mode=mean_intersection variant=fine pair=2 wall=117.628611933 compile=0.0
+TRIAL city=Paris_large radius=57 samples=96 step=60000 mode=mean_intersection variant=coarse pair=2 wall=23.189593881 compile=0.0
+TRIAL city=Paris_large radius=57 samples=96 step=60000 mode=mean_intersection variant=coarse pair=3 wall=22.796998146 compile=0.0
+TRIAL city=Paris_large radius=57 samples=96 step=60000 mode=mean_intersection variant=fine pair=3 wall=113.599670155 compile=0.0
+CENTRE city=London h3=88194ad14dfffff origins=1027 same_model=true
+TRIAL city=London radius=18 samples=96 step=900000 mode=mean_intersection variant=fine pair=0 wall=66.73597284 compile=0.0
+TRIAL city=London radius=18 samples=96 step=900000 mode=mean_intersection variant=coarse pair=0 wall=14.463736982 compile=0.0
+TRIAL city=London radius=18 samples=96 step=900000 mode=mean_intersection variant=coarse pair=1 wall=14.461710795 compile=0.0
+TRIAL city=London radius=18 samples=96 step=900000 mode=mean_intersection variant=fine pair=1 wall=67.535927995 compile=0.0
+TRIAL city=London radius=18 samples=96 step=900000 mode=mean_intersection variant=fine pair=2 wall=66.738716586 compile=0.0
+TRIAL city=London radius=18 samples=96 step=900000 mode=mean_intersection variant=coarse pair=2 wall=14.160082529 compile=0.0
+TRIAL city=London radius=18 samples=96 step=900000 mode=mean_intersection variant=coarse pair=3 wall=13.77130051 compile=0.0
+TRIAL city=London radius=18 samples=96 step=900000 mode=mean_intersection variant=fine pair=3 wall=66.318811501 compile=0.0
+TRIAL city=London radius=18 samples=96 step=900000 mode=reachable_union variant=fine pair=0 wall=66.82082495 compile=0.0
+TRIAL city=London radius=18 samples=96 step=900000 mode=reachable_union variant=coarse pair=0 wall=14.387415266 compile=0.0
+TRIAL city=London radius=18 samples=96 step=900000 mode=reachable_union variant=coarse pair=1 wall=14.446727768 compile=0.0
+TRIAL city=London radius=18 samples=96 step=900000 mode=reachable_union variant=fine pair=1 wall=67.493189047 compile=0.0
+TRIAL city=London radius=18 samples=96 step=900000 mode=reachable_union variant=fine pair=2 wall=67.568821046 compile=0.0
+TRIAL city=London radius=18 samples=96 step=900000 mode=reachable_union variant=coarse pair=2 wall=14.673954964 compile=0.0
+TRIAL city=London radius=18 samples=96 step=900000 mode=reachable_union variant=coarse pair=3 wall=14.212416606 compile=0.0
+TRIAL city=London radius=18 samples=96 step=900000 mode=reachable_union variant=fine pair=3 wall=67.027880521 compile=0.0
+TRIAL city=London radius=18 samples=96 step=60000 mode=mean_intersection variant=fine pair=0 wall=44.765762905 compile=0.0
+TRIAL city=London radius=18 samples=96 step=60000 mode=mean_intersection variant=coarse pair=0 wall=9.296906778 compile=0.0
+TRIAL city=London radius=18 samples=96 step=60000 mode=mean_intersection variant=coarse pair=1 wall=8.995167297 compile=0.0
+TRIAL city=London radius=18 samples=96 step=60000 mode=mean_intersection variant=fine pair=1 wall=45.260847663 compile=0.0
+TRIAL city=London radius=18 samples=96 step=60000 mode=mean_intersection variant=fine pair=2 wall=43.224652294 compile=0.0
+TRIAL city=London radius=18 samples=96 step=60000 mode=mean_intersection variant=coarse pair=2 wall=9.258382618 compile=0.0
+TRIAL city=London radius=18 samples=96 step=60000 mode=mean_intersection variant=coarse pair=3 wall=8.966435517 compile=0.0
+TRIAL city=London radius=18 samples=96 step=60000 mode=mean_intersection variant=fine pair=3 wall=44.70095777 compile=0.0
+TRIAL city=London radius=18 samples=96 step=60000 mode=reachable_union variant=fine pair=0 wall=44.200867071 compile=0.0
+TRIAL city=London radius=18 samples=96 step=60000 mode=reachable_union variant=coarse pair=0 wall=9.111588869 compile=0.0
+TRIAL city=London radius=18 samples=96 step=60000 mode=reachable_union variant=coarse pair=1 wall=8.937707662 compile=0.0
+TRIAL city=London radius=18 samples=96 step=60000 mode=reachable_union variant=fine pair=1 wall=44.816947961 compile=0.0
+TRIAL city=London radius=18 samples=96 step=60000 mode=reachable_union variant=fine pair=2 wall=45.214582923 compile=0.0
+TRIAL city=London radius=18 samples=96 step=60000 mode=reachable_union variant=coarse pair=2 wall=8.949361923 compile=0.0
+TRIAL city=London radius=18 samples=96 step=60000 mode=reachable_union variant=coarse pair=3 wall=9.008471915 compile=0.0
+TRIAL city=London radius=18 samples=96 step=60000 mode=reachable_union variant=fine pair=3 wall=45.86760211 compile=0.0
+TRIAL city=London_moved radius=18 samples=96 step=60000 mode=mean_intersection variant=fine pair=0 wall=44.698937947 compile=0.0
+TRIAL city=London_moved radius=18 samples=96 step=60000 mode=mean_intersection variant=coarse pair=0 wall=9.084277406 compile=0.0
+TRIAL city=London_moved radius=18 samples=96 step=60000 mode=mean_intersection variant=coarse pair=1 wall=8.939359532 compile=0.0
+TRIAL city=London_moved radius=18 samples=96 step=60000 mode=mean_intersection variant=fine pair=1 wall=44.89819258 compile=0.0
+TRIAL city=London_moved radius=18 samples=96 step=60000 mode=mean_intersection variant=fine pair=2 wall=45.300195193 compile=0.0
+TRIAL city=London_moved radius=18 samples=96 step=60000 mode=mean_intersection variant=coarse pair=2 wall=9.242457629 compile=0.0
+TRIAL city=London_moved radius=18 samples=96 step=60000 mode=mean_intersection variant=coarse pair=3 wall=8.989620025 compile=0.0
+TRIAL city=London_moved radius=18 samples=96 step=60000 mode=mean_intersection variant=fine pair=3 wall=46.363589755 compile=0.0
+TIME city=London samples=1 distance=itinerary common=69155 missing=22886 extra=5280 signed_mean_ms=846458.9410020967 mae_ms=1.1942156040344154e6
+TIME city=London samples=1 distance=straight_line common=69155 missing=22886 extra=5280 signed_mean_ms=846458.9410020967 mae_ms=1.1942156040344154e6
+TIME city=London samples=4 distance=itinerary common=71741 missing=22983 extra=5179 signed_mean_ms=890052.6886926583 mae_ms=1.1387966335289443e6
+TIME city=London samples=4 distance=straight_line common=71741 missing=22983 extra=5179 signed_mean_ms=890052.6886926583 mae_ms=1.1387966335289443e6
+FINISHED models=6 maxrss=39587491840

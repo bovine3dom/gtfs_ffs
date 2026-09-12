@@ -1,0 +1,106 @@
+Julia=1.12.7 threads=8 CPU=Intel(R) Xeon(R) CPU E3-1275 v6 @ 3.80GHz core_resolution=8 result_cache=false
+SOURCE Reachability.jl de01db57ff2169c5af0be269ed7fb785afb30f31a109fc60c110e11c58f91c04
+SOURCE catchup.jl cc60fc5deede1be18c51f1052b28296d4e243522a18c8dd300d452de6a59dbb0
+SOURCE missing_data.jl c0526f17e0471f5a4dc6b45a794fbdb4fb1f9ba5d9451c9de2e2e5ef5526d7cf
+SOURCE population.jl 9735689e5e9652882f31e84f0adb81dcbee274b8ca60f92daeb1fa034cdaee79
+SOURCE population_packed.jl 8636defa35ca9b59696793721f7d555f77402d95e9e96f1c51e9dce286d88171
+SOURCE population_range.jl f9c9df8c5e84d218bae927948f18f0d86cd273b5a811d77b9c66c9ea1fb6b5be
+SOURCE walking.jl a4394cd1c8e5fd0ea88d87af9ce5b45b4ba7f2d18110f477dd0ae47b96efe5d0
+SOURCE walking_catchup.jl 3a8f44ba29a7ad4286215dede44fe7f4f1d052937a4d7437f59c8838ba80af40
+SOURCE walking_geometry.jl 00f1436a6767cba37acf8cdbf64ea0a2740cc22268683c9512b3eac2bf5a65f9
+SOURCE walking_output.jl 0625078ab98435dc84066759a2b2853763861c2ff829b78db7fd80f9d63db6f3
+SOURCE walking_window.jl 18820d429056b077ac2b48ffe10607052296add3146c159356df2d09cce44da9
+SOURCE warmup.jl fbf6eed61fd6d559da9597f073a470e53c7b26534b71d0dd3472a2265f9f3022
+SOURCE websocket.jl 9a5d856825f9cfd3f912458d1ffe72aa0e64997ad83c54454af19b5b08075c45
+SOURCE window.jl efecaf1da514ac7a4233ee6e2980589923e06c176c5302274243fe0a5ee32967
+SOURCE Hierarchy.jl 6df2961be6856bda057663ce0beff383c2d6ab8063f72e6cc2346dc038c00abd
+SOURCE benchmark.jl 6452737a886fc0c4e7b1a4f19b7dffa8173333e91b10e6fb48ec45795a867316
+SOURCE benchmark-access.jl 2283674da45c77ccd7b0f64ef3ac9ec0971f36165cedec96e23bf0b29d553ec1
+INPUT /home/olie/projects/gtfs_ffs/data/austria_adjacent_res8.arrow sha256=1f7868950158495ad72cfc47b2d1659ffc21329805de558ac312be2a2b0b1de7 shuttle=false
+BASE pack_s=4.525937061 walking_s=1.334526441 population_load_s=2.390292838 align_s=5.989198562 graph_bytes=130902128 population_rows=32957699 population_sum=8.031924024e9 rss=3416502272
+PREP city=Vienna core=8 stats=(preparation_s = 3.895424509, core_s = 0.412925614, access_s = 1.86545663, origins = 1141, core_nodes = 20244, core_edges = 61796, core_profiles = 4791297, source_profiles = 46573563, network_walks = 638524, output_walks = 1936815, fine_destinations = 97397, access_nodes = 72568) wall_s=3.895453605 allocated=5500031896 compile_s=1.511577199 index_bytes=492276384 rss=4969119744
+TRIAL city=Vienna radius=6 samples=96 mode=mean_intersection variant=production pair=0 wall_s=2.822970904 max_error=0.0 zero_mismatches=0
+TRIAL city=Vienna radius=6 samples=96 mode=mean_intersection variant=fine_access pair=0 wall_s=1.905338679 max_error=0.0 zero_mismatches=0
+TRIAL city=Vienna radius=6 samples=96 mode=mean_intersection variant=fine_access pair=1 wall_s=1.816266718 max_error=0.0 zero_mismatches=0
+TRIAL city=Vienna radius=6 samples=96 mode=mean_intersection variant=production pair=1 wall_s=1.795472584 max_error=0.0 zero_mismatches=0
+TRIAL city=Vienna radius=6 samples=96 mode=mean_intersection variant=production pair=2 wall_s=1.824126827 max_error=0.0 zero_mismatches=0
+TRIAL city=Vienna radius=6 samples=96 mode=mean_intersection variant=fine_access pair=2 wall_s=1.812936359 max_error=0.0 zero_mismatches=0
+TRIAL city=Vienna radius=6 samples=96 mode=mean_intersection variant=fine_access pair=3 wall_s=1.969937477 max_error=0.0 zero_mismatches=0
+TRIAL city=Vienna radius=6 samples=96 mode=mean_intersection variant=production pair=3 wall_s=1.866949437 max_error=0.0 zero_mismatches=0
+MEDIANS city=Vienna radius=6 samples=96 mode=mean_intersection baseline_s=1.824126827 access_s=1.816266718 speedup=1.004327618252376 break_even=496.0
+TRIAL city=Vienna radius=18 samples=96 mode=mean_intersection variant=production pair=0 wall_s=10.137031635 max_error=0.0 zero_mismatches=0
+TRIAL city=Vienna radius=18 samples=96 mode=mean_intersection variant=fine_access pair=0 wall_s=10.005664476 max_error=0.0 zero_mismatches=0
+TRIAL city=Vienna radius=18 samples=96 mode=mean_intersection variant=fine_access pair=1 wall_s=10.280123443 max_error=0.0 zero_mismatches=0
+TRIAL city=Vienna radius=18 samples=96 mode=mean_intersection variant=production pair=1 wall_s=10.258780801 max_error=0.0 zero_mismatches=0
+TRIAL city=Vienna radius=18 samples=96 mode=mean_intersection variant=production pair=2 wall_s=10.265178908 max_error=0.0 zero_mismatches=0
+TRIAL city=Vienna radius=18 samples=96 mode=mean_intersection variant=fine_access pair=2 wall_s=10.194900089 max_error=0.0 zero_mismatches=0
+TRIAL city=Vienna radius=18 samples=96 mode=mean_intersection variant=fine_access pair=3 wall_s=10.196063305 max_error=0.0 zero_mismatches=0
+TRIAL city=Vienna radius=18 samples=96 mode=mean_intersection variant=production pair=3 wall_s=10.295666543 max_error=0.0 zero_mismatches=0
+MEDIANS city=Vienna radius=18 samples=96 mode=mean_intersection baseline_s=10.265178908 access_s=10.196063305 speedup=1.0067786557353078 break_even=57.0
+TRIAL city=Vienna radius=18 samples=96 mode=reachable_union variant=production pair=0 wall_s=10.074622741 max_error=0.0 zero_mismatches=0
+TRIAL city=Vienna radius=18 samples=96 mode=reachable_union variant=fine_access pair=0 wall_s=10.276992797 max_error=2.7939677238464355e-9 zero_mismatches=0
+TRIAL city=Vienna radius=18 samples=96 mode=reachable_union variant=fine_access pair=1 wall_s=10.163141809 max_error=2.7939677238464355e-9 zero_mismatches=0
+TRIAL city=Vienna radius=18 samples=96 mode=reachable_union variant=production pair=1 wall_s=10.428302151 max_error=0.0 zero_mismatches=0
+MEDIANS city=Vienna radius=18 samples=96 mode=reachable_union baseline_s=10.428302151 access_s=10.163141809 speedup=1.0260903908440189 break_even=15.0
+TRIAL city=Vienna radius=6 samples=1 mode=mean_intersection variant=production pair=0 wall_s=0.14140318 max_error=0.0 zero_mismatches=0
+TRIAL city=Vienna radius=6 samples=1 mode=mean_intersection variant=fine_access pair=0 wall_s=0.137426258 max_error=0.0 zero_mismatches=0
+TRIAL city=Vienna radius=6 samples=1 mode=mean_intersection variant=fine_access pair=1 wall_s=0.147756665 max_error=0.0 zero_mismatches=0
+TRIAL city=Vienna radius=6 samples=1 mode=mean_intersection variant=production pair=1 wall_s=0.154873255 max_error=0.0 zero_mismatches=0
+TRIAL city=Vienna radius=6 samples=1 mode=mean_intersection variant=production pair=2 wall_s=0.141639414 max_error=0.0 zero_mismatches=0
+TRIAL city=Vienna radius=6 samples=1 mode=mean_intersection variant=fine_access pair=2 wall_s=0.137327174 max_error=0.0 zero_mismatches=0
+TRIAL city=Vienna radius=6 samples=1 mode=mean_intersection variant=fine_access pair=3 wall_s=0.131113731 max_error=0.0 zero_mismatches=0
+TRIAL city=Vienna radius=6 samples=1 mode=mean_intersection variant=production pair=3 wall_s=0.134721445 max_error=0.0 zero_mismatches=0
+MEDIANS city=Vienna radius=6 samples=1 mode=mean_intersection baseline_s=0.141639414 access_s=0.137327174 speedup=1.0314012141544542 break_even=904.0
+TRIAL city=Vienna radius=6 samples=4 mode=mean_intersection variant=production pair=0 wall_s=0.561722697 max_error=0.0 zero_mismatches=0
+TRIAL city=Vienna radius=6 samples=4 mode=mean_intersection variant=fine_access pair=0 wall_s=0.498441289 max_error=0.0 zero_mismatches=0
+TRIAL city=Vienna radius=6 samples=4 mode=mean_intersection variant=fine_access pair=1 wall_s=0.447661372 max_error=0.0 zero_mismatches=0
+TRIAL city=Vienna radius=6 samples=4 mode=mean_intersection variant=production pair=1 wall_s=0.502940677 max_error=0.0 zero_mismatches=0
+TRIAL city=Vienna radius=6 samples=4 mode=mean_intersection variant=production pair=2 wall_s=0.437300869 max_error=0.0 zero_mismatches=0
+TRIAL city=Vienna radius=6 samples=4 mode=mean_intersection variant=fine_access pair=2 wall_s=0.450143247 max_error=0.0 zero_mismatches=0
+TRIAL city=Vienna radius=6 samples=4 mode=mean_intersection variant=fine_access pair=3 wall_s=0.442093798 max_error=0.0 zero_mismatches=0
+TRIAL city=Vienna radius=6 samples=4 mode=mean_intersection variant=production pair=3 wall_s=0.447680283 max_error=0.0 zero_mismatches=0
+MEDIANS city=Vienna radius=6 samples=4 mode=mean_intersection baseline_s=0.447680283 access_s=0.447661372 speedup=1.000042243984366 break_even=205988.0
+PREP city=Salzburg core=8 stats=(preparation_s = 1.49778813, core_s = 0.224423931, access_s = 0.297471421, origins = 1141, core_nodes = 20244, core_edges = 61796, core_profiles = 4791297, source_profiles = 13505615, network_walks = 638524, output_walks = 1936815, fine_destinations = 97654, access_nodes = 40500) wall_s=1.497824528 allocated=2126156632 compile_s=0.0 index_bytes=201817088 rss=5393899520
+TRIAL city=Salzburg radius=6 samples=96 mode=mean_intersection variant=production pair=0 wall_s=1.087987512 max_error=0.0 zero_mismatches=0
+TRIAL city=Salzburg radius=6 samples=96 mode=mean_intersection variant=fine_access pair=0 wall_s=1.079919101 max_error=0.0 zero_mismatches=0
+TRIAL city=Salzburg radius=6 samples=96 mode=mean_intersection variant=fine_access pair=1 wall_s=1.124351847 max_error=0.0 zero_mismatches=0
+TRIAL city=Salzburg radius=6 samples=96 mode=mean_intersection variant=production pair=1 wall_s=1.087677165 max_error=0.0 zero_mismatches=0
+TRIAL city=Salzburg radius=6 samples=96 mode=mean_intersection variant=production pair=2 wall_s=1.058629106 max_error=0.0 zero_mismatches=0
+TRIAL city=Salzburg radius=6 samples=96 mode=mean_intersection variant=fine_access pair=2 wall_s=1.200583274 max_error=0.0 zero_mismatches=0
+TRIAL city=Salzburg radius=6 samples=96 mode=mean_intersection variant=fine_access pair=3 wall_s=1.101945127 max_error=0.0 zero_mismatches=0
+TRIAL city=Salzburg radius=6 samples=96 mode=mean_intersection variant=production pair=3 wall_s=1.160543783 max_error=0.0 zero_mismatches=0
+MEDIANS city=Salzburg radius=6 samples=96 mode=mean_intersection baseline_s=1.087677165 access_s=1.124351847 speedup=0.9673814899687712 break_even=Inf
+TRIAL city=Salzburg radius=18 samples=96 mode=mean_intersection variant=production pair=0 wall_s=6.388085852 max_error=0.0 zero_mismatches=0
+TRIAL city=Salzburg radius=18 samples=96 mode=mean_intersection variant=fine_access pair=0 wall_s=6.269789631 max_error=0.0 zero_mismatches=0
+TRIAL city=Salzburg radius=18 samples=96 mode=mean_intersection variant=fine_access pair=1 wall_s=6.334264022 max_error=0.0 zero_mismatches=0
+TRIAL city=Salzburg radius=18 samples=96 mode=mean_intersection variant=production pair=1 wall_s=6.403582793 max_error=0.0 zero_mismatches=0
+TRIAL city=Salzburg radius=18 samples=96 mode=mean_intersection variant=production pair=2 wall_s=6.499539292 max_error=0.0 zero_mismatches=0
+TRIAL city=Salzburg radius=18 samples=96 mode=mean_intersection variant=fine_access pair=2 wall_s=6.251610417 max_error=0.0 zero_mismatches=0
+TRIAL city=Salzburg radius=18 samples=96 mode=mean_intersection variant=fine_access pair=3 wall_s=6.471879298 max_error=0.0 zero_mismatches=0
+TRIAL city=Salzburg radius=18 samples=96 mode=mean_intersection variant=production pair=3 wall_s=6.535545996 max_error=0.0 zero_mismatches=0
+MEDIANS city=Salzburg radius=18 samples=96 mode=mean_intersection baseline_s=6.499539292 access_s=6.334264022 speedup=1.026092260983434 break_even=10.0
+TRIAL city=Salzburg radius=18 samples=96 mode=reachable_union variant=production pair=0 wall_s=6.457596839 max_error=0.0 zero_mismatches=0
+TRIAL city=Salzburg radius=18 samples=96 mode=reachable_union variant=fine_access pair=0 wall_s=6.434219942 max_error=4.656612873077393e-10 zero_mismatches=0
+TRIAL city=Salzburg radius=18 samples=96 mode=reachable_union variant=fine_access pair=1 wall_s=6.429534946 max_error=4.656612873077393e-10 zero_mismatches=0
+TRIAL city=Salzburg radius=18 samples=96 mode=reachable_union variant=production pair=1 wall_s=6.46742531 max_error=0.0 zero_mismatches=0
+MEDIANS city=Salzburg radius=18 samples=96 mode=reachable_union baseline_s=6.46742531 access_s=6.429534946 speedup=1.0058931733505194 break_even=40.0
+TRIAL city=Salzburg radius=6 samples=1 mode=mean_intersection variant=production pair=0 wall_s=0.074284554 max_error=0.0 zero_mismatches=0
+TRIAL city=Salzburg radius=6 samples=1 mode=mean_intersection variant=fine_access pair=0 wall_s=0.053791259 max_error=0.0 zero_mismatches=0
+TRIAL city=Salzburg radius=6 samples=1 mode=mean_intersection variant=fine_access pair=1 wall_s=0.059152534 max_error=0.0 zero_mismatches=0
+TRIAL city=Salzburg radius=6 samples=1 mode=mean_intersection variant=production pair=1 wall_s=0.058836921 max_error=0.0 zero_mismatches=0
+TRIAL city=Salzburg radius=6 samples=1 mode=mean_intersection variant=production pair=2 wall_s=0.074421711 max_error=0.0 zero_mismatches=0
+TRIAL city=Salzburg radius=6 samples=1 mode=mean_intersection variant=fine_access pair=2 wall_s=0.050413644 max_error=0.0 zero_mismatches=0
+TRIAL city=Salzburg radius=6 samples=1 mode=mean_intersection variant=fine_access pair=3 wall_s=0.055740866 max_error=0.0 zero_mismatches=0
+TRIAL city=Salzburg radius=6 samples=1 mode=mean_intersection variant=production pair=3 wall_s=0.069419434 max_error=0.0 zero_mismatches=0
+MEDIANS city=Salzburg radius=6 samples=1 mode=mean_intersection baseline_s=0.069419434 access_s=0.055740866 speedup=1.245395685097537 break_even=110.0
+TRIAL city=Salzburg radius=6 samples=4 mode=mean_intersection variant=production pair=0 wall_s=0.160934158 max_error=0.0 zero_mismatches=0
+TRIAL city=Salzburg radius=6 samples=4 mode=mean_intersection variant=fine_access pair=0 wall_s=0.173110505 max_error=0.0 zero_mismatches=0
+TRIAL city=Salzburg radius=6 samples=4 mode=mean_intersection variant=fine_access pair=1 wall_s=0.179182844 max_error=0.0 zero_mismatches=0
+TRIAL city=Salzburg radius=6 samples=4 mode=mean_intersection variant=production pair=1 wall_s=0.170690786 max_error=0.0 zero_mismatches=0
+TRIAL city=Salzburg radius=6 samples=4 mode=mean_intersection variant=production pair=2 wall_s=0.161380297 max_error=0.0 zero_mismatches=0
+TRIAL city=Salzburg radius=6 samples=4 mode=mean_intersection variant=fine_access pair=2 wall_s=0.178483056 max_error=0.0 zero_mismatches=0
+TRIAL city=Salzburg radius=6 samples=4 mode=mean_intersection variant=fine_access pair=3 wall_s=0.181195937 max_error=0.0 zero_mismatches=0
+TRIAL city=Salzburg radius=6 samples=4 mode=mean_intersection variant=production pair=3 wall_s=0.172826577 max_error=0.0 zero_mismatches=0
+MEDIANS city=Salzburg radius=6 samples=4 mode=mean_intersection baseline_s=0.170690786 access_s=0.179182844 speedup=0.9526067462128238 break_even=Inf
+LARGE_GATE best_1k_speedup=1.026092260983434 estimated_index_bytes=4279482431 available_bytes=25333739520
+FINISHED maxrss=5538885632 rss=4318150656

@@ -73,8 +73,8 @@ end
     prepare_walking(index::WalkingIndex; max_walk_ms=3_600_000, workers=Threads.nthreads(:default), progress=false)
 
 Return a read-only index with resident packed geographic and graph adjacency.
-Enumerate exact geometry once per vertex, preserving canonical H3 order. Preparation
-does not mutate the input; larger radii and off-graph origins use request-local fallback.
+Count exact geometry, then fill fixed-size arrays in canonical H3 order. Preparation
+does not change the input. Larger radii and off-graph origins use request-local fallback.
 Memory and startup work scale with the complete geographic adjacency, without caps.
 """
 function prepare_walking(index::WalkingIndex; max_walk_ms::Integer=3_600_000,
@@ -83,40 +83,45 @@ function prepare_walking(index::WalkingIndex; max_walk_ms::Integer=3_600_000,
     workers > 0 || throw(ArgumentError("workers must be positive"))
     bare = WalkingIndex(index.cells, index.centres, index.bins, index.resolution, nothing)
     n = length(index.cells)
-    slots = Vector{Vector{WalkingNeighbor}}(undef, n)
+    counts, network_counts = zeros(Int, n), zeros(Int, n)
+    node_id = Dict(h => Int32(i) for (i, h) in enumerate(index.cells))
     count = Int(min(workers, Threads.nthreads(:default), max(1, n)))
     progress && @info "Preparing resident walking adjacency" workers=count nodes=n max_walk_h=limit / 3_600_000
-    _startup_stage(progress, "Enumerating walking geometry"; total=n) do meter
+    _startup_stage(progress, "Counting walking geometry"; total=n) do meter
         @sync for slot in 1:count
             Threads.@spawn for batch in Iterators.partition(slot:count:n, 64)
                 for u in batch
-                    slots[u] = walking_cells(bare, index.cells[u], limit)
+                    hops = walking_cells(bare, index.cells[u], limit)
+                    counts[u] = length(hops)
+                    network_counts[u] = Base.count(hop -> haskey(node_id, hop.cell), hops)
                 end
                 _startup_advance(meter, length(batch))
             end
         end
     end
-    node_id = Dict(h => Int32(i) for (i, h) in enumerate(index.cells))
-    geographic = PackedWalking([1], UInt64[], UInt32[], Float64[])
-    network = PackedWalking([1], Int32[], UInt32[], Float64[])
+    geographic = PackedWalking(cumsum(vcat(1, counts)), Vector{UInt64}(undef, sum(counts)),
+        Vector{UInt32}(undef, sum(counts)), Vector{Float64}(undef, sum(counts)))
+    network = PackedWalking(cumsum(vcat(1, network_counts)), Vector{Int32}(undef, sum(network_counts)),
+        Vector{UInt32}(undef, sum(network_counts)), Vector{Float64}(undef, sum(network_counts)))
     _startup_stage(progress, "Packing walking adjacency"; total=n) do meter
-        for (u, hops) in enumerate(slots)
-            for hop in hops
-                push!(geographic.targets, hop.cell)
-                push!(geographic.durations, hop.duration_ms)
-                push!(geographic.distances, hop.distance_km)
-                v = get(node_id, hop.cell, Int32(0))
-                if v != 0
-                    push!(network.targets, v)
-                    push!(network.durations, hop.duration_ms)
-                    push!(network.distances, hop.distance_km)
+        @sync for slot in 1:count
+            Threads.@spawn for batch in Iterators.partition(slot:count:n, 64)
+                for u in batch
+                    j, k = geographic.offsets[u], network.offsets[u]
+                    for hop in walking_cells(bare, index.cells[u], limit)
+                        geographic.targets[j], geographic.durations[j], geographic.distances[j] =
+                            hop.cell, hop.duration_ms, hop.distance_km
+                        j += 1
+                        v = get(node_id, hop.cell, Int32(0))
+                        if v != 0
+                            network.targets[k], network.durations[k], network.distances[k] = v, hop.duration_ms, hop.distance_km
+                            k += 1
+                        end
+                    end
                 end
+                _startup_advance(meter, length(batch))
             end
-            push!(geographic.offsets, length(geographic.targets) + 1)
-            push!(network.offsets, length(network.targets) + 1)
-            u % 10_000 == 0 && _startup_advance(meter, 10_000)
         end
-        _startup_advance(meter, n % 10_000)
     end
     # Graph IDs stay a prefix; geographic IDs follow first canonical discovery.
     output_cells, output_id = copy(index.cells), copy(node_id)

@@ -1,0 +1,9 @@
+city,samples,distance,variant,wall_s,bytes,destinations
+Paris,1,itinerary,fine,0.074322282,36044032,57957
+Paris,1,itinerary,coarse,0.034238567,13335568,41711
+Paris,1,straight_line,fine,0.096293474,19301144,57957
+Paris,1,straight_line,coarse,0.066301171,12785784,41711
+Paris,4,itinerary,fine,1.225777065,780762496,61401
+Paris,4,itinerary,coarse,0.493305881,78783904,52692
+Paris,4,straight_line,fine,0.762257906,292279520,61401
+Paris,4,straight_line,coarse,0.447405706,68470728,52692

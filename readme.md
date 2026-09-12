@@ -13,11 +13,15 @@ From this directory, with Julia installed:
 
 ```sh
 julia --project=router -e 'using Pkg; Pkg.instantiate()'
-julia --threads=8 --project=router router/serve.jl data/everything_res*.arrow
+julia --threads=8 --project=router router/serve.jl data/everything_res8.arrow
 ```
 
-Supply one Arrow timetable per H3 resolution. Filenames are arbitrary; the origin
-cell selects the matching graph. For a small synthetic example instead:
+Use filenames of the form `[name]_res[N].arrow`; the resolution must match the contents.
+The first file sets the default network. The origin cell selects its matching resolution.
+A resolution-8 file also supplies missing resolution-5, resolution-6, and resolution-7
+graphs through in-memory derivation. Explicit files take precedence. No extra files are written.
+See the [router load instructions](router/README.md#run) for startup and memory costs.
+For a small synthetic example instead:
 
 ```sh
 julia --threads=8 --project=router router/serve.jl --demo
@@ -38,6 +42,11 @@ distance_km Float64 (optional)
 Query times are hours. Both HTTP and WebSocket queries return elapsed hours,
 with split or string H3 indices. Itinerary and straight-line distances are
 available, as are mean/intersection and minimum/union departure windows.
+Add `coarseness=N` for approximate routing with core resolution `max(5, origin_resolution - N)`.
+The default is zero, which keeps normal routing. Output cells keep the origin resolution.
+The option requires resolution 6 through 8, a positive budget, and a positive walking limit of at most one hour.
+Otherwise, its value is ignored. Startup prepares global models once for all cities and origins.
+Large inputs can require minutes of preparation and more resident memory before the listener starts.
 
 See the [router README](router/README.md) for the model, input and frontend setup,
 and the [query contract](router/docs/api.md) for parameters and framing.

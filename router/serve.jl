@@ -50,21 +50,38 @@ function load_handlers(paths; population_path="")
     end
     default_network = first(specs)[1]
     @info "Router networks" default_network
-    for name in unique(first.(specs))
-        @info "Available network" network=name resolutions=sort([res for (network, res) in specs if network == name])
-    end
     handlers = Dict{Tuple{String,Int},Any}()
     # One CPU job at a time across graphs; each window can use the whole default pool.
     request_lock = ReentrantLock()
     population = isempty(population_path) ? nothing : load_population(population_path; progress=true)
+    graphs = Dict{Tuple{String,Int},Graph}()
     for (path, (name, resolution)) in zip(paths, specs)
         Reachability._startup_stage(true, "Loading graph $path") do _
             graph = path == "--demo" ? pack_graph(fixture_table(); progress=true) :
                 pack_graph(path; skip_invalid_durations=true, badajoz_shuttle=true, progress=true)
             graph.resolution == resolution || throw(ArgumentError("filename H3 resolution $resolution does not match graph resolution $(graph.resolution): $path"))
-            @info "Preparing CPU graph" network=name resolution=graph.resolution nodes=length(graph.h3) edges=length(graph.edge_to) workers=Threads.nthreads(:default)
-            handlers[(name, resolution)] = make_handler(graph; request_lock, progress=true, population)
+            graphs[(name, resolution)] = graph
+            @info "Supplied graph" network=name resolution source=path
         end
+    end
+    # Validate all explicit inputs first. An explicit resolution always takes precedence.
+    for (name, resolution) in specs
+        graph = graphs[(name, resolution)]
+        resolution == 8 || continue
+        for target in 7:-1:5
+            haskey(sources, (name, target)) && continue
+            derived = coarsen_graph(graph, target; progress=true)
+            @info "Derived graph" network=name resolution=target source=sources[(name, 8)] source_resolution=8 nodes=length(derived.h3) edges=length(derived.edge_to)
+            graphs[(name, target)] = derived
+            graph = derived
+        end
+    end
+    for ((name, resolution), graph) in sort!(collect(graphs); by=first)
+        @info "Preparing CPU graph" network=name resolution nodes=length(graph.h3) edges=length(graph.edge_to) workers=Threads.nthreads(:default)
+        handlers[(name, resolution)] = make_handler(graph; request_lock, progress=true, population)
+    end
+    for name in unique(first.(specs))
+        @info "Available network" network=name resolutions=sort([res for (network, res) in keys(handlers) if network == name])
     end
     return make_network_handler(handlers; default_network)
 end

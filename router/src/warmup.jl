@@ -41,6 +41,14 @@ function warmup_server(; progress::Bool=true)
         for distance in ("itinerary", "straight_line"), window in (0, 16/60)
             push!(jobs, (handler, "/reachable?index=$(string(offgraph; base=16))&departure_h=0&budget_h=0.25&max_walk_h=0.25&distance_mode=$distance&window_h=$window&step_h=$(1/60)"))
         end
+        for coarseness in 1:3, mode in ("point", "mean_intersection", "min_union", "max_intersection", "diff_union", "diff_intersection", "reachable_union")
+            url = "/reachable?index=$(string(origin; base=16))&departure_h=0&budget_h=0.5&max_walk_h=0.25&coarseness=$coarseness&window_h=$(mode == "point" ? 0 : 0.05)&window_mode=$mode"
+            push!(jobs, (handler, url * "&metric=accessible_population&origin_radius=1"))
+            for distance in ("itinerary", "straight_line"), metric in
+                    (distances && mode != "reachable_union" ? ("time", "time_distance_quantile") : ("time",))
+                push!(jobs, (handler, url * "&distance_mode=$distance&metric=$metric"))
+            end
+        end
     end
     return _startup_stage(progress, "Compiling routing and Arrow responses"; total=length(jobs) + 2) do meter
         progress && @info "Synthetic routing warmup" queries=length(jobs) + 2

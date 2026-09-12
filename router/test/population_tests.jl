@@ -50,12 +50,13 @@ end
                 departure_ms=UInt32[0], duration_ms=Int64[0]))
         end
         handler = load_handlers(paths; population_path=path)
-        for (network, cell) in (("", fine), ("&network=beta", fine), ("", parent))
+        for (network, cell) in (("", fine), ("&network=beta", fine), ("", parent), ("&network=beta", parent))
             response = handler(HTTP.Request("GET", "/reachable?index=$(string(cell; base=16))&departure_h=0&budget_h=0&metric=accessible_population$network"))
             @test response.status == 200
             @test only(Arrow.Table(response.body).value) == 4.25
         end
-        response = handler(HTTP.Request("GET", "/reachable?index=$(string(parent; base=16))&departure_h=0&budget_h=0&metric=accessible_population&network=beta"))
+        unsupported = H3.API.cellToParent(fine, 4)
+        response = handler(HTTP.Request("GET", "/reachable?index=$(string(unsupported; base=16))&departure_h=0&budget_h=0&metric=accessible_population&network=beta"))
         @test response.status == 400
     end
 end
