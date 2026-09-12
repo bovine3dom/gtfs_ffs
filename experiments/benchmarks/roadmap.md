@@ -6,7 +6,7 @@ Use the [GPU plan](../../gpu_todo.md) for active hardware work.
 
 ## CPU Measurement
 
-- Measure shared timed events across origin tiles before changing the batching model. Preserve worker balance and bound label storage.
+- Before another [shared-event design](shared-events-results.md), measure how to reduce per-origin label and coverage work. Queue sharing alone did not justify its latency and memory costs.
 - Measure kilometre replay and its heap before workspace changes.
 - Measure sparse-query clearing and output storage before adding sparse buffers.
 - Consider destination-parallel aggregation only if its measured cost warrants it. Preserve chronological reduction order.

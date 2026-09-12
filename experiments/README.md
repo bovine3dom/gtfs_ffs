@@ -16,6 +16,7 @@ The [CPU research decisions](benchmarks/cpu-research-results.md) record accepted
 and rejected population changes. The [dense-network results](benchmarks/dense-population-results.md)
 cover range pending masks and exact label pruning. The [roadmap](benchmarks/roadmap.md) lists
 conditional research ideas. Reports describe measured snapshots, not the current API.
+The [shared-event results](benchmarks/shared-events-results.md) cover wider masks and paired 64-bit tiles.
 
 ```sh
 julia --threads=8 --project=router experiments/benchmarks/benchmark-distance-modes.jl data/everything_res7.arrow
