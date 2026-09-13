@@ -21,6 +21,7 @@ function route_window_cached(graph::Graph, origin::UInt64, departure_ms::Integer
     outcomes = Vector{Any}(undef, worker_count)
     profile_lookups = routing_expansions = 0
     for wave in 1:max(worker_count, 1):full_searches
+        yield()
         active = min(worker_count, full_searches - wave + 1)
         if active == 1
             first_group = (wave - 1) * chunk_size + 1

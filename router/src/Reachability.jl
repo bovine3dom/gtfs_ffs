@@ -302,6 +302,8 @@ include("walking_catchup.jl")
 include("population.jl")
 include("population_packed.jl")
 include("population_range.jl")
+include("scheduler.jl")
+include("admission.jl")
 
 function _hours_ms(value, name, maximum; positive=false, nonzero=false, clock=false)
     text = string(value)
@@ -450,11 +452,12 @@ function window_arrow(graph, result, origin, encoding; metric="time", window_mod
         reachable_samples=counts, sample_count=fill(result.sample_count, length(cells))), encoding; metric)
 end
 
-function _route_request(graph, walking_index, origin, ready, budget, window, step, max_walk_ms, distance_mode, window_mode)
+function _route_request(graph, walking_index, origin, ready, budget, window, step, max_walk_ms, distance_mode, window_mode;
+        workers::Integer=Threads.nthreads(:default))
     if window > 0
         return max_walk_ms > 0 ? route_window_walking_cached(graph, origin, ready, budget, window;
-            step_ms=step, max_walk_ms, walking_index, distance_mode, window_mode) :
-            route_window_cached(graph, origin, ready, budget, window; step_ms=step, distance_mode, window_mode)
+            step_ms=step, max_walk_ms, walking_index, distance_mode, window_mode, workers) :
+            route_window_cached(graph, origin, ready, budget, window; step_ms=step, distance_mode, window_mode, workers)
     elseif max_walk_ms > 0
         return route_walking(graph, origin, ready, budget; max_walk_ms, walking_index, distance_mode)
     elseif distance_mode == :straight_line
@@ -468,13 +471,15 @@ function _route_request(graph, walking_index, origin, ready, budget, window, ste
     return (arrival=route_cpu(graph, origin, ready, budget), distance_km=nothing, h3=graph.h3)
 end
 
-"""An in-process CPU HTTP handler with a resident walking index and serialized jobs."""
-function make_handler(graph::Graph; request_lock=ReentrantLock(), progress::Bool=false, population=nothing)
+"""An in-process CPU HTTP handler with resident indexes and resource admission."""
+function make_handler(graph::Graph; progress::Bool=false, population=nothing,
+                      workspace_pool=PopulationWorkspacePool(),
+                      admission=RequestAdmission(; memory_bytes=workspace_pool.max_bytes))
     isnothing(population) || graph.resolution > 8 || _population_rollup(population, graph.resolution; progress)
-    walking_index = _startup_stage(progress, "Building walking spatial index") do _
+    index = _startup_stage(progress, "Building walking spatial index") do _
         WalkingIndex(graph)
     end
-    walking_index = prepare_walking(walking_index; progress)
+    walking_index = prepare_walking(index; progress)
     prepared_population = isnothing(population) || graph.resolution > 8 ? nothing :
         _prepare_population(population, walking_index; progress)
     if !isnothing(prepared_population)
@@ -483,7 +488,7 @@ function make_handler(graph::Graph; request_lock=ReentrantLock(), progress::Bool
         end
     end
     population_cache = isnothing(population) ? nothing : PopulationResultCache(graph, population, walking_index)
-    return function (request)
+    handler = function (request)
         headers = _response_headers()
         query = try
             uri = HTTP.URI(request.target)
@@ -509,67 +514,105 @@ function make_handler(graph::Graph; request_lock=ReentrantLock(), progress::Bool
         push!(headers, "X-Router-Distance-Mode" => string(distance_mode))
         push!(headers, "X-Router-Window-Mode" => string(window_mode))
         push!(headers, "X-Router-Max-Walk-H" => string(max_walk_ms / 3_600_000))
-        return lock(request_lock) do
-            if metric == "accessible_population"
-                params = _query_params(HTTP.URI(request.target))
-                radius = _origin_radius(get(params, "origin_radius", "0"))
-                result = _cached_route_population(population_cache, origin, ready, budget;
-                    origin_radius=radius, window_ms=window, step_ms=step, max_walk_ms,
-                    window_mode, prepared_population,
-                    exclude_origin_population=_exclude_origin_population(params))
-                append!(headers, ["X-Router-Backend" => "shared-population",
-                    "X-Router-Metric" => metric, "X-Router-Distance" => "not-computed",
-                    "X-Router-Origin-Count" => string(length(result.h3)),
-                    "X-Router-Cache-Hits" => string(result.cache_hits),
-                    "X-Router-Cache-Misses" => string(result.cache_misses),
-                    "X-Router-Shared-Expansions" => string(result.shared_expansions),
-                    "X-Router-Query-Expansions" => string(result.query_expansions),
-                    "X-Router-Workers" => string(result.workers),
-                    "Content-Type" => "application/vnd.apache.arrow.file"])
-                included = findall(>(0), result.value)
-                return HTTP.Response(200, headers, arrow_table(result.h3[included], (value=result.value[included],), encoding))
-            end
-            result = _route_request(graph, walking_index, origin, ready, budget, window, step, max_walk_ms, distance_mode, window_mode)
-            push!(headers, "X-Router-Backend" => "reference")
-            body = if window > 0
-                append!(headers, ["X-Router-Window-Strategy" => string(result.backend),
-                    "X-Router-Searches" => string(result.searches),
-                    "X-Router-Reused-Samples" => string(result.reused_samples)])
-                for (field, header) in ((:full_searches, "Full-Searches"), (:repair_searches, "Repair-Searches"),
-                                       (:profile_lookups, "Profile-Lookups"), (:workers, "Workers"))
-                    push!(headers, "X-Router-$header" => string(getproperty(result, field)))
+        is_population = metric == "accessible_population"
+        params = is_population ? _query_params(HTTP.URI(request.target)) : nothing
+        radius = is_population ? _origin_radius(get(params, "origin_radius", "0")) : 0
+        cells = 3UInt128(radius) * (UInt128(radius) + 1) + 1
+        metadata = min(UInt128(typemax(Int)), 256cells + 65536)
+        n = length(graph.h3)
+        destinations = length(walking_index.prepared.output_cells)
+        # Include a scratch allowance. These estimates are not a process RSS bound.
+        scratch = max(65536, 128n + 128destinations + 8length(graph.edge_to))
+        !is_population && window > 0 && (scratch += 1024n)
+        lane = is_population || (metric == "time" && _short_query(window, budget, max_walk_ms)) ? 1 : 2
+        return _with_scheduled(request, admission, lane, is_population ? Int(metadata) : scratch;
+                              max_workers=is_population || window == 0 ? 1 : typemax(Int)) do lease
+                if metric == "accessible_population"
+                    options = (; origin_radius=radius, window_ms=window, step_ms=step, max_walk_ms,
+                        window_mode, prepared_population, workspace_pool,
+                        exclude_origin_population=_exclude_origin_population(params))
+                    result = _cached_route_population(population_cache, origin, ready, budget;
+                        options..., probe_only=true)
+                    if !hasproperty(result, :h3)
+                        count = result.cache_misses
+                        samples = window == 0 ? 1 : cld(window, min(step, window))
+                        target = count <= 16 && samples <= 4 && budget <= 10_800_000 && max_walk_ms <= 3_600_000 ? 1 : 2
+                        packed = !isnothing(prepared_population) && min(max_walk_ms, budget) <= walking_index.prepared.limit
+                        tile = min(count, samples == 1 || (samples > 4 && count >= 128 * Threads.nthreads(:default)) ? 64 : 16)
+                        range_origins = samples > fld(64, tile) ? tile : 0
+                        fixed = population_workspace_estimate(n, destinations + count, range_origins, 1)
+                        bytes = (packed ? fixed + cld(fixed, 4) + 64n : scratch) + Int(metadata)
+                        _release_compute!(lease)
+                        _acquire_compute!(lease, target, bytes; max_workers=cld(count, tile))
+                        result = _cached_route_population(population_cache, origin, ready, budget;
+                            options..., workers=lease.workers, workspace_wait=() -> _workspace_wait(lease))
+                    end
+                    append!(headers, ["X-Router-Backend" => "shared-population",
+                        "X-Router-Metric" => metric, "X-Router-Distance" => "not-computed",
+                        "X-Router-Origin-Count" => string(length(result.h3)),
+                        "X-Router-Cache-Hits" => string(result.cache_hits),
+                        "X-Router-Cache-Misses" => string(result.cache_misses),
+                        "X-Router-Shared-Expansions" => string(result.shared_expansions),
+                        "X-Router-Query-Expansions" => string(result.query_expansions),
+                        "X-Router-Workers" => string(result.workers),
+                        "X-Router-Workspace-Estimated-Bytes" => string(get(result, :workspace_estimated_bytes, 0)),
+                        "X-Router-Workspace-Retained-Bytes" => string(get(result, :workspace_retained_bytes, 0)),
+                        "X-Router-Workspace-Reused-Workers" => string(get(result, :workspace_reused_workers, 0)),
+                        "Content-Type" => "application/vnd.apache.arrow.file"])
+                    included = findall(>(0), result.value)
+                    return _with_output(request, lease, length(included), encoding; columns=1) do
+                        HTTP.Response(200, headers, arrow_table(result.h3[included], (value=result.value[included],), encoding))
+                    end
                 end
-                window_arrow(graph, result, origin, encoding; metric, window_mode)
-            else
-                arrow_result(graph, result.arrival, origin, ready, encoding;
-                    distance_km=result.distance_km, metric, h3=result.h3)
-            end
-            distance = if straight
-                "origin-destination-great-circle-km"
-            elseif max_walk_ms > 0
-                isnothing(graph.distance_km) ? "partial-estimated-walk-km" : "connection-sum+estimated-walk-km"
-            else
-                isnothing(graph.distance_km) ? "unavailable" : "connection-sum-km"
-            end
-            push!(headers, "X-Router-Distance" => distance)
-            push!(headers, "X-Router-Metric" => metric)
-            push!(headers, "Content-Type" => "application/vnd.apache.arrow.file")
-            return HTTP.Response(200, headers, body)
+                result = _route_request(graph, walking_index, origin, ready, budget, window, step, max_walk_ms, distance_mode, window_mode;
+                    workers=lease.workers)
+                push!(headers, "X-Router-Backend" => "reference")
+                return _with_output(request, lease, length(hasproperty(result, :h3) ? result.h3 : graph.h3) + 1, encoding) do
+                body = if window > 0
+                    append!(headers, ["X-Router-Window-Strategy" => string(result.backend),
+                        "X-Router-Searches" => string(result.searches),
+                        "X-Router-Reused-Samples" => string(result.reused_samples)])
+                    for (field, header) in ((:full_searches, "Full-Searches"), (:repair_searches, "Repair-Searches"),
+                                           (:profile_lookups, "Profile-Lookups"), (:workers, "Workers"))
+                        push!(headers, "X-Router-$header" => string(getproperty(result, field)))
+                    end
+                    window_arrow(graph, result, origin, encoding; metric, window_mode)
+                else
+                    arrow_result(graph, result.arrival, origin, ready, encoding;
+                        distance_km=result.distance_km, metric, h3=result.h3)
+                end
+                distance = if straight
+                    "origin-destination-great-circle-km"
+                elseif max_walk_ms > 0
+                    isnothing(graph.distance_km) ? "partial-estimated-walk-km" : "connection-sum+estimated-walk-km"
+                else
+                    isnothing(graph.distance_km) ? "unavailable" : "connection-sum-km"
+                end
+                push!(headers, "X-Router-Distance" => distance)
+                push!(headers, "X-Router-Metric" => metric)
+                push!(headers, "Content-Type" => "application/vnd.apache.arrow.file")
+                return HTTP.Response(200, headers, body)
+                end
         end
     end
+    return AdmittedHandler(handler, admission)
 end
 
 _response_headers() = ["Access-Control-Allow-Origin" => "*", "Cache-Control" => "no-store",
-    "Access-Control-Expose-Headers" => "X-Router-Backend, X-Router-Distance, X-Router-Distance-Mode, X-Router-Window-Mode, X-Router-Searches, X-Router-Reused-Samples, X-Router-Metric, X-Router-Window-Strategy, X-Router-Full-Searches, X-Router-Repair-Searches, X-Router-Profile-Lookups, X-Router-Batches, X-Router-Rounds, X-Router-Workers, X-Router-Max-Walk-H, X-Router-Origin-Count, X-Router-Shared-Expansions, X-Router-Query-Expansions, X-Router-Cache-Hits, X-Router-Cache-Misses"]
+    "Access-Control-Expose-Headers" => "X-Router-Backend, X-Router-Distance, X-Router-Distance-Mode, X-Router-Window-Mode, X-Router-Searches, X-Router-Reused-Samples, X-Router-Metric, X-Router-Window-Strategy, X-Router-Full-Searches, X-Router-Repair-Searches, X-Router-Profile-Lookups, X-Router-Batches, X-Router-Rounds, X-Router-Workers, X-Router-Max-Walk-H, X-Router-Origin-Count, X-Router-Shared-Expansions, X-Router-Query-Expansions, X-Router-Cache-Hits, X-Router-Cache-Misses, X-Router-Queue-Wait-Ms, X-Router-Workspace-Estimated-Bytes, X-Router-Workspace-Retained-Bytes, X-Router-Workspace-Reused-Workers, Retry-After"]
 
 """Dispatch by network (default explicitly supplied) and origin H3 resolution."""
-function make_network_handler(handlers::AbstractDict{Tuple{String,Int}}; default_network::String)
+function make_network_handler(handlers::AbstractDict{Tuple{String,Int}}; default_network::String, admission=nothing)
     isempty(handlers) && throw(ArgumentError("at least one graph handler is required"))
     any(key -> key[1] == default_network, keys(handlers)) ||
         throw(ArgumentError("default network $(repr(default_network)) has no graph handlers"))
     handlers = copy(handlers)
     fallback = first(values(handlers))
-    return function (request)
+    if isnothing(admission) && fallback isa AdmittedHandler &&
+            all(h -> h isa AdmittedHandler && h.admission === fallback.admission, values(handlers))
+        admission = fallback.admission
+    end
+    dispatch = function (request)
         handler = try
             uri = HTTP.URI(request.target)
             if uri.path != "/reachable" || request.method != "GET"
@@ -586,8 +629,12 @@ function make_network_handler(handlers::AbstractDict{Tuple{String,Int}}; default
             error isa Union{ArgumentError,EOFError} || rethrow()
             return HTTP.Response(400, [_response_headers(); "Content-Type" => "text/plain"], sprint(showerror, error))
         end
-        return handler(request)
+        if isnothing(admission) || (handler isa AdmittedHandler && handler.admission === admission)
+            return handler(request)
+        end
+        return _with_admission(() -> handler(request), request, admission)
     end
+    return isnothing(admission) ? dispatch : AdmittedHandler(dispatch, admission)
 end
 
 include("websocket.jl")

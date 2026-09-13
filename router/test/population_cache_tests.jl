@@ -100,7 +100,9 @@ const R = Reachability
         ignored = handler(HTTP.Request("GET", path * "&coarseness=$value"))
         @test ignored.status == 200
         @test ignored.body == normal.body
-        @test ignored.headers == normal.headers
+        @test filter(p -> first(p) != "X-Router-Queue-Wait-Ms", ignored.headers) ==
+              filter(p -> first(p) != "X-Router-Queue-Wait-Ms", normal.headers)
+        @test parse(Float64, HTTP.header(ignored, "X-Router-Queue-Wait-Ms")) >= 0
         @test HTTP.header(ignored, "X-Router-Backend") == "shared-population"
     end
     @test handler(HTTP.Request("GET", path * "&exclude_origin_population=invalid")).status == 400

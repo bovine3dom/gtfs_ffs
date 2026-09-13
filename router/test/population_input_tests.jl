@@ -1,11 +1,11 @@
 @testset "Population CLI" begin
     @test parse_cli(["alpha_res5.arrow", "beta_res6.arrow"]) ==
-        (paths=["alpha_res5.arrow", "beta_res6.arrow"], population_path="")
+        (paths=["alpha_res5.arrow", "beta_res6.arrow"], population_path="", max_pending=128, workspace_bytes=8*1024^3)
     for paths in (["--demo"], ["alpha_res5.arrow", "beta_res6.arrow"]),
         option in (["--population", "data/kontur_h3.arrow"], ["--population=data/kontur_h3.arrow"]),
         position in 0:length(paths)
         args = [paths[1:position]; option; paths[position + 1:end]]
-        @test parse_cli(args) == (; paths, population_path="data/kontur_h3.arrow")
+        @test parse_cli(args) == (; paths, population_path="data/kontur_h3.arrow", max_pending=128, workspace_bytes=8*1024^3)
         @test args == [paths[1:position]; option; paths[position + 1:end]]
     end
     for args in (["--population"], ["--population="], ["--population", ""],

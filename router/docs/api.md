@@ -259,18 +259,105 @@ A newer pending query can also replace a pending query that would return an erro
 
 On disconnect, it discards pending work and the active query's eventual result. The active CPU calculation continues until it finishes.
 
-HTTP and WebSocket routing jobs run one at a time.
+HTTP and WebSocket jobs share CPU, scratch memory, and output memory limits.
+Short requests can run while bulk requests run. A slow response keeps output
+memory but does not keep CPU slots. On disconnect, active workers finish before
+their workspaces and scratch reservations are released.
+Each connection still keeps only its active query and newest pending query.
+The newest pending query enters resource admission only when it is dispatched.
+If its waiting queue or output memory share is full, the server sends this error:
+
+```json
+{"type":"error","id":42,"message":"router busy; retry later"}
+```
+
+This error consumes the ID. A client can submit a later query with a larger ID.
 CPU work can delay message processing, especially with one thread.
 For remote access, use a trusted proxy that provides TLS, authentication, and access control.
 
+## Resource Limits
+
+Use `--max-pending=128` to set the waiting queue size, excluding active work and writes.
+The value must be a nonnegative integer; `0` disables queueing.
+One eighth of the queue, rounded up, is reserved for short queries.
+Bulk requests cannot use those reserved entries.
+HTTP queries rejected at capacity return status 503, the fixed body
+`router busy; retry later`, and `Retry-After: 1`. Normal CORS headers remain present.
+Parameter validation runs before admission. Invalid parameters return 400.
+OPTIONS requests, unsupported methods, and unknown paths bypass admission.
+
+Use `--workspace-memory-gib=8` to set the shared population pool budget in whole
+GiB. The value must be a positive integer. Each option also accepts a separate
+value. Duplicate options are rejected before input files are loaded.
+The setting also supplies the scheduler scratch budget. Both memory budgets
+exclude resident input graphs. The pool reuses compatible packed workspaces
+across layouts and reduces workers to fit the aggregate estimate.
+If the request cannot fit one worker, HTTP returns 422 with the fixed body
+`request exceeds configured routing memory budget`. This response has no
+`Retry-After` header. Change the request or budget before you retry.
+WebSocket queries return the same fixed message in their JSON error frame.
+
+Successful queries include `X-Router-Queue-Wait-Ms`. This is the time in
+milliseconds spent acquiring CPU and memory resources, not total client latency.
+It includes each admission phase and any pool memory wait.
+Successful population queries also include these CORS-exposed headers:
+
+| Header | Meaning |
+| --- | --- |
+| `X-Router-Workspace-Estimated-Bytes` | Estimated fixed packed buffer bytes for this request. |
+| `X-Router-Workspace-Retained-Bytes` | Global idle measurements plus active reservations, including shared schedule hints conservatively. |
+| `X-Router-Workspace-Reused-Workers` | Number of compatible worker buffers reused. |
+
+An all-cache-hit request has zero estimated bytes and zero reused workers.
+It can report buffers retained from an earlier query. Other metrics omit these headers.
+WebSocket success frames contain Arrow data only; they do not carry HTTP headers.
+
+With eight threads, two worker slots are reserved for short queries. Bulk work
+has six slots, with at most three workers per query. A time query without a window
+uses the short class if its budget is at most three hours and its walk limit is at most one hour.
+Population cache hits use the short class. Misses use it only for at most 16 origins
+and four samples, with the same budget and walk limits. Other requests use bulk slots.
+These classes estimate cost. They do not guarantee a response time.
+Single-threaded point queries reserve one worker in either class. Small population
+requests reserve no more workers than their estimated tile count.
+
+Response memory has a separate limit of 1 GiB, or the scratch budget if smaller.
+Each class receives a share in proportion to its worker slots. Encoding space is
+reserved before Arrow encoding. Actual body bytes remain charged through the write.
+Output pressure returns 503; a response larger than its share returns 422.
+
+The workspace budget is not a total process memory limit. Loaded graphs,
+temporary allocations, and memory awaiting collection need extra RAM.
+Idle pooled buffers and non-population scratch can exist at the same time.
+Idle connections and other processes are outside this limit. Keep sufficient free
+RAM; these settings cannot guarantee that an out-of-memory failure is impossible.
+Use physical RAM, not swap, to set budgets. See the [scheduler rules](../README.md#request-and-memory-limits)
+for class fairness, one-thread operation, and memory planning.
+Admission starts after HTTP body parsing and query validation. Use proxy limits
+and timeouts for incoming message sizes, connections, and stalled clients.
+
 ## Use from Julia
 
-Create a handler with `make_handler(graph; progress=false, request_lock=ReentrantLock())`.
+Create a handler with `make_handler(graph; progress=false)`.
 For population queries, pass `population=load_population(path)` to `make_handler`.
 Pass `make_stream_handler(handler)` to HTTP.jl with `stream=true`.
 
 For named networks, create a dictionary such as `Dict(("rail", 5) => handler, ...)`.
 Pass it to `make_network_handler(handlers; default_network="rail")`.
 You must specify a default network that exists in the dictionary.
-Use the same request lock for all graph handlers to run queries one at a time across networks and resolutions.
+Pass the same `admission=RequestScheduler(; max_pending=128, memory_bytes=8*1024^3)` and
+`workspace_pool=PopulationWorkspacePool(; max_bytes=8*1024^3)` objects to each
+`make_handler`. The command-line server does this automatically.
+The network dispatcher detects a shared admission object only when all its handlers
+use that same object. It does not select the first gate from different gates.
+An explicit `admission` keyword can add a dispatcher-wide limit.
+`RequestAdmission` is another name for `RequestScheduler`. Use `scheduler_stats`
+to read CPU, queue, scratch, and output counters under the scheduler lock.
+Always use `make_stream_handler` to keep output leases through HTTP and WebSocket writes.
+A direct handler call releases its output lease when it returns; the caller owns the response.
+Direct `route_population` calls without a pool keep private workspaces. Calls with a
+shared pool have exclusive workspace leases and a shared memory budget.
+Pass `workers` to population and window engines to limit per-query worker tasks.
+Direct routing calls do not acquire the HTTP scheduler. The caller must control
+their aggregate CPU concurrency. Keep input graphs and indexes unchanged during use.
 A direct `make_handler(graph)` accepts but ignores `network`. Only `make_network_handler` selects a network.

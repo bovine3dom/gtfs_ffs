@@ -2,10 +2,16 @@ export make_stream_handler
 
 """Wrap one resident request handler for HTTP and `/query` WebSockets (serve with stream=true)."""
 function make_stream_handler(handler)
-    ordinary = HTTP.streamhandler(handler)
+    ordinary = HTTP.streamhandler(request -> fetch(Threads.@spawn handler(request)))
     return function (stream)
         request = stream.message
-        request.target == "/query" || return ordinary(stream)
+        if request.target != "/query"
+            return _with_response_admission(request) do
+                ordinary(stream)
+                # Finish chunked bodies here; HTTP's server owns closewrite.
+                HTTP.closebody(stream)
+            end
+        end
         if !HTTP.WebSockets.isupgrade(request)
             body = "websocket upgrade required"
             headers = ["Content-Length" => string(sizeof(body)), "Upgrade" => "websocket"]
@@ -32,26 +38,31 @@ function query_socket(ws, handler)
             isnothing(pending) && continue
             query = pending
             pending = nothing
-            outcome = fetch(Threads.@spawn let query = query
-                local id, url, problem = query
-                if isnothing(problem)
-                    try
-                        response = handler(HTTP.Request("GET", url))
-                        if response.status == 200
-                            prefix = UInt8[(id >> shift) & 0xff for shift in (24, 16, 8, 0)]
-                            return append!(prefix, response.body)
-                        else
-                            problem = response.status == 400 ? "invalid reachable parameters" :
-                                      response.status == 404 ? "unsupported query path" : "query failed"
+            request = HTTP.Request("GET", isnothing(query[3]) ? query[2] : "/reachable")
+            _with_response_admission(request) do
+                outcome = fetch(Threads.@spawn let query = query
+                    local id, url, problem = query
+                    if isnothing(problem)
+                        try
+                            response = handler(request)
+                            if response.status == 200
+                                prefix = UInt8[(id >> shift) & 0xff for shift in (24, 16, 8, 0)]
+                                return (prefix, response.body)
+                            else
+                                problem = response.status == 400 ? "invalid reachable parameters" :
+                                          response.status == 404 ? "unsupported query path" :
+                                          response.status == 422 ? "request exceeds configured routing memory budget" :
+                                          response.status == 503 ? "router busy; retry later" : "query failed"
+                            end
+                        catch
+                            problem = "query failed"
                         end
-                    catch
-                        problem = "query failed"
                     end
-                end
-                JSON.json((type="error", id=id, message=problem))
-            end)
+                    JSON.json((type="error", id=id, message=problem))
+                end)
+                closed || HTTP.WebSockets.send(ws, outcome)
+            end
             closed && break
-            HTTP.WebSockets.send(ws, outcome)
         end
     catch
         if !closed

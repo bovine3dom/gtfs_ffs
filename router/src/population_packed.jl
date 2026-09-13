@@ -1,3 +1,109 @@
+export PopulationWorkspacePool, population_workspace_estimate, population_workspace_stats, PopulationMemoryError
+
+struct PopulationMemoryError <: Exception
+    estimated_bytes::UInt128
+    max_bytes::Int
+end
+Base.showerror(io::IO, e::PopulationMemoryError) = print(io,
+    "population memory estimate ", e.estimated_bytes, " bytes exceeds limit ", e.max_bytes, " bytes")
+
+"""Estimate fixed array payloads. Exclude queues, dictionaries, input graphs, and results."""
+function population_workspace_estimate(nodes::Integer, destinations::Integer, range_origins::Integer, workers::Integer)
+    for count in (nodes, destinations, range_origins, workers)
+        count >= 0 || throw(ArgumentError("workspace counts must be nonnegative"))
+        count <= typemax(Int) || throw(PopulationMemoryError(UInt128(typemax(Int)) + 1, typemax(Int)))
+    end
+    n, d, r, w = UInt128.((nodes, destinations, range_origins, workers))
+    iszero(w) && return 0
+    per_node = 16 + sizeof(Int) + (iszero(r) ? 0 : 24) + 8r
+    iszero(n) || per_node <= div(UInt128(typemax(Int)), n) ||
+        throw(PopulationMemoryError(UInt128(typemax(Int)) + 1, typemax(Int)))
+    bytes = n * per_node + 16d
+    bytes <= div(UInt128(typemax(Int)), w) ||
+        throw(PopulationMemoryError(max(bytes, UInt128(typemax(Int)) + 1), typemax(Int)))
+    return Int(bytes * w)
+end
+
+mutable struct PopulationWorkspaceLease
+    graph::Any
+    prepared::Any
+    workspaces::Vector
+    estimated_bytes::Int
+    retained_bytes::Int
+    reused_workers::Int
+    on_wait::Any
+end
+
+"""Share exclusive packed workspaces. The budget is not an RSS limit."""
+mutable struct PopulationWorkspacePool
+    lock::ReentrantLock
+    changed::Threads.Condition
+    max_bytes::Int
+    idle::Vector{PopulationWorkspaceLease}
+    active::IdDict{Task,PopulationWorkspaceLease}
+    estimated_bytes::Int
+    retained_bytes::Int
+    reused_workers::Int
+    workers::Int
+end
+
+function PopulationWorkspacePool(; max_bytes::Integer=8*1024^3)
+    0 < max_bytes <= typemax(Int) || throw(ArgumentError("workspace max_bytes must be a positive Int"))
+    guard = ReentrantLock()
+    return PopulationWorkspacePool(guard, Threads.Condition(guard), Int(max_bytes),
+        PopulationWorkspaceLease[], IdDict{Task,PopulationWorkspaceLease}(), 0, 0, 0, 0)
+end
+
+function Base.empty!(pool::PopulationWorkspacePool)
+    lock(pool.lock) do
+        empty!(pool.idle)
+        pool.retained_bytes = sum(l -> l.retained_bytes, values(pool.active); init=0)
+    end
+    return pool
+end
+
+function population_workspace_stats(pool::PopulationWorkspacePool)
+    lock(pool.lock) do
+        pool.retained_bytes = sum(l -> l.retained_bytes, pool.idle; init=0) +
+            sum(l -> max(l.estimated_bytes, l.retained_bytes), values(pool.active); init=0)
+        return (; pool.estimated_bytes, pool.retained_bytes, pool.reused_workers, pool.workers, pool.max_bytes)
+    end
+end
+
+function _population_request(f, pool::PopulationWorkspacePool; on_wait=nothing)
+    lock(pool.lock) do
+        @assert !haskey(pool.active, current_task())
+        pool.active[current_task()] = PopulationWorkspaceLease(nothing, nothing, Any[], 0, 0, 0, on_wait)
+    end
+    success = false
+    local result, lease, retained
+    try
+        result = f()
+        success = true
+    finally
+        # All routing workers have joined before this scope returns, including errors.
+        lease = lock(() -> pool.active[current_task()], pool.lock)
+        measured = success && !isempty(lease.workspaces) ? Base.summarysize(lease.workspaces) : 0
+        lock(pool.lock) do
+            delete!(pool.active, current_task())
+            lease.on_wait = nothing
+            lease.retained_bytes = measured
+            used = sum(l -> max(l.estimated_bytes, l.retained_bytes), values(pool.active); init=0)
+            while !isempty(pool.idle) && used + measured + sum(l -> l.retained_bytes, pool.idle; init=0) > pool.max_bytes
+                popfirst!(pool.idle)
+            end
+            success && !isempty(lease.workspaces) && measured <= pool.max_bytes - used && push!(pool.idle, lease)
+            retained = pool.retained_bytes = used + sum(l -> l.retained_bytes, pool.idle; init=0)
+            pool.estimated_bytes = lease.estimated_bytes
+            pool.reused_workers = lease.reused_workers
+            pool.workers = length(lease.workspaces)
+            notify(pool.changed; all=true)
+        end
+    end
+    return merge(result, (; workspace_estimated_bytes=lease.estimated_bytes,
+        workspace_retained_bytes=retained, workspace_reused_workers=lease.reused_workers))
+end
+
 struct PopulationWorkspace{H}
     settled::Vector{UInt64}
     settled_ids::Vector{Int}
@@ -27,6 +133,62 @@ PopulationWorkspace(n, destinations, origins=0; schedule_hints=nothing) = Popula
     UInt32[], UInt64[], Int[], Tuple{UInt32,UInt64}[], Dict{UInt64,UInt64}(), Dict{UInt64,Float64}(),
     zeros(UInt64, iszero(origins) ? 0 : 2n), fill(INF, iszero(origins) ? 0 : 2n),
     Matrix{UInt32}(undef, origins, 2n), schedule_hints)
+
+function _population_workspaces!(pool, graph, prepared, destinations, range_origins, requested, schedule_hints)
+    bytes = population_workspace_estimate(prepared.node_count, destinations, range_origins, 1)
+    bytes <= pool.max_bytes || throw(PopulationMemoryError(UInt128(bytes), pool.max_bytes))
+    resume = nothing
+    lease, workers = lock(pool.lock) do
+        lease = pool.active[current_task()]
+        while true
+            used = sum(l -> max(l.estimated_bytes, l.retained_bytes), values(pool.active); init=0)
+            available = pool.max_bytes - used
+            if available >= bytes
+                workers = min(requested, div(available, bytes))
+                match = findlast(pool.idle) do l
+                    l.graph === graph && l.prepared === prepared && length(l.workspaces) >= workers &&
+                        size(first(l.workspaces).arrivals, 1) == range_origins &&
+                        first(l.workspaces).schedule_hints === schedule_hints &&
+                        l.retained_bytes + 16max(0, destinations - length(first(l.workspaces).reached)) * workers <= available
+                end
+                if !isnothing(match)
+                    on_wait = lease.on_wait
+                    lease = splice!(pool.idle, match)
+                    lease.on_wait = on_wait
+                    resize!(lease.workspaces, workers)
+                    lease.reused_workers = workers
+                    lease.retained_bytes += 16max(0, destinations - length(first(lease.workspaces).reached)) * workers
+                else
+                    lease.graph, lease.prepared = graph, prepared
+                end
+                lease.estimated_bytes = bytes * workers
+                pool.active[current_task()] = lease
+                while !isempty(pool.idle) && used + max(lease.estimated_bytes, lease.retained_bytes) +
+                        sum(l -> l.retained_bytes, pool.idle; init=0) > pool.max_bytes
+                    popfirst!(pool.idle)
+                end
+                return lease, workers
+            end
+            isnothing(resume) && !isnothing(lease.on_wait) && (resume = lease.on_wait())
+            wait(pool.changed)
+        end
+    end
+    isnothing(resume) || resume()
+    # Keep a concrete element type for the worker hot path.
+    workspaces = PopulationWorkspace{typeof(schedule_hints)}[w for w in lease.workspaces]
+    lease.workspaces = workspaces
+    for w in workspaces, buffer in (w.reached, w.coverage)
+        old = length(buffer)
+        if old < destinations
+            resize!(buffer, destinations)
+            fill!(@view(buffer[(old + 1):end]), 0)
+        end
+    end
+    for _ in (length(workspaces) + 1):workers
+        push!(workspaces, PopulationWorkspace(prepared.node_count, destinations, range_origins; schedule_hints))
+    end
+    return workspaces
+end
 
 @inline _population_next_arrival(::Nothing, graph, edge, ready, cutoff) =
     next_arrival(graph.schedule_ptr, graph.departure, graph.arrival, edge, ready, cutoff)
@@ -311,8 +473,9 @@ end
 
 const PopulationCacheKey = Tuple{UInt64,UInt32,UInt32,Int64,Int64,UInt32,Symbol,Bool}
 
-# The handler lock protects this FIFO. Inputs must stay unchanged for its lifetime.
+# Only lookup and publication hold this lock. Inputs must stay unchanged.
 mutable struct PopulationResultCache
+    lock::ReentrantLock
     graph::Graph
     population::Population
     walking_index::WalkingIndex
@@ -324,17 +487,12 @@ end
 
 function PopulationResultCache(graph, population, walking_index; capacity=100_000)
     capacity > 0 || throw(ArgumentError("population cache capacity must be positive"))
-    return PopulationResultCache(graph, population, walking_index,
+    return PopulationResultCache(ReentrantLock(), graph, population, walking_index,
         Dict{PopulationCacheKey,Float64}(), PopulationCacheKey[], 1, capacity)
 end
 
-function route_population(graph, population::Population, origin, departure_ms, budget_ms;
-        origin_radius=0, window_ms=0, step_ms=60_000, max_walk_ms=3_600_000,
-        window_mode=:mean_intersection, walking_index=WalkingIndex(graph),
-        prepared_population=nothing, origin_batch_size=nothing, exclude_origin_population::Bool=false)
-    return _route_population(graph, population, origin, departure_ms, budget_ms;
-        origin_radius, window_ms, step_ms, max_walk_ms, window_mode, walking_index,
-        prepared_population, origin_batch_size, exclude_origin_population)
+function route_population(graph, population::Population, origin, departure_ms, budget_ms; kwargs...)
+    return _route_population(graph, population, origin, departure_ms, budget_ms; kwargs...)
 end
 
 function _cached_route_population(cache::PopulationResultCache, origin, departure_ms, budget_ms; kwargs...)
@@ -342,14 +500,30 @@ function _cached_route_population(cache::PopulationResultCache, origin, departur
         walking_index=cache.walking_index, result_cache=cache, kwargs...)
 end
 
-function _route_population(graph, population::Population, origin, departure_ms, budget_ms;
+function _route_population(args...; workspace_pool=nothing, workspace_wait=nothing, kwargs...)
+    isnothing(workspace_pool) && return _route_population_impl(args...; kwargs...)
+    return _population_request(workspace_pool; on_wait=workspace_wait) do
+        _route_population_impl(args...; workspace_pool, kwargs...)
+    end
+end
+
+function _route_population_impl(graph, population::Population, origin, departure_ms, budget_ms;
                           origin_radius=0, window_ms=0, step_ms=60_000,
                           max_walk_ms=3_600_000, window_mode=:mean_intersection,
                           walking_index=WalkingIndex(graph), prepared_population=nothing,
                           origin_batch_size=nothing, exclude_origin_population::Bool=false,
-                          result_cache=nothing)
+                          result_cache=nothing, workspace_pool=nothing,
+                          workers::Integer=Threads.nthreads(:default), probe_only::Bool=false)
+    workers > 0 || throw(ArgumentError("workers must be positive"))
     ready, _ = query_times(graph, origin, departure_ms, budget_ms)
     radius = _origin_radius(string(origin_radius))
+    if !isnothing(workspace_pool)
+        # Bound the disk and output estimate before H3 allocates its disk buffer.
+        r = UInt128(radius)
+        cells = 3r * (r + 1) + 1
+        cells <= div(workspace_pool.max_bytes, 16) ||
+            throw(PopulationMemoryError(cells * 16, workspace_pool.max_bytes))
+    end
     window_ms isa Integer && window_ms >= 0 || throw(ArgumentError("window must be nonnegative"))
     step_ms isa Integer && step_ms >= 0 || throw(ArgumentError("sample step must be nonnegative"))
     active = window_ms > 0 && step_ms > 0
@@ -371,11 +545,11 @@ function _route_population(graph, population::Population, origin, departure_ms, 
         if isnothing(prepared) || limit > walking_index.prepared.limit
             return _route_population_reference(graph, population, origin, departure_ms, budget_ms;
                 origin_radius, window_ms, step_ms, max_walk_ms, window_mode, walking_index,
-                origin_batch_size, exclude_origin_population, origins=selected)
+                origin_batch_size, exclude_origin_population, origins=selected, workers)
         end
-        return _route_population_origins(graph, walking_index, population, prepared, weights,
+        return _route_population_origins_impl(graph, walking_index, population, prepared, weights,
             selected, ready, budget_ms, step, samples, limit, mode, origin_batch_size,
-            exclude_origin_population)
+            exclude_origin_population; workspace_pool, workers)
     end
     isnothing(result_cache) && return route_missing(origins)
     cache = result_cache
@@ -385,32 +559,45 @@ function _route_population(graph, population::Population, origin, departure_ms, 
         mode == :reachable_union ? mode : :mean_intersection
     keys = PopulationCacheKey[(cell, ready, UInt32(budget_ms), samples == 1 ? 0 : step,
         samples, limit, semantic_mode, exclude_origin_population) for cell in origins]
-    missing = findall(key -> !haskey(cache.totals, key), keys)
-    values = Float64[get(cache.totals, key, 0.0) for key in keys]
+    missing, values = lock(cache.lock) do
+        findall(key -> !haskey(cache.totals, key), keys), Float64[get(cache.totals, key, 0.0) for key in keys]
+    end
+    probe_only && !isempty(missing) && return (; cache_misses=length(missing))
     result = isempty(missing) ? (; shared_expansions=0, query_expansions=0, workers=0) :
         route_missing(length(missing) == length(origins) ? origins : origins[missing])
     if !isempty(missing)
         values[missing] = result.value
         # Publish only after all workers and finite-total checks succeed.
-        for i in missing
-            key = keys[i]
-            if length(cache.order) < cache.capacity
-                push!(cache.order, key)
-            else
-                delete!(cache.totals, cache.order[cache.next])
-                cache.order[cache.next] = key
-                cache.next = mod1(cache.next + 1, cache.capacity)
+        lock(cache.lock) do
+            for i in missing
+                key = keys[i]
+                haskey(cache.totals, key) && continue
+                if length(cache.order) < cache.capacity
+                    push!(cache.order, key)
+                else
+                    delete!(cache.totals, cache.order[cache.next])
+                    cache.order[cache.next] = key
+                    cache.next = mod1(cache.next + 1, cache.capacity)
+                end
+                cache.totals[key] = values[i]
             end
-            cache.totals[key] = values[i]
         end
     end
     return (; h3=origins, value=values, result.shared_expansions, result.query_expansions,
         result.workers, cache_hits=length(origins) - length(missing), cache_misses=length(missing))
 end
 
-function _route_population_origins(graph, walking_index, population, prepared, weights,
+function _route_population_origins(args...; workspace_pool=nothing, workers::Integer=Threads.nthreads(:default))
+    workers > 0 || throw(ArgumentError("workers must be positive"))
+    isnothing(workspace_pool) && return _route_population_origins_impl(args...; workers)
+    return _population_request(workspace_pool) do
+        _route_population_origins_impl(args...; workspace_pool, workers)
+    end
+end
+
+function _route_population_origins_impl(graph, walking_index, population, prepared, weights,
         origins, ready, budget_ms, step, samples, limit, mode, origin_batch_size,
-        exclude_origin_population)
+        exclude_origin_population; workspace_pool=nothing, workers::Integer=Threads.nthreads(:default))
     values = zeros(Float64, length(origins))
     isempty(weights) && return (; h3=origins, value=values, shared_expansions=0, query_expansions=0, workers=0)
     sources = _population_sources(walking_index, prepared, weights, origins, limit)
@@ -455,10 +642,13 @@ function _route_population_origins(graph, walking_index, population, prepared, w
     default_tile = samples == 1 || (samples > 4 && length(heavy) >= 128 * Threads.nthreads(:default)) ? 64 : 16
     tile_size = min(length(heavy), isnothing(origin_batch_size) ? default_tile : Int(origin_batch_size))
     tiles = cld(length(heavy), tile_size)
-    workers = min(Threads.nthreads(:default), tiles)
+    workers = min(workers, Threads.nthreads(:default), tiles)
     range_origins = samples > fld(64, tile_size) ? tile_size : 0
     schedule_hints = _population_schedule_hints(population, graph)
-    workspaces = [PopulationWorkspace(prepared.node_count, length(sources.weights), range_origins; schedule_hints) for _ in 1:workers]
+    workspaces = isnothing(workspace_pool) ?
+        [PopulationWorkspace(prepared.node_count, length(sources.weights), range_origins; schedule_hints) for _ in 1:workers] :
+        _population_workspaces!(workspace_pool, graph, prepared, length(sources.weights), range_origins, workers, schedule_hints)
+    workers = length(workspaces)
     next_tile = Threads.Atomic{Int}(1)
     failed = Threads.Atomic{Bool}(false)
     counts = Vector{Tuple{Int,Int}}(undef, workers)
@@ -476,6 +666,7 @@ function _route_population_origins(graph, walking_index, population, prepared, w
                     values[ids] = result.value
                     shared += result.shared
                     separate += result.separate
+                    yield()
                 end
             catch
                 failed[] = true

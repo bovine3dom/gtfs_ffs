@@ -21,6 +21,17 @@ The first file sets the default network. The origin cell selects its matching re
 A resolution-8 file also supplies missing resolution-5, resolution-6, and resolution-7
 graphs through in-memory derivation. Explicit files take precedence. No extra files are written.
 See the [router load instructions](router/README.md#run) for startup and memory costs.
+
+The website server shares CPU and memory budgets across all graphs.
+With eight threads, it reserves two worker slots for short queries. Bulk queries
+can use six slots, with up to three workers per query. Cache hits do not wait for bulk routing.
+Use `--max-pending=128` to set the waiting queue size; `0` disables queueing.
+The queue reserves space for short queries. Response writes have a separate byte budget.
+The shared population workspace pool uses an 8 GiB budget by default.
+Use `--workspace-memory-gib=8` to change this positive whole-GiB budget.
+The pool can reduce the worker count to fit its estimate. These are not total
+process memory limits. Graphs, temporary allocations, and outputs need extra RAM.
+See [request and memory limits](router/README.md#request-and-memory-limits).
 For a small synthetic example instead:
 
 ```sh

@@ -15,15 +15,16 @@ import Sockets
     paths = ["/reachable?index=$(H3.API.h3ToString(first(t.from_h3)))&departure_h=0&budget_h=1&max_walk_h=0&encoding=string" for t in tables]
     paths[3] *= "&network=everything"
     missing = "/reachable?index=$(H3.API.h3ToString(cell_at(51.5, -0.1, 8)))&departure_h=0&budget_h=1"
-    request_lock = ReentrantLock()
-    handlers = Dict((g.resolution == 7 ? "everything" : "rail_and_friends", g.resolution) => make_handler(g; request_lock) for g in graphs)
-    handlers[("everything", 5)] = make_handler(other_graph; request_lock)
+    admission = RequestAdmission(; workers=1)
+    handlers = Dict((g.resolution == 7 ? "everything" : "rail_and_friends", g.resolution) => make_handler(g; admission) for g in graphs)
+    handlers[("everything", 5)] = make_handler(other_graph; admission)
     handler = make_network_handler(handlers; default_network="rail_and_friends")
     @test_throws ArgumentError make_network_handler(handlers; default_network="absent")
     empty!(handlers) # the dispatch table is a private snapshot
     @test_throws ArgumentError make_network_handler(Dict{Tuple{String,Int},Any}(); default_network="test")
     tasks = Task[]
-    lock(request_lock)
+    lease = Reachability.ComputeLease(admission, 1, 0, 0, UInt64(0))
+    Reachability._acquire_compute!(lease, 1, 1)
     try
         for path in [paths; paths[1] * "&network=everything"]
             push!(tasks, Threads.@spawn handler(HTTP.Request("GET", path)))
@@ -31,7 +32,7 @@ import Sockets
         sleep(0.1)
         @test all(!istaskdone(t) for t in tasks)
     finally
-        unlock(request_lock)
+        Reachability._release_compute!(lease)
     end
     @test all(fetch(t).status == 200 for t in tasks)
     for (i, path) in enumerate(paths)

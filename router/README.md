@@ -68,6 +68,79 @@ Use `--demo` instead of input files to serve network `demo` at resolution 5.
 Walking preparation and window routing use the available threads in Julia's default thread pool.
 The server keeps graphs and walking indexes in memory.
 
+### Request And Memory Limits
+
+HTTP and WebSocket queries share one resource scheduler across all graphs.
+With `--threads=8`, short queries have two worker slots and bulk queries have six.
+Each bulk query can use up to three workers. Thus, two bulk queries can run together.
+Single-threaded point queries reserve one worker, even when classified as bulk.
+Idle short slots are not assigned to bulk work. This choice protects short queries;
+it does not promise maximum bulk throughput or a 30 ms response time.
+
+For `T` default-pool threads, the short reserve is `ceil(T / 4)`.
+The bulk limit is `T - reserve`, with at most `ceil(bulk / 2)` workers per query.
+With one thread, both classes share one slot and take turns when both queues wait.
+Routing yields between tiles or batches. A long search can still delay other work.
+Worker slots are logical concurrency limits, not physical CPU affinity or preemption.
+
+A time query uses the short class when it has no window, a budget of at most
+three hours, and a walk limit of at most one hour. Population cache lookup uses
+the short class. A miss uses that class only for at most 16 origins and four
+samples, with the same budget and walk limits. Other queries use the bulk class.
+These are cost estimates, not latency guarantees. A long single-origin window is bulk work.
+An all-cache-hit query does not wait for bulk routing or a workspace lease.
+
+Use `--max-pending=128` to set the total waiting queue size. The value must be a
+nonnegative integer. A value of `0` disables queueing, not concurrent execution.
+One eighth of the queue, rounded up, is reserved for short queries: 16 of 128 by default.
+The remainder is for bulk queries. Active work and response writes do not use queue slots.
+This default bounds request metadata; it is not a CPU concurrency setting.
+Eligible requests use arrival order within each class. Smaller requests can pass
+a request that cannot fit. After one second, that request prevents new work from
+passing. A request that already owns memory can resume to release that memory.
+
+A full class queue returns HTTP 503 with `Retry-After: 1`, or a WebSocket error
+with the message `router busy; retry later`. The server does not retry the query.
+
+All server graphs share one population workspace pool. Use
+`--workspace-memory-gib=8` to set its budget in whole GiB. The value must be a
+positive integer. Both options also accept a separate value, such as
+`--max-pending 4 --workspace-memory-gib 2`. Supply each option only once.
+The server checks these settings before it loads graph files.
+
+The pool allocates buffers when a population cache miss needs them. It reuses
+compatible buffers across multiple graphs and layouts. Each active query owns
+its buffers until all its workers finish. Pool locks protect only allocation records.
+The pool discards idle buffers when another query needs their memory.
+It can reduce the worker count to fit the estimated budget. If one worker cannot
+fit, the query returns HTTP 422. The pool can retain several GiB between queries.
+
+The same setting limits scheduler scratch estimates. CPU and scratch admission
+are checked together. Each class has a memory share in proportion to its worker slots.
+All routing engines receive an explicit worker budget. A pool memory wait returns
+CPU slots but keeps its scratch reservation. It does not block point routing.
+The pool accounts for all active and idle workspaces, not only the last query.
+Packed estimates include fixed arrays and a scheduler allowance for dynamic scratch.
+Returned buffers are measured before the pool retains them. A failed query discards
+only its own buffers, after all its workers finish.
+
+Response buffers have a separate budget of 1 GiB, or the scratch budget if smaller.
+This budget has the same short/bulk split. The server reserves estimated encoding
+space before Arrow encoding, then keeps the actual body bytes until the write ends
+or fails. A slow client holds output memory, not CPU slots. A full output share
+returns 503 without waiting for clients to read. A response too large for its share returns 422.
+
+These are not process RSS limits. Resident graphs, allocation overhead, temporary
+dictionary growth, geometry fallback, and garbage awaiting collection need extra RAM.
+Idle pooled buffers can coexist with non-population scratch. Allow for both budgets
+when you plan memory. Idle connections and other processes also use RAM.
+Admission starts after HTTP body parsing and query validation. Incoming message
+sizes and raw connection counts need separate proxy limits and timeouts.
+These limits cannot guarantee that the process will not run out of memory.
+Use physical RAM for this calculation. Do not count swap as routing capacity.
+On a 64 GB host, leave a reserve for the operating system, resident graphs, temporary
+allocations, and other processes. Measure actual use before you increase a budget.
+
 To enable population queries, add `--population data/kontur_h3.arrow` to the command:
 
 ```sh

@@ -229,7 +229,9 @@ function _route_population_reference(graph, population::Population, origin, depa
                           origin_radius=0, window_ms=0, step_ms=60_000,
                           max_walk_ms=3_600_000, window_mode=:mean_intersection,
                           walking_index=WalkingIndex(graph), origin_batch_size=nothing,
-                          exclude_origin_population::Bool=false, origins=nothing)
+                          exclude_origin_population::Bool=false, origins=nothing,
+                          workers::Integer=Threads.nthreads(:default))
+    workers > 0 || throw(ArgumentError("workers must be positive"))
     ready, _ = query_times(graph, origin, departure_ms, budget_ms)
     radius = _origin_radius(string(origin_radius))
     window_ms isa Integer && window_ms >= 0 || throw(ArgumentError("window must be nonnegative"))
@@ -253,13 +255,14 @@ function _route_population_reference(graph, population::Population, origin, depa
     block_samples = fld(64, tile_size)
     time_blocks = cld(samples, block_samples)
     jobs = cld(length(origins), tile_size) * time_blocks
-    workers = min(Threads.nthreads(:default), jobs)
+    workers = min(workers, Threads.nthreads(:default), jobs)
     shared_geometry = workers > 1 ? WalkingGeometryCache() : nothing
     topologies = [WalkingTopology(walking_index, limit, shared_geometry) for _ in 1:workers]
     coverage = Dict{Int,Dict{UInt64,UInt64}}()
     expansions = queries = 0
     union_mode = mode in (:min_union, :diff_union)
     for wave in 1:workers:jobs
+        yield()
         tasks = @sync map(0:min(workers - 1, jobs - wave)) do worker
             Threads.@spawn begin
                 tile, block = divrem(wave + worker - 1, time_blocks)

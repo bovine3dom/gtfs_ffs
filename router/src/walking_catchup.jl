@@ -25,6 +25,7 @@ function route_window_walking_cached(graph::Graph, origin::UInt64, departure_ms:
           WalkingOutputAccumulator(output.cells, plan.samples, plan.budget, plan.track_distance; window_mode)
     profile_lookups = routing_expansions = 0
     for wave in 1:worker_count:full_searches
+        yield()
         active = min(worker_count, full_searches - wave + 1)
         if active == 1
             first = (wave - 1) * width + 1

@@ -16,7 +16,10 @@ include("population_cache_tests.jl")
 include("population_range_tests.jl")
 include("population_hints_tests.jl")
 include("population_queue_tests.jl")
+include("population_workspace_tests.jl")
 include("population_input_tests.jl")
+include("admission_tests.jl")
+include("scheduler_tests.jl")
 
 @testset "CPU-only server surface" begin
     @test !isdefined(Reachability, :KernelRouter)
@@ -173,7 +176,9 @@ include("shuttle_tests.jl")
             ignored = request("$origin&$times&encoding=$encoding&coarseness=$value")
             @test ignored.status == 200
             @test ignored.body == response.body
-            @test ignored.headers == response.headers
+            @test filter(p -> first(p) != "X-Router-Queue-Wait-Ms", ignored.headers) ==
+                  filter(p -> first(p) != "X-Router-Queue-Wait-Ms", response.headers)
+            @test parse(Float64, HTTP.header(ignored, "X-Router-Queue-Wait-Ms")) >= 0
         end
         for name in ("X-Router-Coarseness", "X-Router-Core-Resolution")
             @test isempty(HTTP.header(response, name))
