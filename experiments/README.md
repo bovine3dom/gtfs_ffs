@@ -43,10 +43,9 @@ implementation path, input audit, correctness checks, and final measurements.
 
 ## Hierarchy
 
-[Fine-access hierarchy](hierarchy/README.md) uses a coarse core with fine initial
-walking, first boarding, and population destinations. Its API and tests use the
-current CPU kernels. [Results](hierarchy/results.md) compare with res8, not ground
-truth. Production defaults are unchanged.
+The [hierarchy decision](hierarchy/decision.md) records the stopped coarse/fine
+experiment and its measured errors. The report retains selected evidence.
+The prototype code and its test and benchmark scripts have been removed.
 
 ## Data
 

@@ -208,4 +208,39 @@ end
         sources, 1:16, ready, cutoffs, UInt32(limit), other.arrivals)
     @test bytes == 0
 end
+
+@testset "Sparse label reset across range and packed tiles" begin
+    R = Reachability
+    f = PopulationPackedTests.fixture(8)
+    origins = sort!(H3.API.gridDisk(f.origin, 2))
+    prepared = R._prepare_population(f.population, f.index)
+    weights = R._population_rollup(f.population, 8)
+    sources = R._population_sources(f.index, prepared, weights, origins, UInt32(f.limit))
+    n = length(f.graph.h3)
+    w = R.PopulationWorkspace(n + 10_000, length(sources.weights), 16)
+    for samples in (1, 2, 4, 96)
+        fill!(w.arrivals, 0)
+        fill!(w.settled, 0)
+        empty!(w.settled_ids)
+        actual = R._population_tile!(w, f.graph, f.index.prepared.graph, prepared, sources,
+            1:16, UInt32(0), UInt32(10_800_000), Int64(60_000), samples, UInt32(f.limit), :mean_intersection)
+        expected = PopulationPackedTests.oracle(f.graph, f.population, f.index, origins[1:16],
+            0, 10_800_000, 60_000, samples, f.limit, :mean_intersection)
+        @test actual.value == expected
+        @test all(==(R.INF), w.arrivals[:, (2n + 1):end])
+    end
+    fill!(@view(w.arrivals[:, (2n + 1):end]), 0)
+    for mode in PopulationPackedTests.MODES, exclude in (false, true),
+            (ids, samples, walk) in ((1:16, 96, f.limit), (17:19, 1, 0), (1:1, 96, f.limit), (1:16, 5, 0))
+        sources = R._population_sources(f.index, prepared, weights, origins, UInt32(walk))
+        own = exclude ? Int32[get(f.index.prepared.output_id, h, 0) for h in origins] : nothing
+        actual = R._population_tile!(w, f.graph, f.index.prepared.graph, prepared, sources,
+            ids, UInt32(0), UInt32(10_800_000), Int64(60_000), samples, UInt32(walk), mode, own)
+        expected = PopulationPackedTests.oracle(f.graph, f.population, f.index, origins[ids],
+            0, 10_800_000, 60_000, samples, walk, mode; exclude_origin_population=exclude)
+        @test all(isapprox.(actual.value, expected; rtol=1e-12, atol=1e-9))
+        @test all(iszero, w.arrivals[:, (2n + 1):end])
+        @test isempty(w.queue) && all(iszero, w.range_pending)
+    end
+end
 end

@@ -169,6 +169,16 @@ include("shuttle_tests.jl")
         response = responses[encoding]
         @test response.status == 200
         @test HTTP.header(response, "Content-Type") == "application/vnd.apache.arrow.file"
+        for value in ("0", "garbage", "", "-1", "1.5", "999999999999999999999999999")
+            ignored = request("$origin&$times&encoding=$encoding&coarseness=$value")
+            @test ignored.status == 200
+            @test ignored.body == response.body
+            @test ignored.headers == response.headers
+        end
+        for name in ("X-Router-Coarseness", "X-Router-Core-Resolution")
+            @test isempty(HTTP.header(response, name))
+            @test !occursin(name, HTTP.header(response, "Access-Control-Expose-Headers"))
+        end
         @test HTTP.header(response, "Access-Control-Allow-Origin") == "*"
         @test String(response.body[1:6]) == "ARROW1"
         @test String(response.body[(end - 5):end]) == "ARROW1"
@@ -206,6 +216,7 @@ include("shuttle_tests.jl")
         "$origin&departure_h=8&budget_h=-1", "$origin&departure_h=8&budget_h=NaN",
         "$origin&departure_h=8&budget_h=1200", "$origin&departure_h=8&budget_h=$(typemax(UInt64))",
         "$origin&$times&encoding=uint64", "$origin&$times&foo=1",
+        "$origin&$times&coarseness=0&coarseness=garbage",
         "$origin&$times&$origin", "$origin&$times&budget_h=0.0002777777777777778")
         @test request(query).status == 400
     end
@@ -243,7 +254,5 @@ include("walking_http_tests.jl")
 include("websocket_tests.jl")
 include("resolution_tests.jl")
 include("graph_resolution_tests.jl")
-include("coarse_router_tests.jl")
-include("coarseness_http_tests.jl")
 include("window_mode_tests.jl")
 include("window_statistics_tests.jl")

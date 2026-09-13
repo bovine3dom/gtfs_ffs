@@ -91,7 +91,6 @@ end
         end
         @test count(r -> r.message == "Supplied graph", logger.logs) == 3
         @test count(r -> r.message == "Derived graph", logger.logs) == 5
-        @test count(r -> startswith(string(r.message), "Startup: Preparing global res"), logger.logs) == 12
         @test count(r -> r.message == "Added Elvas-Badajoz fantasy rail shuttle", logger.logs) == 3
         @test count(r -> r.level == Logging.Warn && occursin("Skipping 1 of 2", r.message), logger.logs) == 1
         @test count(r -> occursin("Opening Arrow file", string(r.message)) && startswith(string(r.message), "Startup:"), logger.logs) == 3
@@ -104,10 +103,6 @@ end
             other = handler(HTTP.Request("GET", query(res; network="&network=other")))
             @test other.status == 200
             @test sort(collect(Arrow.Table(other.body).elapsed_h)) == [0, 3 / 60]
-            coarse_path = replace(query(res), "max_walk_h=0" => "max_walk_h=0.001") * "&coarseness=2"
-            coarse = handler(HTTP.Request("GET", coarse_path))
-            @test coarse.status == 200
-            @test HTTP.header(coarse, "X-Router-Core-Resolution") == string(max(5, res - 2))
         end
         for res in 5:7
             raw = map(vcat, table, Reachability._badajoz_shuttle(8))
@@ -119,12 +114,14 @@ end
                 response = handler(HTTP.Request("GET", path))
                 @test response.status == 200
                 @test response.body == expected(HTTP.Request("GET", path)).body
+                ignored = handler(HTTP.Request("GET", path * "&coarseness=garbage"))
+                @test ignored.status == 200
+                @test ignored.body == response.body
+                @test ignored.headers == response.headers
             end
         end
         @test handler(HTTP.Request("GET", query(4))).status == 400
         @test handler(HTTP.Request("GET", query(6; network="&network=absent"))).status == 400
-        # No Boolean switch or implicit population input.
-        @test handler(HTTP.Request("GET", query(5) * "&approximate=true")).status == 400
         @test handler(HTTP.Request("GET", query(5) * "&metric=accessible_population")).status == 400
         population_path = joinpath(dir, "population.arrow")
         sibling = first(filter(!=(cells[1]), H3.API.cellToChildren(H3.API.cellToParent(cells[1], 7), 8)))

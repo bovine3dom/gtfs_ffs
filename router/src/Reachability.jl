@@ -302,7 +302,6 @@ include("walking_catchup.jl")
 include("population.jl")
 include("population_packed.jl")
 include("population_range.jl")
-include("coarse.jl")
 
 function _hours_ms(value, name, maximum; positive=false, nonzero=false, clock=false)
     text = string(value)
@@ -374,18 +373,6 @@ function parse_query(uri, graph)
         throw(ArgumentError("time_distance_quantile requires an input distance_km column"))
     window_ms > 0 && _window_times(ready, budget_ms, window_ms, step_ms)
     return origin, ready, budget_ms, encoding, window_ms, step_ms, metric, max_walk_ms, distance_mode, window_mode
-end
-
-function _query_coarseness(params, resolution, compatible)
-    compatible || return 0
-    text = get(params, "coarseness", "0")
-    occursin(r"^[0-9]+\z", text) || throw(ArgumentError("coarseness must be a nonnegative integer"))
-    # Accumulate only to the floor, so arbitrarily large decimal offsets are valid.
-    offset = 0
-    for digit in text
-        offset = min(resolution - 5, 10offset + Int(digit - '0'))
-    end
-    return offset
 end
 
 function normalized_ranks(values)
@@ -496,10 +483,6 @@ function make_handler(graph::Graph; request_lock=ReentrantLock(), progress::Bool
         end
     end
     population_cache = isnothing(population) ? nothing : PopulationResultCache(graph, population, walking_index)
-    coarse_models = Dict(target => prepare_coarse_router(graph, walking_index, target; population, progress)
-        for target in 5:(graph.resolution <= 8 ? graph.resolution - 1 : 4))
-    coarse_caches = isnothing(population) ? nothing : Dict(target =>
-        PopulationResultCache(graph, population, walking_index) for target in keys(coarse_models))
     return function (request)
         headers = _response_headers()
         query = try
@@ -516,19 +499,12 @@ function make_handler(graph::Graph; request_lock=ReentrantLock(), progress::Bool
                 isnothing(population) && throw(ArgumentError("population data is not loaded"))
                 graph.resolution <= 8 || throw(ArgumentError("population requires a routing resolution in 0..8"))
             end
-            compatible = !isempty(coarse_models) && parsed[3] > 0 &&
-                0 < parsed[8] <= walking_index.prepared.limit
-            parsed, _query_coarseness(_query_params(uri), graph.resolution, compatible)
+            parsed
         catch error
             error isa Union{ArgumentError,EOFError} || rethrow()
             return HTTP.Response(400, [headers; "Content-Type" => "text/plain"], sprint(showerror, error))
         end
-        parsed, coarseness = query
-        origin, ready, budget, encoding, window, step, metric, max_walk_ms, distance_mode, window_mode = parsed
-        core_resolution = graph.resolution - coarseness
-        model = coarseness == 0 ? nothing : coarse_models[core_resolution]
-        push!(headers, "X-Router-Coarseness" => string(coarseness))
-        push!(headers, "X-Router-Core-Resolution" => string(core_resolution))
+        origin, ready, budget, encoding, window, step, metric, max_walk_ms, distance_mode, window_mode = query
         straight = distance_mode == :straight_line
         push!(headers, "X-Router-Distance-Mode" => string(distance_mode))
         push!(headers, "X-Router-Window-Mode" => string(window_mode))
@@ -537,15 +513,11 @@ function make_handler(graph::Graph; request_lock=ReentrantLock(), progress::Bool
             if metric == "accessible_population"
                 params = _query_params(HTTP.URI(request.target))
                 radius = _origin_radius(get(params, "origin_radius", "0"))
-                cache = isnothing(model) ? population_cache : coarse_caches[core_resolution]
-                route_origins = isnothing(model) ? nothing : origins -> route_coarse_population(
-                    model, origins, ready, budget; window_ms=window, step_ms=step, max_walk_ms,
-                    window_mode, exclude_origin_population=_exclude_origin_population(params))
-                result = _cached_route_population(cache, origin, ready, budget;
+                result = _cached_route_population(population_cache, origin, ready, budget;
                     origin_radius=radius, window_ms=window, step_ms=step, max_walk_ms,
-                    window_mode, prepared_population, route_origins,
+                    window_mode, prepared_population,
                     exclude_origin_population=_exclude_origin_population(params))
-                append!(headers, ["X-Router-Backend" => (isnothing(model) ? "shared-population" : "coarse-population"),
+                append!(headers, ["X-Router-Backend" => "shared-population",
                     "X-Router-Metric" => metric, "X-Router-Distance" => "not-computed",
                     "X-Router-Origin-Count" => string(length(result.h3)),
                     "X-Router-Cache-Hits" => string(result.cache_hits),
@@ -557,10 +529,8 @@ function make_handler(graph::Graph; request_lock=ReentrantLock(), progress::Bool
                 included = findall(>(0), result.value)
                 return HTTP.Response(200, headers, arrow_table(result.h3[included], (value=result.value[included],), encoding))
             end
-            result = isnothing(model) ?
-                _route_request(graph, walking_index, origin, ready, budget, window, step, max_walk_ms, distance_mode, window_mode) :
-                route_coarse_time(model, origin, ready, budget, window, step, max_walk_ms, distance_mode, window_mode)
-            push!(headers, "X-Router-Backend" => (isnothing(model) ? "reference" : "coarse-time"))
+            result = _route_request(graph, walking_index, origin, ready, budget, window, step, max_walk_ms, distance_mode, window_mode)
+            push!(headers, "X-Router-Backend" => "reference")
             body = if window > 0
                 append!(headers, ["X-Router-Window-Strategy" => string(result.backend),
                     "X-Router-Searches" => string(result.searches),
@@ -581,7 +551,7 @@ function make_handler(graph::Graph; request_lock=ReentrantLock(), progress::Bool
             else
                 isnothing(graph.distance_km) ? "unavailable" : "connection-sum-km"
             end
-            push!(headers, "X-Router-Distance" => (!isnothing(model) && !straight ? "approximate-" * distance : distance))
+            push!(headers, "X-Router-Distance" => distance)
             push!(headers, "X-Router-Metric" => metric)
             push!(headers, "Content-Type" => "application/vnd.apache.arrow.file")
             return HTTP.Response(200, headers, body)
@@ -590,7 +560,7 @@ function make_handler(graph::Graph; request_lock=ReentrantLock(), progress::Bool
 end
 
 _response_headers() = ["Access-Control-Allow-Origin" => "*", "Cache-Control" => "no-store",
-    "Access-Control-Expose-Headers" => "X-Router-Backend, X-Router-Coarseness, X-Router-Core-Resolution, X-Router-Distance, X-Router-Distance-Mode, X-Router-Window-Mode, X-Router-Searches, X-Router-Reused-Samples, X-Router-Metric, X-Router-Window-Strategy, X-Router-Full-Searches, X-Router-Repair-Searches, X-Router-Profile-Lookups, X-Router-Batches, X-Router-Rounds, X-Router-Workers, X-Router-Max-Walk-H, X-Router-Origin-Count, X-Router-Shared-Expansions, X-Router-Query-Expansions, X-Router-Cache-Hits, X-Router-Cache-Misses"]
+    "Access-Control-Expose-Headers" => "X-Router-Backend, X-Router-Distance, X-Router-Distance-Mode, X-Router-Window-Mode, X-Router-Searches, X-Router-Reused-Samples, X-Router-Metric, X-Router-Window-Strategy, X-Router-Full-Searches, X-Router-Repair-Searches, X-Router-Profile-Lookups, X-Router-Batches, X-Router-Rounds, X-Router-Workers, X-Router-Max-Walk-H, X-Router-Origin-Count, X-Router-Shared-Expansions, X-Router-Query-Expansions, X-Router-Cache-Hits, X-Router-Cache-Misses"]
 
 """Dispatch by network (default explicitly supplied) and origin H3 resolution."""
 function make_network_handler(handlers::AbstractDict{Tuple{String,Int}}; default_network::String)

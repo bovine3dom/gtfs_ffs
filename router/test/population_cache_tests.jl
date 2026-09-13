@@ -95,6 +95,14 @@ const R = Reachability
         @test occursin("X-Router-Cache-Hits", HTTP.header(response, "Access-Control-Expose-Headers"))
         @test isempty(Arrow.Table(response.body).value)
     end
+    normal = handler(HTTP.Request("GET", path))
+    for value in ("0", "garbage", "", "-1", "999999999999999999999999999")
+        ignored = handler(HTTP.Request("GET", path * "&coarseness=$value"))
+        @test ignored.status == 200
+        @test ignored.body == normal.body
+        @test ignored.headers == normal.headers
+        @test HTTP.header(ignored, "X-Router-Backend") == "shared-population"
+    end
     @test handler(HTTP.Request("GET", path * "&exclude_origin_population=invalid")).status == 400
     @test isempty(HTTP.header(handler(HTTP.Request("GET", replace(path,
         "metric=accessible_population" => "metric=time"))), "X-Router-Cache-Hits"))

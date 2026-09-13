@@ -23,7 +23,6 @@ The server rejects unknown parameters, duplicate parameters, and invalid paramet
 | `departure_h` | Hours after midnight, `0 <= h < 24` | Required |
 | `budget_h` | Journey time limit, zero or more hours | Required |
 | `max_walk_h` | Time limit per walk, zero or more hours; zero disables walking | `1` |
-| `coarseness` | Nonnegative integer offset for the internal routing resolution; see below | `0` |
 | `window_h` | Departure-window length in hours; zero selects one departure | `0` |
 | `step_h` | Sampling interval in hours, zero or more; zero selects one departure | `1/60` |
 | `encoding` | `split` or `string`, independent of input representation | `split` |
@@ -52,42 +51,6 @@ Window sampling applies only when `window_h` and `step_h` are both positive.
 If either is zero, the server queries one departure without averaging.
 It then ignores `window_mode`, including unknown or empty values.
 Both time parameters must still have valid values.
-
-## Coarseness
-
-`coarseness=0` uses normal routing at the origin resolution. Omission has the same effect.
-A positive offset selects approximate routing with an internal core resolution of
-`max(5, origin_resolution - coarseness)`. Output cells keep the origin resolution.
-
-| Origin resolution | `1` | `2` | `3` or more |
-| --- | --- | --- | --- |
-| 8 | 7 | 6 | 5 |
-| 7 | 6 | 5 | 5 |
-| 6 | 5 | 5 | 5 |
-
-The option applies to all three metrics, both distance modes, and all window modes.
-It requires origin resolution 6, 7, or 8, a positive budget, and a positive walking limit
-that does not exceed the prepared limit of one hour. Otherwise, the server ignores
-the value, including an empty or malformed value, and uses normal routing.
-Resolution 5 does not become coarser. Resolution 7 does not require a resolution-8 input file.
-All other query checks still apply. Population queries still require population data.
-
-For compatible queries, use decimal digits only. Signs, fractions, and empty values return HTTP 400.
-Large offsets select resolution 5, even when the decimal number exceeds the machine integer range.
-Duplicate keys always return HTTP 400. `approximate` is not a query parameter.
-
-Startup prepares one global model for each network, fine resolution, and core resolution.
-All origins and cities share these models. Requests do not build regional indexes.
-Preparation can take minutes on large inputs and increases resident memory.
-The server accepts requests only after preparation and synthetic warmup finish.
-
-The model corrects transfers with fine-cell positions and walking times. It still uses
-approximate route selection within each core cell. Results can differ from normal routing
-in either direction. Do not use this option as an exact reachability bound or a journey planner.
-Connections with matching fine endpoints have no added boarding delay. No penalty is added inside a transit edge.
-Coarse windows process samples from latest to earliest and retain discovered journeys.
-They can differ from an aggregation of separate coarse point queries.
-Arrow columns, units, origin resolution, and WebSocket framing do not change.
 
 ## Time Limits
 
@@ -247,12 +210,7 @@ Other union modes can include partially reachable cells, subject to the finite-v
 The `X-Router-*` headers report the metric, distance mode, window mode, walking limit, and engine statistics.
 `X-Router-Backend` is `reference` for time and quantile queries.
 For population queries, it is `shared-population` and `X-Router-Distance` is `not-computed`.
-With active coarsening, the backend is `coarse-time` or `coarse-population`.
-`X-Router-Coarseness` reports the effective offset, including zero after fallback.
-`X-Router-Core-Resolution` reports the effective core resolution.
-Coarse itinerary distance descriptions have an `approximate-` prefix.
-These headers are available through CORS. Population caches are separate for normal routing
-and each core resolution. Offsets that select the same core share one cache.
+These headers are available through CORS. Each graph handler has one population cache.
 `X-Router-Origin-Count` reports origins examined, not rows returned. `X-Router-Shared-Expansions` reports
 timed-state expansions. `X-Router-Query-Expansions` counts the independent origin/sample states
 served by those expansions. A lower shared count shows reuse.

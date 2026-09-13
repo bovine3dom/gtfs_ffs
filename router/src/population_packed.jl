@@ -224,9 +224,11 @@ function _population_tile!(w, graph, network, population, sources, ids, ready, b
     block_samples = fld(64, length(ids))
     reuse = samples > block_samples && !isempty(w.arrivals)
     labels = w.arrivals
-    if reuse
-        fill!(labels, INF)
+    # Clear old range labels even when this tile uses the packed path.
+    if !isempty(labels)
+        isempty(w.settled_ids) && fill!(labels, INF)
         for state in w.settled_ids
+            fill!(@view(labels[:, state]), INF)
             w.settled[state] = 0
         end
         empty!(w.settled_ids)
@@ -345,7 +347,7 @@ function _route_population(graph, population::Population, origin, departure_ms, 
                           max_walk_ms=3_600_000, window_mode=:mean_intersection,
                           walking_index=WalkingIndex(graph), prepared_population=nothing,
                           origin_batch_size=nothing, exclude_origin_population::Bool=false,
-                           result_cache=nothing, route_origins=nothing)
+                          result_cache=nothing)
     ready, _ = query_times(graph, origin, departure_ms, budget_ms)
     radius = _origin_radius(string(origin_radius))
     window_ms isa Integer && window_ms >= 0 || throw(ArgumentError("window must be nonnegative"))
@@ -366,7 +368,6 @@ function _route_population(graph, population::Population, origin, departure_ms, 
     sort!(filter!(!iszero, origins))
     weights = _population_rollup(population, graph.resolution)
     function route_missing(selected)
-        isnothing(route_origins) || return route_origins(selected)
         if isnothing(prepared) || limit > walking_index.prepared.limit
             return _route_population_reference(graph, population, origin, departure_ms, budget_ms;
                 origin_radius, window_ms, step_ms, max_walk_ms, window_mode, walking_index,

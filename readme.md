@@ -42,11 +42,6 @@ distance_km Float64 (optional)
 Query times are hours. Both HTTP and WebSocket queries return elapsed hours,
 with split or string H3 indices. Itinerary and straight-line distances are
 available, as are mean/intersection and minimum/union departure windows.
-Add `coarseness=N` for approximate routing with core resolution `max(5, origin_resolution - N)`.
-The default is zero, which keeps normal routing. Output cells keep the origin resolution.
-The option requires resolution 6 through 8, a positive budget, and a positive walking limit of at most one hour.
-Otherwise, its value is ignored. Startup prepares global models once for all cities and origins.
-Large inputs can require minutes of preparation and more resident memory before the listener starts.
 
 See the [router README](router/README.md) for the model, input and frontend setup,
 and the [query contract](router/docs/api.md) for parameters and framing.
