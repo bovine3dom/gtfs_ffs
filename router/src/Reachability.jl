@@ -496,6 +496,9 @@ function make_handler(graph::Graph; progress::Bool=false, population=nothing,
     prepared_population = isnothing(population) || graph.resolution > 8 ? nothing :
         (isnothing(cached_state) ? _prepare_population(population, walking_index; progress) : cached_state.prepared_population)
     if !isnothing(prepared_population)
+        lock(population.lock) do
+            population.prepared[walking_index] = prepared_population
+        end
         hints = isnothing(cached_state) ? _population_schedule_hints(population, graph) : cached_state.schedule_hints
         population.schedule_hints[graph] = hints
     end
