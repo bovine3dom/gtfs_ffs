@@ -46,9 +46,16 @@ function parse_cli(args)
             workspace_bytes=limits["--workspace-memory-gib"] * 1024^3)
 end
 
+function _startup_signature(path)
+    path == "--demo" && return (path, "demo-v1")
+    info = stat(path)
+    return (abspath(path), info.size, info.mtime)
+end
+
 function load_handlers(paths; population_path="", max_pending=128, workspace_bytes=8*1024^3)
     admission = RequestAdmission(; max_pending, memory_bytes=workspace_bytes)
     workspace_pool = PopulationWorkspacePool(; max_bytes=workspace_bytes)
+    startup_cache = StartupCache()
     if isempty(paths) || ("--demo" in paths && paths != ["--demo"])
         error("usage: julia --threads=8 --project=router router/serve.jl [--population <path>] [--max-pending 128] [--workspace-memory-gib 8] (<name_resN.arrow> [name_resN.arrow ...] | --demo)")
     end
@@ -75,11 +82,19 @@ function load_handlers(paths; population_path="", max_pending=128, workspace_byt
     handlers = Dict{Tuple{String,Int},Any}()
     response_cache = ResponseCache()
     population = isempty(population_path) ? nothing : load_population(population_path; progress=true)
+    population_signature = isempty(population_path) ? nothing : _startup_signature(population_path)
     graphs = Dict{Tuple{String,Int},Graph}()
     for (path, (name, resolution)) in zip(paths, specs)
         Reachability._startup_stage(true, "Loading graph $path") do _
-            graph = path == "--demo" ? pack_graph(fixture_table(); progress=true) :
-                pack_graph(path; skip_invalid_durations=true, badajoz_shuttle=true, progress=true)
+            key = (:graph, _startup_signature(path), name, resolution)
+            graph = startup_cache_load(startup_cache, key)
+            if !(graph isa Graph)
+                graph = path == "--demo" ? pack_graph(fixture_table(); progress=true) :
+                    pack_graph(path; skip_invalid_durations=true, badajoz_shuttle=true, progress=true)
+                startup_cache_save!(startup_cache, key, graph)
+            else
+                @info "Startup cache hit" kind="packed graph" source=path
+            end
             graph.resolution == resolution || throw(ArgumentError("filename H3 resolution $resolution does not match graph resolution $(graph.resolution): $path"))
             graphs[(name, resolution)] = graph
             @info "Supplied graph" network=name resolution source=path
@@ -91,7 +106,14 @@ function load_handlers(paths; population_path="", max_pending=128, workspace_byt
         resolution == 8 || continue
         for target in 7:-1:5
             haskey(sources, (name, target)) && continue
-            derived = coarsen_graph(graph, target; progress=true)
+            key = (:derived_graph, _startup_signature(sources[(name, 8)]), name, target)
+            derived = startup_cache_load(startup_cache, key)
+            if !(derived isa Graph)
+                derived = coarsen_graph(graph, target; progress=true)
+                startup_cache_save!(startup_cache, key, derived)
+            else
+                @info "Startup cache hit" kind="derived graph" network=name resolution=target
+            end
             @info "Derived graph" network=name resolution=target source=sources[(name, 8)] source_resolution=8 nodes=length(derived.h3) edges=length(derived.edge_to)
             graphs[(name, target)] = derived
             graph = derived
@@ -99,8 +121,12 @@ function load_handlers(paths; population_path="", max_pending=128, workspace_byt
     end
     for ((name, resolution), graph) in sort!(collect(graphs); by=first)
         @info "Preparing CPU graph" network=name resolution nodes=length(graph.h3) edges=length(graph.edge_to) workers=Threads.nthreads(:default)
+        source_path = haskey(sources, (name, resolution)) ? sources[(name, resolution)] : sources[(name, 8)]
+        state_key = (:prepared, _startup_signature(source_path), name, resolution, population_signature)
+        state = Ref{Any}(startup_cache_load(startup_cache, state_key))
         handlers[(name, resolution)] = make_handler(graph; workspace_pool, admission, progress=true, population,
-            response_cache)
+            response_cache, startup_state=state)
+        isnothing(state[]) || startup_cache_save!(startup_cache, state_key, state[])
     end
     for name in unique(first.(specs))
         @info "Available network" network=name resolutions=sort([res for (network, res) in keys(handlers) if network == name])

@@ -6,7 +6,8 @@ import ProgressMeter
 export Graph, pack_graph, coarsen_graph, route_cpu, route_details, route_window_cached,
        make_handler,
        WalkingIndex, prepare_walking, walking_neighbors, walking_cells, route_walking,
-       route_window_walking_cached, make_network_handler, ResponseCache
+       route_window_walking_cached, make_network_handler, ResponseCache, StartupCache,
+       startup_cache_load, startup_cache_save!
 
 const RESOLUTION = 5
 const PERIOD = UInt32(86_400_000)
@@ -305,6 +306,7 @@ include("population_range.jl")
 include("scheduler.jl")
 include("admission.jl")
 include("response_cache.jl")
+include("startup_cache.jl")
 
 function _hours_ms(value, name, maximum; positive=false, nonzero=false, clock=false)
     text = string(value)
@@ -476,19 +478,29 @@ end
 function make_handler(graph::Graph; progress::Bool=false, population=nothing,
                       workspace_pool=PopulationWorkspacePool(),
                       admission=RequestAdmission(; memory_bytes=workspace_pool.max_bytes),
-                      response_cache=ResponseCache())
+                      response_cache=ResponseCache(), startup_state=nothing)
     isnothing(population) || graph.resolution > 8 || _population_rollup(population, graph.resolution; progress)
-    index = _startup_stage(progress, "Building walking spatial index") do _
-        WalkingIndex(graph)
-    end
-    walking_index = prepare_walking(index; progress)
-    prepared_population = isnothing(population) || graph.resolution > 8 ? nothing :
-        _prepare_population(population, walking_index; progress)
-    if !isnothing(prepared_population)
-        _startup_stage(progress, "Preparing population schedule bounds") do _
-            _population_schedule_hints(population, graph)
+    cached_state = startup_state isa Ref ? startup_state[] : nothing
+    index = if isnothing(cached_state)
+        _startup_stage(progress, "Building walking spatial index") do _
+            WalkingIndex(graph)
         end
+    else
+        cached_state.walking_index
     end
+    walking_index = if isnothing(cached_state)
+        prepare_walking(index; progress)
+    else
+        index
+    end
+    prepared_population = isnothing(population) || graph.resolution > 8 ? nothing :
+        (isnothing(cached_state) ? _prepare_population(population, walking_index; progress) : cached_state.prepared_population)
+    if !isnothing(prepared_population)
+        hints = isnothing(cached_state) ? _population_schedule_hints(population, graph) : cached_state.schedule_hints
+        population.schedule_hints[graph] = hints
+    end
+    startup_state isa Ref && (startup_state[] = (; walking_index, prepared_population,
+        schedule_hints=isnothing(population) ? nothing : get(population.schedule_hints, graph, nothing)))
     population_cache = isnothing(population) ? nothing : PopulationResultCache(graph, population, walking_index)
     cache_namespace = gensym(:router_graph)
     handler = function (request)

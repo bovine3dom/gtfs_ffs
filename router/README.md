@@ -65,6 +65,9 @@ julia --threads=8 --project=. serve.jl --demo
 
 Use `--demo` instead of input files to serve network `demo` at resolution 5.
 `ROUTER_HOST` defaults to `127.0.0.1`. `ROUTER_PORT` defaults to `1988`.
+Startup reuses packed graphs and prepared walking and population data from
+`ROUTER_STARTUP_CACHE_DIR`, which defaults to `~/.cache/gtfs-router`. The cache has
+a 20 GiB limit and is safe to delete. It is rebuilt when an input file changes.
 Walking preparation and window routing use the available threads in Julia's default thread pool.
 The server keeps graphs and walking indexes in memory.
 
