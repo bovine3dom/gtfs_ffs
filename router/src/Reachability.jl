@@ -6,7 +6,7 @@ import ProgressMeter
 export Graph, pack_graph, coarsen_graph, route_cpu, route_details, route_window_cached,
        make_handler,
        WalkingIndex, prepare_walking, walking_neighbors, walking_cells, route_walking,
-       route_window_walking_cached, make_network_handler
+       route_window_walking_cached, make_network_handler, ResponseCache
 
 const RESOLUTION = 5
 const PERIOD = UInt32(86_400_000)
@@ -304,6 +304,7 @@ include("population_packed.jl")
 include("population_range.jl")
 include("scheduler.jl")
 include("admission.jl")
+include("response_cache.jl")
 
 function _hours_ms(value, name, maximum; positive=false, nonzero=false, clock=false)
     text = string(value)
@@ -474,7 +475,8 @@ end
 """An in-process CPU HTTP handler with resident indexes and resource admission."""
 function make_handler(graph::Graph; progress::Bool=false, population=nothing,
                       workspace_pool=PopulationWorkspacePool(),
-                      admission=RequestAdmission(; memory_bytes=workspace_pool.max_bytes))
+                      admission=RequestAdmission(; memory_bytes=workspace_pool.max_bytes),
+                      response_cache=ResponseCache())
     isnothing(population) || graph.resolution > 8 || _population_rollup(population, graph.resolution; progress)
     index = _startup_stage(progress, "Building walking spatial index") do _
         WalkingIndex(graph)
@@ -488,6 +490,7 @@ function make_handler(graph::Graph; progress::Bool=false, population=nothing,
         end
     end
     population_cache = isnothing(population) ? nothing : PopulationResultCache(graph, population, walking_index)
+    cache_namespace = gensym(:router_graph)
     handler = function (request)
         headers = _response_headers()
         query = try
@@ -515,8 +518,24 @@ function make_handler(graph::Graph; progress::Bool=false, population=nothing,
         push!(headers, "X-Router-Window-Mode" => string(window_mode))
         push!(headers, "X-Router-Max-Walk-H" => string(max_walk_ms / 3_600_000))
         is_population = metric == "accessible_population"
-        params = is_population ? _query_params(HTTP.URI(request.target)) : nothing
+        params = _query_params(HTTP.URI(request.target))
         radius = is_population ? _origin_radius(get(params, "origin_radius", "0")) : 0
+        exclude_origin_population = is_population && _exclude_origin_population(params)
+        cache_key = (cache_namespace, origin, ready, budget, encoding, window, step, metric,
+            max_walk_ms, distance_mode, window_mode, radius, exclude_origin_population)
+        cached = response_cache_get(response_cache, cache_key)
+        if !isnothing(cached)
+            body, cached_headers = cached
+            headers = copy(cached_headers)
+            if is_population
+                count = string(Int(3UInt128(radius) * (UInt128(radius) + 1) + 1))
+                headers = [first(pair) == "X-Router-Cache-Hits" ? (first(pair) => count) :
+                           first(pair) == "X-Router-Cache-Misses" ? (first(pair) => "0") : pair
+                           for pair in headers]
+            end
+            push!(headers, "X-Router-Queue-Wait-Ms" => "0.0")
+            return HTTP.Response(200, headers, body)
+        end
         cells = 3UInt128(radius) * (UInt128(radius) + 1) + 1
         metadata = min(UInt128(typemax(Int)), 256cells + 65536)
         n = length(graph.h3)
@@ -530,7 +549,7 @@ function make_handler(graph::Graph; progress::Bool=false, population=nothing,
                 if metric == "accessible_population"
                     options = (; origin_radius=radius, window_ms=window, step_ms=step, max_walk_ms,
                         window_mode, prepared_population, workspace_pool,
-                        exclude_origin_population=_exclude_origin_population(params))
+                        exclude_origin_population=exclude_origin_population)
                     result = _cached_route_population(population_cache, origin, ready, budget;
                         options..., probe_only=true)
                     if !hasproperty(result, :h3)
@@ -561,7 +580,9 @@ function make_handler(graph::Graph; progress::Bool=false, population=nothing,
                         "Content-Type" => "application/vnd.apache.arrow.file"])
                     included = findall(>(0), result.value)
                     return _with_output(request, lease, length(included), encoding; columns=1) do
-                        HTTP.Response(200, headers, arrow_table(result.h3[included], (value=result.value[included],), encoding))
+                        body = arrow_table(result.h3[included], (value=result.value[included],), encoding)
+                        response_cache_put!(response_cache, cache_key, body, headers)
+                        HTTP.Response(200, headers, body)
                     end
                 end
                 result = _route_request(graph, walking_index, origin, ready, budget, window, step, max_walk_ms, distance_mode, window_mode;
@@ -591,6 +612,7 @@ function make_handler(graph::Graph; progress::Bool=false, population=nothing,
                 push!(headers, "X-Router-Distance" => distance)
                 push!(headers, "X-Router-Metric" => metric)
                 push!(headers, "Content-Type" => "application/vnd.apache.arrow.file")
+                response_cache_put!(response_cache, cache_key, body, headers)
                 return HTTP.Response(200, headers, body)
                 end
         end

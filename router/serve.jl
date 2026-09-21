@@ -73,6 +73,7 @@ function load_handlers(paths; population_path="", max_pending=128, workspace_byt
     @info "Router request limits" max_pending workspace_mib=workspace_bytes / 1024^2 resources=scheduler_stats(admission)
     @info "Router networks" default_network
     handlers = Dict{Tuple{String,Int},Any}()
+    response_cache = ResponseCache()
     population = isempty(population_path) ? nothing : load_population(population_path; progress=true)
     graphs = Dict{Tuple{String,Int},Graph}()
     for (path, (name, resolution)) in zip(paths, specs)
@@ -98,7 +99,8 @@ function load_handlers(paths; population_path="", max_pending=128, workspace_byt
     end
     for ((name, resolution), graph) in sort!(collect(graphs); by=first)
         @info "Preparing CPU graph" network=name resolution nodes=length(graph.h3) edges=length(graph.edge_to) workers=Threads.nthreads(:default)
-        handlers[(name, resolution)] = make_handler(graph; workspace_pool, admission, progress=true, population)
+        handlers[(name, resolution)] = make_handler(graph; workspace_pool, admission, progress=true, population,
+            response_cache)
     end
     for name in unique(first.(specs))
         @info "Available network" network=name resolutions=sort([res for (network, res) in keys(handlers) if network == name])
