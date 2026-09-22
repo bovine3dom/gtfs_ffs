@@ -31,6 +31,8 @@ The server rejects unknown parameters, duplicate parameters, and invalid paramet
 | `metric` | `time`, `time_distance_quantile`, or `accessible_population` | `time` |
 | `origin_radius` | Nonnegative integer H3 grid steps; population metric only | `0` |
 | `exclude_origin_population` | `true` or `1` excludes each origin's own population; `false` or `0` includes it; population metric only | `false` |
+| `normalisation` | `none` or `pop`; population metric only | `none` |
+| `normalisation_param` | Nonnegative radius in kilometres for `normalisation=pop` | Required for `pop` |
 
 For example, add `&network=everything` to select files named `everything_resN.arrow`.
 Names can include underscores, hyphens, spaces, and UTF-8 characters. Use percent encoding in query values where necessary.
@@ -98,7 +100,7 @@ The radius uses grid steps and is independent of walking distance. It must fit t
 and allocation size. The router processes every origin in a valid disk.
 Other metrics ignore all `origin_radius` values. Duplicate parameters return HTTP 400.
 
-Rows are sorted by origin H3 value. Columns are the selected origin H3 encoding and `value::Float64` in people.
+Rows are sorted by origin H3 value. Columns are the selected origin H3 encoding and `value::Float64` in people, or a ratio when `normalisation=pop`.
 The response contains one cell per origin with a positive final total after window aggregation.
 Zero totals are omitted, including the query origin. An origin with zero local population is included if its total is positive.
 If all totals are zero, the response is an empty Arrow table with the same columns and types.
@@ -113,6 +115,18 @@ Own-only totals are zero and are omitted. Other origins can still count that cel
 For population queries, only `true`, `false`, `1`, and `0` are valid. Empty or other values return HTTP 400.
 Other metrics ignore all values of this option. Duplicate parameters still return HTTP 400.
 The CPU `route_population` function accepts the keyword `exclude_origin_population::Bool=false`.
+
+Set `normalisation=pop&normalisation_param=10` to divide each accessible-population
+value by the population in an approximate 10 km H3 disk around that result origin.
+The radius is converted to the next H3 grid ring. Small radii use the routing
+resolution. Larger radii use a coarser population rollup to target an H3 grid
+radius of about 5. The radius includes its boundary. The result `value` is a
+ratio, and not a percentage.
+Cells with zero denominator are omitted. `exclude_origin_population=true` removes
+the origin's routing-cell population from both the numerator and denominator.
+`normalisation=none` keeps the existing people values. `normalisation_param` is
+ignored unless `normalisation=pop`. The CPU `route_population` function accepts
+the `normalisation` and `normalisation_param` keywords.
 Duplicate paths and overlapping walks count each cell once per sample.
 Walking, time limits, network selection, encoding, and parameter validation follow the common query rules.
 HTTP and WebSocket queries use the same parameters, constraints, and result schema.
@@ -123,7 +137,7 @@ HTTP and WebSocket queries use the same parameters, constraints, and result sche
 | `min_union`, `diff_union` | Sum over cells reached in at least one sample |
 | `reachable_union` | Sum of each cell's population multiplied by its reachable sample count, divided by the total sample count |
 
-`reachable_union` is mean accessible population in people.
+`reachable_union` is mean accessible population in people, or the corresponding mean ratio with `normalisation=pop`.
 All modes give the same value for one sample.
 Setting `window_h=0` or `step_h=0` selects one departure and ignores `window_mode`.
 Fractional weights and sample weighting can produce small floating-point differences when reduction order changes.

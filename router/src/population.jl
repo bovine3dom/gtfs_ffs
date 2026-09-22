@@ -26,7 +26,11 @@ function load_population(path::AbstractString; progress::Bool=false)
     end
     all(name -> name in propertynames(table), (:h3, :population)) ||
         throw(ArgumentError("population input requires h3 and population columns"))
-    return _population(table.h3, table.population; progress)
+    population = _population(table.h3, table.population; progress)
+    for resolution in 0:3
+        _population_rollup(population, resolution; progress)
+    end
+    return population
 end
 
 function _population(cells, weights; progress::Bool=false)
@@ -140,6 +144,98 @@ function _origin_radius(text)
     size isa Int64 && 0 < size <= div(typemax(Int), sizeof(UInt64)) ||
         throw(ArgumentError("origin_radius exceeds the H3 grid allocation range"))
     return radius
+end
+
+function _normalisation_mode(value)
+    mode = value isa Symbol ? value : value isa AbstractString ? Symbol(value) : nothing
+    mode in (:none, :pop) ||
+        throw(ArgumentError("normalisation must be none or pop"))
+    return mode
+end
+
+function _normalisation_radius_km(value)
+    radius = value isa Real ? tryparse(Float64, string(value)) :
+        value isa AbstractString ? tryparse(Float64, value) : nothing
+    !isnothing(radius) && isfinite(radius) && !signbit(radius) ||
+        throw(ArgumentError("normalisation_param must be finite, nonnegative kilometres"))
+    return radius
+end
+
+function _population_normalisation(normalisation, normalisation_param=nothing)
+    mode = _normalisation_mode(normalisation)
+    mode == :none && return mode, nothing
+    isnothing(normalisation_param) &&
+        throw(ArgumentError("normalisation_param is required for normalisation=pop"))
+    return mode, _normalisation_radius_km(normalisation_param)
+end
+
+const NORMALISATION_TARGET_GRID_RADIUS = 5
+
+function _population_normalisation_grid_radius(cell, radius_km)
+    iszero(radius_km) && return 0
+    edges = H3.API.originToDirectedEdges(cell)
+    edge = findfirst(H3.API.isValidDirectedEdge, edges)
+    isnothing(edge) && throw(ArgumentError("could not determine the H3 edge length"))
+    edge_km = H3.API.edgeLengthKm(edges[edge])
+    isfinite(edge_km) && edge_km > 0 ||
+        throw(ArgumentError("could not determine the H3 edge length"))
+    grid_radius = ceil(radius_km / edge_km)
+    isfinite(grid_radius) && grid_radius <= typemax(Cint) ||
+        throw(ArgumentError("normalisation_param exceeds the H3 grid allocation range"))
+    return _origin_radius(string(Int(grid_radius)))
+end
+
+function _population_normalisation_grid(origin, resolution, radius_km)
+    selected_resolution = 0
+    selected_radius = _population_normalisation_grid_radius(
+        resolution == 0 ? origin : H3.API.cellToParent(origin, 0), radius_km)
+    for candidate in 0:resolution
+        cell = candidate == resolution ? origin : H3.API.cellToParent(origin, candidate)
+        radius = _population_normalisation_grid_radius(cell, radius_km)
+        if radius <= NORMALISATION_TARGET_GRID_RADIUS
+            selected_resolution = candidate
+            selected_radius = radius
+        end
+    end
+    return selected_resolution, selected_radius
+end
+
+function _apply_population_normalisation(result, population, resolution, normalisation,
+                                          normalisation_param, exclude_origin_population,
+                                          radius=nothing, population_resolution=resolution)
+    normalisation == :none && return result
+    hasproperty(result, :h3) || return result
+    origins = result.h3
+    isempty(origins) && return merge(result, (origin_count=0,))
+    radius = isnothing(radius) ?
+        _population_normalisation_grid_radius(first(origins), normalisation_param) : radius
+    centre_resolution = population_resolution
+    weights = _population_rollup(population, centre_resolution)
+    exact_weights = exclude_origin_population && centre_resolution != resolution ?
+        _population_rollup(population, resolution) : weights
+    totals = Dict{UInt64,Float64}()
+    nearby = zeros(Float64, length(origins))
+    for (i, origin) in enumerate(origins)
+        centre = centre_resolution == resolution ? origin :
+            H3.API.cellToParent(origin, centre_resolution)
+        total = get!(totals, centre) do
+            total = 0.0
+            for cell in H3.API.gridDisk(centre, radius)
+                iszero(cell) || (total += get(weights, cell, 0.0))
+            end
+            isfinite(total) || throw(ArgumentError("normalisation population is not finite"))
+            total
+        end
+        nearby[i] = total
+        if exclude_origin_population
+            nearby[i] -= get(exact_weights, origin, 0.0)
+            nearby[i] = max(nearby[i], 0.0)
+        end
+        isfinite(nearby[i]) || throw(ArgumentError("normalisation population is not finite"))
+    end
+    keep = findall(!iszero, nearby)
+    return merge(result, (h3=origins[keep], value=result.value[keep] ./ nearby[keep],
+        origin_count=length(origins)))
 end
 
 # Each bit is an origin/sample query. Cutoffs follow sample-major lane order.

@@ -37,6 +37,50 @@
     @test result.shared_expansions == result.query_expansions == result.workers == 0
 end
 
+@testset "Population normalisation" begin
+    origin = DEMO_ORIGIN
+    neighbour = first(filter(!=(origin), H3.API.gridDisk(origin, 1)))
+    graph = pack_graph((from_h3=[origin, origin, neighbour],
+        to_h3=[origin, neighbour, neighbour], departure_ms=UInt32[0, 0, 0],
+        duration_ms=Int64[0, 0, 0]))
+    cells = UInt64[first(H3.API.cellToChildren(cell, 8)) for cell in (origin, neighbour)]
+    population = Reachability._population(cells, [10.0, 30.0])
+    edge = first(filter(H3.API.isValidDirectedEdge, H3.API.originToDirectedEdges(origin)))
+    radius_km = H3.API.edgeLengthKm(edge)
+    fine_origin = first(H3.API.cellToChildren(origin, 8))
+    coarse_resolution, coarse_radius = Reachability._population_normalisation_grid(fine_origin, 8, 10.0)
+    @test coarse_resolution < 8
+    @test coarse_radius <= Reachability.NORMALISATION_TARGET_GRID_RADIUS
+    result = route_population(graph, population, origin, 0, 0; max_walk_ms=0,
+        origin_radius=1, normalisation=:pop, normalisation_param=radius_km)
+    values = Dict(zip(result.h3, result.value))
+    @test values[origin] ≈ 1.0
+    @test values[neighbour] ≈ 0.75
+    excluded = route_population(graph, population, origin, 0, 0; max_walk_ms=0,
+        origin_radius=1, normalisation=:pop, normalisation_param=radius_km,
+        exclude_origin_population=true)
+    excluded_values = Dict(zip(excluded.h3, excluded.value))
+    @test excluded_values[origin] ≈ 1.0
+    @test iszero(excluded_values[neighbour])
+
+    handler = make_handler(graph; population)
+    base = "/reachable?index=$(H3.API.h3ToString(origin))&departure_h=0&budget_h=0&max_walk_h=0&metric=accessible_population&origin_radius=1&encoding=string"
+    response = handler(HTTP.Request("GET", base * "&normalisation=pop&normalisation_param=$radius_km"))
+    table = Arrow.Table(response.body)
+    @test response.status == 200
+    @test Dict(zip(table.index, table.value))[H3.API.h3ToString(origin)] ≈ 1.0
+    @test Dict(zip(table.index, table.value))[H3.API.h3ToString(neighbour)] ≈ 0.75
+    @test handler(HTTP.Request("GET", base * "&normalisation=pop")).status == 400
+    @test handler(HTTP.Request("GET", base * "&normalisation=unknown&normalisation_param=1")).status == 400
+    normal = handler(HTTP.Request("GET", base))
+    for parameter in ("normalisation=none&normalisation_param=1", "normalisation_param=invalid")
+        ignored = handler(HTTP.Request("GET", base * "&$parameter"))
+        @test ignored.status == 200
+        @test ignored.body == normal.body
+    end
+    @test handler(HTTP.Request("GET", base * "&normalisation=pop&normalisation_param=-1")).status == 400
+end
+
 @testset "File-backed population network selection" begin
     mktempdir() do dir
         fine = first(H3.API.cellToChildren(DEMO_ORIGIN, 8))

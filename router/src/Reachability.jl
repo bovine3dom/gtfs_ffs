@@ -351,7 +351,7 @@ end
 
 function parse_query(uri, graph)
     params = _query_params(uri)
-    allowed = ("network", "index", "index_lower", "index_upper", "departure_h", "budget_h", "encoding", "window_h", "step_h", "metric", "max_walk_h", "distance_mode", "window_mode", "origin_radius", "exclude_origin_population", "coarseness")
+    allowed = ("network", "index", "index_lower", "index_upper", "departure_h", "budget_h", "encoding", "window_h", "step_h", "metric", "max_walk_h", "distance_mode", "window_mode", "origin_radius", "exclude_origin_population", "normalisation", "normalisation_param", "coarseness")
     all(k -> k in allowed, keys(params)) || throw(ArgumentError("unknown query parameter"))
     origin = _query_origin(params)
     departure_ms = _hours_ms(get(params, "departure_h", ""), "departure_h", 24; clock=true)
@@ -362,10 +362,13 @@ function parse_query(uri, graph)
     metric = get(params, "metric", "time")
     metric in ("time", "time_distance_quantile", "accessible_population") ||
         throw(ArgumentError("metric must be time, time_distance_quantile or accessible_population"))
-    if metric == "accessible_population" && haskey(params, "origin_radius")
-        _origin_radius(params["origin_radius"])
+    if metric == "accessible_population"
+        haskey(params, "origin_radius") && _origin_radius(params["origin_radius"])
+        mode, parameter = _population_normalisation(get(params, "normalisation", "none"),
+            get(params, "normalisation_param", nothing))
+        mode == :pop && _population_normalisation_grid_radius(origin, parameter)
+        _exclude_origin_population(params)
     end
-    metric == "accessible_population" && _exclude_origin_population(params)
     distance_mode = _distance_mode(get(params, "distance_mode", "itinerary"))
     ready, _ = query_times(graph, origin, departure_ms, budget_ms)
     window_ms = _hours_ms(get(params, "window_h", "0"), "window_h", MAX_TIME_MS / 3_600_000; nonzero=true)
@@ -536,8 +539,15 @@ function make_handler(graph::Graph; progress::Bool=false, population=nothing,
         params = _query_params(HTTP.URI(request.target))
         radius = is_population ? _origin_radius(get(params, "origin_radius", "0")) : 0
         exclude_origin_population = is_population && _exclude_origin_population(params)
+        normalisation, normalisation_param = is_population ?
+            _population_normalisation(get(params, "normalisation", "none"),
+                get(params, "normalisation_param", nothing)) : (:none, nothing)
+        _, normalisation_grid_radius = is_population && normalisation == :pop ?
+            _population_normalisation_grid(origin, graph.resolution, normalisation_param) :
+            (graph.resolution, 0)
         cache_key = (cache_namespace, origin, ready, budget, encoding, window, step, metric,
-            max_walk_ms, distance_mode, window_mode, radius, exclude_origin_population)
+            max_walk_ms, distance_mode, window_mode, radius, exclude_origin_population,
+            normalisation, normalisation_param)
         cached = response_cache_get(response_cache, cache_key)
         if !isnothing(cached)
             body, cached_headers = cached
@@ -552,7 +562,10 @@ function make_handler(graph::Graph; progress::Bool=false, population=nothing,
             return HTTP.Response(200, headers, body)
         end
         cells = 3UInt128(radius) * (UInt128(radius) + 1) + 1
-        metadata = min(UInt128(typemax(Int)), 256cells + 65536)
+        normalisation_cells = normalisation == :pop ?
+            3UInt128(normalisation_grid_radius) * (UInt128(normalisation_grid_radius) + 1) + 1 : UInt128(0)
+        metadata = min(UInt128(typemax(Int)), max(256cells + 65536,
+            8 * normalisation_cells + 65536))
         n = length(graph.h3)
         destinations = length(walking_index.prepared.output_cells)
         # Include a scratch allowance. These estimates are not a process RSS bound.
@@ -564,7 +577,8 @@ function make_handler(graph::Graph; progress::Bool=false, population=nothing,
                 if metric == "accessible_population"
                     options = (; origin_radius=radius, window_ms=window, step_ms=step, max_walk_ms,
                         window_mode, prepared_population, workspace_pool,
-                        exclude_origin_population=exclude_origin_population)
+                        exclude_origin_population=exclude_origin_population,
+                        normalisation, normalisation_param)
                     result = _cached_route_population(population_cache, origin, ready, budget;
                         options..., probe_only=true)
                     if !hasproperty(result, :h3)
@@ -583,7 +597,7 @@ function make_handler(graph::Graph; progress::Bool=false, population=nothing,
                     end
                     append!(headers, ["X-Router-Backend" => "shared-population",
                         "X-Router-Metric" => metric, "X-Router-Distance" => "not-computed",
-                        "X-Router-Origin-Count" => string(length(result.h3)),
+                        "X-Router-Origin-Count" => string(get(result, :origin_count, length(result.h3))),
                         "X-Router-Cache-Hits" => string(result.cache_hits),
                         "X-Router-Cache-Misses" => string(result.cache_misses),
                         "X-Router-Shared-Expansions" => string(result.shared_expansions),

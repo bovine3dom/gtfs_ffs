@@ -513,16 +513,24 @@ function _route_population_impl(graph, population::Population, origin, departure
                           walking_index=WalkingIndex(graph), prepared_population=nothing,
                           origin_batch_size=nothing, exclude_origin_population::Bool=false,
                           result_cache=nothing, workspace_pool=nothing,
-                          workers::Integer=Threads.nthreads(:default), probe_only::Bool=false)
+                          workers::Integer=Threads.nthreads(:default), probe_only::Bool=false,
+                          normalisation=:none, normalisation_param=nothing)
     workers > 0 || throw(ArgumentError("workers must be positive"))
+    normalisation, normalisation_param = _population_normalisation(normalisation, normalisation_param)
     ready, _ = query_times(graph, origin, departure_ms, budget_ms)
     radius = _origin_radius(string(origin_radius))
+    normalisation_resolution, normalisation_radius = normalisation == :pop ?
+        _population_normalisation_grid(origin, graph.resolution, normalisation_param) :
+        (graph.resolution, 0)
     if !isnothing(workspace_pool)
-        # Bound the disk and output estimate before H3 allocates its disk buffer.
+        # Bound H3 disks and the output estimate before H3 allocates them.
         r = UInt128(radius)
         cells = 3r * (r + 1) + 1
-        cells <= div(workspace_pool.max_bytes, 16) ||
-            throw(PopulationMemoryError(cells * 16, workspace_pool.max_bytes))
+        nr = UInt128(normalisation_radius)
+        normalisation_cells = 3nr * (nr + 1) + 1
+        estimated = max(cells * 16, normalisation_cells * 8)
+        estimated <= workspace_pool.max_bytes ||
+            throw(PopulationMemoryError(estimated, workspace_pool.max_bytes))
     end
     window_ms isa Integer && window_ms >= 0 || throw(ArgumentError("window must be nonnegative"))
     step_ms isa Integer && step_ms >= 0 || throw(ArgumentError("sample step must be nonnegative"))
@@ -551,7 +559,12 @@ function _route_population_impl(graph, population::Population, origin, departure
             selected, ready, budget_ms, step, samples, limit, mode, origin_batch_size,
             exclude_origin_population; workspace_pool, workers)
     end
-    isnothing(result_cache) && return route_missing(origins)
+    if isnothing(result_cache)
+        result = route_missing(origins)
+        return _apply_population_normalisation(result, population, graph.resolution,
+            normalisation, normalisation_param, exclude_origin_population,
+            normalisation_radius, normalisation_resolution)
+    end
     cache = result_cache
     # Population modes use coverage, not elapsed-time statistics.
     semantic_mode = samples == 1 ? :mean_intersection :
@@ -583,8 +596,11 @@ function _route_population_impl(graph, population::Population, origin, departure
             end
         end
     end
-    return (; h3=origins, value=values, result.shared_expansions, result.query_expansions,
+    result = (; h3=origins, value=values, result.shared_expansions, result.query_expansions,
         result.workers, cache_hits=length(origins) - length(missing), cache_misses=length(missing))
+    return _apply_population_normalisation(result, population, graph.resolution,
+        normalisation, normalisation_param, exclude_origin_population,
+        normalisation_radius, normalisation_resolution)
 end
 
 function _route_population_origins(args...; workspace_pool=nothing, workers::Integer=Threads.nthreads(:default))

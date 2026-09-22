@@ -244,15 +244,18 @@ Use `metric=time` with `reachable_union` when window sampling is active.
 Use `metric=accessible_population&origin_radius=2` for independent origins within two H3 grid steps.
 The radius is independent of walking and includes cells with zero population or outside the transit graph.
 The default radius of zero selects only the specified origin.
-Results contain only origin H3 indices and `value::Float64` in people. The origin's population counts at zero time.
+Results contain only origin H3 indices and `value::Float64` in people. With `normalisation=pop`, `value` is a ratio instead. The origin's population counts at zero time.
 Add `exclude_origin_population=true` to exclude each result origin's own routing-cell population.
 The default is `false`. Values `1` and `0` are also valid. This option applies to point queries and all window modes.
 Other metrics ignore this option, including invalid values. Population queries reject empty or invalid values with HTTP 400.
+Set `normalisation=pop&normalisation_param=10` to return accessible population divided by the population in an approximate 10 km H3 disk around each result origin. `normalisation_param` is ignored unless `normalisation=pop`.
+Small radii use the routing resolution. Larger radii use a coarser population rollup to target an H3 grid radius of about 5. The radius is rounded up to the next H3 grid ring. The result is a ratio, not a percentage.
+Cells with zero denominator are omitted. `exclude_origin_population=true` removes the origin's routing-cell population from both values.
 The response contains one cell per origin with a positive final total. Zero totals are omitted, including the query origin.
-An origin with zero local population is included if its accessible total is positive.
+An origin with zero local population is included if its accessible total is positive unless normalisation removes it.
 `X-Router-Origin-Count` reports origins examined. All-zero results contain an empty Arrow table.
 Intersection modes count cells reached in every sample. `min_union` and `diff_union` count cells
-reached in any sample. `reachable_union` returns mean accessible population in people.
+reached in any sample. `reachable_union` returns mean accessible population in people, or the corresponding mean ratio with `normalisation=pop`.
 Each reached cell contributes its whole population, once per origin and sample.
 Population queries calculate origin totals and ignore `distance_mode`.
 Other metrics ignore `origin_radius` values. Duplicate parameters return HTTP 400. See the query contract for details.
