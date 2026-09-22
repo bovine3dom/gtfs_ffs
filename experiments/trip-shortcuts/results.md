@@ -3,7 +3,8 @@
 ## Status
 
 The user approved exclusion of all 3,660 ambiguous trip groups from both graphs.
-Both graphs were generated. Production code and `data/at_test.arrow` were not changed.
+Both baseline graphs were generated. The input file is unchanged. The router now
+preserves trip IDs when a trip-aware export is used.
 
 The experiment keeps all valid adjacent connections. For a trip with `n` legs,
 it divides the legs into nonoverlapping segments of `ceil(sqrt(n))` legs. It adds
@@ -182,9 +183,58 @@ boundaries, and both three-hour and seven-day budgets. Walking arrival outputs
 matched at 07:59:59.999, 08:00:00.000, and 08:00:00.001. At exactly 08:00, the
 walking query covered 31,249 cells; one-origin accessible population was 5,785,472.
 
+## Trip-aware follow-up
+
+The Austria export now includes `trip_id` in every adjacent and shortcut row. The
+router applies a five-minute minimum connection only when two transport legs have
+different trip IDs. Walking resets the trip ID, so transport-walk-transport does
+not receive this buffer. The export used a fresh prefix:
+`data/austria_trip_{adjacent,shortcuts}_res8.arrow`.
+
+The following CPU comparison uses the same Julia version, eight threads, origin,
+departure, and cases as the baseline above. The trip-aware population path keeps
+one state per relevant trip and batches origin and sample queries with bit masks.
+It enters event lists with binary search, uses grouped lookup for same-trip
+continuation, and stops when all remaining events are dominated.
+
+| Case | Baseline adjacent | Trip-aware adjacent | Change | Baseline shortcuts | Trip-aware shortcuts | Change |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| Pack (s) | 3.939 | 6.871 | 1.74x | 1.893 | 4.086 | 2.16x |
+| Point (s) | 0.0018 | 0.0102 | 5.7x | 0.0025 | 0.0149 | 6.0x |
+| Population, 1 origin | 0.031 | 0.088 | 2.8x | 0.025 | 0.109 | 4.4x |
+| Population, 127 origins | 0.163 | 1.249 | 7.7x | 0.134 | 1.269 | 9.5x |
+| Population, 127 origins, 4 samples | 0.545 | 2.110 | 3.9x | 0.589 | 2.378 | 4.0x |
+
+The latest instrumentation counted event rows, event groups, binary searches,
+and dominance breaks for the trip-aware requests:
+
+| Case | Adjacent rows / groups / searches / breaks | Shortcuts rows / groups / searches / breaks |
+| --- | ---: | ---: |
+| Point | 27,705 / 21,639 / 53,799 / 36,743 | 48,878 / 30,599 / 108,088 / 75,990 |
+| Population, 1 origin | 67,284 / 52,566 / 64,578 / 41,197 | 77,709 / 48,416 / 126,142 / 85,736 |
+| Population, 127 origins | 1,863,068 / 1,744,647 / 720,089 / 520,767 | 1,700,822 / 1,450,923 / 1,479,376 / 1,125,108 |
+| Population, 127 origins, 4 samples | 9,227,710 / 8,539,407 / 4,064,548 / 2,898,661 | 8,534,691 / 7,086,422 / 8,204,374 / 6,145,663 |
+
+The population path caches dominance results for masks with at least eight lanes.
+The cache stores a safe upper bound because label times only decrease. In the
+latest 127-origin runs, it avoided 875,722 adjacent and 661,690 shortcut mask
+scans for one sample. With four samples, it avoided 2,436,731 and 2,104,472
+scans. The state instrumentation also reports queue pushes, stale pops, state
+discards, queue peaks, and population mask merges. For 127 origins and one sample,
+the adjacent graph had 433,572 state pushes, 287,528 stale pops, 25,997,298 state
+discards, and a queue peak of 101,016. The shortcuts graph had 414,640 pushes,
+264,884 stale pops, 22,478,308 discards, and a peak of 96,142.
+
+The trip-aware graph reached fewer cells in the point case because the transfer
+rule removes invalid cross-trip connections. Population totals also changed for
+the same reason. The trip-group lookup now reuses the profile-sorted trip IDs
+instead of storing duplicate group arrays. Austria packed arrays fell from
+254.5 MB to 226.2 MB for adjacent edges and from 299.8 MB to 265.7 MB for shortcuts.
+The suffix-arrival index still adds memory, but the population slowdown is now much smaller.
+
 ## Tests
 
-All 14 inspection tests, 1,443 routing/export tests, and 19 full-export audit tests
+All 14 inspection tests, 1,447 routing/export tests, and 19 full-export audit tests
 passed. The routing suite passed with both `KA.CPU` and Intel P630. Tests cover segment sizes, final partial
 segments, dwell, midnight, constant clock offsets, zero-duration cycles, repeated
 cells, invalid gaps, millisecond boundaries, both walking labels, all six
@@ -225,6 +275,7 @@ the CPU table above comes from the earlier CPU-only run.
 
 No 96-sample GPU request, larger GPU origin disk, CUDA hardware benchmark, or
 seven-day population benchmark was run. Seven-day transit label parity was checked.
+
 The CPU CLI/log path was checked again with one origin and with 127 origins/four
 samples; see `cpu-check-results.log`. Its totals still matched exactly.
 

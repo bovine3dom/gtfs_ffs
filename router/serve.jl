@@ -5,6 +5,7 @@ import HTTP
 function parse_cli(args)
     paths = String[]
     population_path = ""
+    trip_shards_path = ""
     limits = Dict("--max-pending" => 128, "--workspace-memory-gib" => 8)
     seen = Set{String}()
     i = 1
@@ -21,6 +22,17 @@ function parse_cli(args)
             end
             (!isempty(population_path) && !startswith(population_path, "--")) ||
                 throw(ArgumentError("--population requires a path"))
+        elseif arg == "--trip-shards" || startswith(arg, "--trip-shards=")
+            isempty(trip_shards_path) || throw(ArgumentError("duplicate --trip-shards option"))
+            if arg == "--trip-shards"
+                i += 1
+                i <= length(args) || throw(ArgumentError("--trip-shards requires a path"))
+                trip_shards_path = args[i]
+            else
+                trip_shards_path = split(arg, '='; limit=2)[2]
+            end
+            (!isempty(trip_shards_path) && !startswith(trip_shards_path, "--")) ||
+                throw(ArgumentError("--trip-shards requires a path"))
         elseif first(split(arg, '='; limit=2)) in keys(limits)
             name = first(split(arg, '='; limit=2))
             name in seen && throw(ArgumentError("duplicate $name option"))
@@ -42,7 +54,8 @@ function parse_cli(args)
         end
         i += 1
     end
-    return (; paths, population_path, max_pending=limits["--max-pending"],
+    return (; paths, population_path, trip_shards_path,
+            max_pending=limits["--max-pending"],
             workspace_bytes=limits["--workspace-memory-gib"] * 1024^3)
 end
 
@@ -52,12 +65,13 @@ function _startup_signature(path)
     return (abspath(path), info.size, info.mtime)
 end
 
-function load_handlers(paths; population_path="", max_pending=128, workspace_bytes=8*1024^3)
+function load_handlers(paths; population_path="", trip_shards_path="", max_pending=128,
+                       workspace_bytes=8*1024^3)
     admission = RequestAdmission(; max_pending, memory_bytes=workspace_bytes)
     workspace_pool = PopulationWorkspacePool(; max_bytes=workspace_bytes)
     startup_cache = StartupCache()
     if isempty(paths) || ("--demo" in paths && paths != ["--demo"])
-        error("usage: julia --threads=8 --project=router router/serve.jl [--population <path>] [--max-pending 128] [--workspace-memory-gib 8] (<name_resN.arrow> [name_resN.arrow ...] | --demo)")
+        error("usage: julia --threads=8 --project=router router/serve.jl [--population <path>] [--trip-shards <dir>] [--max-pending 128] [--workspace-memory-gib 8] (<name_resN.arrow> [name_resN.arrow ...] | --demo)")
     end
     sources = Dict{Tuple{String,Int},String}()
     specs = map(paths) do path
@@ -86,11 +100,11 @@ function load_handlers(paths; population_path="", max_pending=128, workspace_byt
     graphs = Dict{Tuple{String,Int},Graph}()
     for (path, (name, resolution)) in zip(paths, specs)
         Reachability._startup_stage(true, "Loading graph $path") do _
-            key = (:graph, _startup_signature(path), name, resolution)
+            key = (:graph, :legacy, _startup_signature(path), name, resolution)
             graph = startup_cache_load(startup_cache, key)
             if !(graph isa Graph)
-                graph = path == "--demo" ? pack_graph(fixture_table(); progress=true) :
-                    pack_graph(path; skip_invalid_durations=true, badajoz_shuttle=true, progress=true)
+                graph = path == "--demo" ? pack_graph(fixture_table(); progress=true, trip_aware=false) :
+                    pack_graph(path; skip_invalid_durations=true, badajoz_shuttle=true, progress=true, trip_aware=false)
                 startup_cache_save!(startup_cache, key, graph)
             else
                 @info "Startup cache hit" kind="packed graph" source=path
@@ -106,7 +120,7 @@ function load_handlers(paths; population_path="", max_pending=128, workspace_byt
         resolution == 8 || continue
         for target in 7:-1:5
             haskey(sources, (name, target)) && continue
-            key = (:derived_graph, _startup_signature(sources[(name, 8)]), name, target)
+            key = (:derived_graph, :legacy, _startup_signature(sources[(name, 8)]), name, target)
             derived = startup_cache_load(startup_cache, key)
             if !(derived isa Graph)
                 derived = coarsen_graph(graph, target; progress=true)
@@ -119,13 +133,28 @@ function load_handlers(paths; population_path="", max_pending=128, workspace_byt
             graph = derived
         end
     end
+    trip_shard_cache = TripShardCache()
+    trip_shard_sets = Dict{Tuple{String,Int},Any}()
+    for ((name, resolution), graph) in graphs
+        path = haskey(sources, (name, resolution)) ? sources[(name, resolution)] : sources[(name, 8)]
+        path == "--demo" && continue
+        prepared_dir = isempty(trip_shards_path) ? nothing :
+            joinpath(trip_shards_path, "$(name)_res$(resolution)")
+        trip_shard_sets[(name, resolution)] = TripShardSet(path, graph;
+            namespace=(name, resolution), cache=trip_shard_cache, startup_cache,
+            disk_key_prefix=(:trip_shard, 2, _startup_signature(path), name, resolution),
+            prepared_dir, progress=true)
+    end
     for ((name, resolution), graph) in sort!(collect(graphs); by=first)
         @info "Preparing CPU graph" network=name resolution nodes=length(graph.h3) edges=length(graph.edge_to) workers=Threads.nthreads(:default)
         source_path = haskey(sources, (name, resolution)) ? sources[(name, resolution)] : sources[(name, 8)]
-        state_key = (:prepared, _startup_signature(source_path), name, resolution, population_signature)
+        state_key = (:prepared, :legacy, _startup_signature(source_path), name, resolution, population_signature)
         state = Ref{Any}(startup_cache_load(startup_cache, state_key))
+        shard_set = get(trip_shard_sets, (name, resolution), nothing)
+        loader = isnothing(shard_set) ? (() -> graph) :
+            ((origin, max_walk_ms) -> trip_shard_acquire!(shard_set, origin, max_walk_ms))
         handlers[(name, resolution)] = make_handler(graph; workspace_pool, admission, progress=true, population,
-            response_cache, startup_state=state)
+            response_cache, startup_state=state, trip_graph_set=shard_set, trip_graph_loader=loader)
         isnothing(state[]) || startup_cache_save!(startup_cache, state_key, state[])
     end
     for name in unique(first.(specs))
@@ -137,7 +166,8 @@ end
 if abspath(PROGRAM_FILE) == @__FILE__
     options = parse_cli(ARGS)
     options.paths == ["--demo"] && include("fixture.jl")
-    handler = load_handlers(options.paths; options.population_path, options.max_pending, options.workspace_bytes)
+    handler = load_handlers(options.paths; options.population_path, options.trip_shards_path,
+        options.max_pending, options.workspace_bytes)
     warmup_server()
     host = get(ENV, "ROUTER_HOST", "127.0.0.1")
     port = parse(Int, get(ENV, "ROUTER_PORT", "1988"))

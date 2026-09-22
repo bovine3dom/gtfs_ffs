@@ -40,6 +40,8 @@ struct KernelRouter{B,I,U}
 end
 
 function KernelRouter(graph::Graph, backend)
+    isnothing(graph.trip_id) || length(unique(graph.trip_id)) == 1 ||
+        throw(ArgumentError("GPU routing does not support multiple trip IDs"))
     arrays = GC.@preserve graph begin
         uploaded = map((graph.edge_from, graph.edge_to, graph.schedule_ptr,
                         graph.departure, graph.arrival)) do source

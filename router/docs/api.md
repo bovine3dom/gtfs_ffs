@@ -29,6 +29,7 @@ The server rejects unknown parameters, duplicate parameters, and invalid paramet
 | `distance_mode` | `itinerary` or `straight_line` | `itinerary` |
 | `window_mode` | One of the six modes below | `mean_intersection` |
 | `metric` | `time`, `time_distance_quantile`, or `accessible_population` | `time` |
+| `trip_aware` | `true` or `1` applies the five-minute buffer between different transport trips; `false` or `0` uses the fast route | `false` |
 | `origin_radius` | Nonnegative integer H3 grid steps; population metric only | `0` |
 | `exclude_origin_population` | `true` or `1` excludes each origin's own population; `false` or `0` includes it; population metric only | `false` |
 | `normalisation` | `none` or `pop`; population metric only | `none` |
@@ -76,6 +77,21 @@ ready + (samples - 1) * step_ms + budget < INF
 The server checks these conditions before it allocates routing memory or starts routing.
 A sampling interval greater than the window length gives one sample.
 Memory use grows with the number of samples and destination cells.
+
+## Trip-aware shard files
+
+Prepare trip-aware shards before startup when request latency and memory use matter:
+
+```sh
+julia --project=. prepare_trip_shards.jl /data/trip-shards /data/everything_res8.arrow
+julia --threads=8 --project=. serve.jl --trip-shards /data/trip-shards /data/everything_res8.arrow
+```
+
+The preparation command writes memory-mapped numeric shards for disconnected transit regions.
+It derives missing resolutions 5 through 7 from resolution 8. The server checks the source
+file size and modification time in the manifest. Re-run preparation after the source changes.
+The server uses a shared 30 GiB SLRU cache for loaded trip-aware shards. Walking does not
+cross shard regions. Without `--trip-shards`, the server keeps the slower request-time builder.
 
 ## Population Metric
 
@@ -127,6 +143,10 @@ the origin's routing-cell population from both the numerator and denominator.
 `normalisation=none` keeps the existing people values. `normalisation_param` is
 ignored unless `normalisation=pop`. The CPU `route_population` function accepts
 the `normalisation` and `normalisation_param` keywords.
+Set `trip_aware=true` to apply the five-minute minimum connection time between different transport trip IDs.
+Walking resets the trip ID, so transport-walk-transport does not receive this buffer.
+The parameter has no effect when the input graph has no trip IDs.
+Trip IDs do not need global uniqueness. Keep an ID consistent across one trip and use different IDs for unrelated trips that can meet in one routing cell.
 Duplicate paths and overlapping walks count each cell once per sample.
 Walking, time limits, network selection, encoding, and parameter validation follow the common query rules.
 HTTP and WebSocket queries use the same parameters, constraints, and result schema.
@@ -221,10 +241,11 @@ Other union modes can include partially reachable cells, subject to the finite-v
 
 ## Response Headers
 
-The `X-Router-*` headers report the metric, distance mode, window mode, walking limit, and engine statistics.
+The `X-Router-*` headers report the metric, distance mode, window mode, walking limit, trip-aware mode, and engine statistics.
+`X-Router-Trip-Aware` reports whether the request used trip-aware routing. Trip-aware routing loads weakly connected transit regions on demand. Walking does not cross regions; loaded regions use a shared 30 GiB SLRU cache.
 `X-Router-Backend` is `reference` for time and quantile queries.
 For population queries, it is `shared-population` and `X-Router-Distance` is `not-computed`.
-These headers are available through CORS. Each graph handler has one population cache.
+These headers are available through CORS. A graph with trip IDs has separate population caches for the two routing modes.
 `X-Router-Origin-Count` reports origins examined, not rows returned. `X-Router-Shared-Expansions` reports
 timed-state expansions. `X-Router-Query-Expansions` counts the independent origin/sample states
 served by those expansions. A lower shared count shows reuse.

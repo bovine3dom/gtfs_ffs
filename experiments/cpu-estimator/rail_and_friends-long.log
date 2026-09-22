@@ -1,0 +1,95 @@
+LOAD rail_and_friends available_GiB=54.215553283691406
+[ Info: Startup: Opening Arrow file /home/olie/projects/gtfs_ffs/data/rail_and_friends_res8.arrow
+┌ Info: Startup complete: Opening Arrow file /home/olie/projects/gtfs_ffs/data/rail_and_friends_res8.arrow
+└   elapsed_s = 2.145940612
+[ Info: Startup: Validating and filtering rows
+┌ Warning: Skipping 1842 of 36581180 connections: duration_ms outside the two-day UInt32 profile range (90 negative, 1752 overflowing; range (-120000, 1767311700000))
+└ @ Main.Reachability ~/projects/gtfs_ffs/router/src/Reachability.jl:99
+┌ Info: Startup complete: Validating and filtering rows
+└   elapsed_s = 3.554725357
+[ Info: Startup: Materializing sort columns
+┌ Info: Startup complete: Materializing sort columns
+└   elapsed_s = 1.090264818
+[ Info: Startup: Indexing and validating H3 endpoints
+┌ Info: Startup complete: Indexing and validating H3 endpoints
+└   elapsed_s = 1.138596453
+┌ Info: Added Elvas-Badajoz fantasy rail shuttle
+│   resolution = 8
+└   connections = 2342
+[ Info: Startup: Sorting connections by edge
+┌ Info: Startup complete: Sorting connections by edge
+└   elapsed_s = 9.983501055
+[ Info: Startup: Packing daily profiles
+┌ Info: Startup complete: Packing daily profiles
+└   elapsed_s = 7.534734107
+[ Info: Startup: Grouping resolution 7 edges
+┌ Info: Startup complete: Grouping resolution 7 edges
+└   elapsed_s = 0.445689287
+[ Info: Startup: Merging resolution 7 profiles
+┌ Info: Startup complete: Merging resolution 7 profiles
+└   elapsed_s = 5.469478481
+[ Info: Startup: Grouping resolution 6 edges
+┌ Info: Startup complete: Grouping resolution 6 edges
+└   elapsed_s = 0.057555507
+[ Info: Startup: Merging resolution 6 profiles
+┌ Info: Startup complete: Merging resolution 6 profiles
+└   elapsed_s = 3.211962271
+[ Info: Startup: Opening population file /home/olie/projects/gtfs_ffs/data/kontur_h3.arrow
+┌ Info: Startup complete: Opening population file /home/olie/projects/gtfs_ffs/data/kontur_h3.arrow
+└   elapsed_s = 0.467739876
+[ Info: Startup: Validating population rows
+┌ Info: Startup complete: Validating population rows
+└   elapsed_s = 0.653191376
+[ Info: Startup: Checking population cell uniqueness
+┌ Info: Startup complete: Checking population cell uniqueness
+└   elapsed_s = 1.162353203
+PREPARE rail_and_friends 6 rss_GiB=5.502655029296875
+┌ Info: Preparing resident walking adjacency
+│   workers = 8
+│   nodes = 36931
+└   max_walk_h = 1.0
+[ Info: Startup: Counting walking geometry
+┌ Info: Startup complete: Counting walking geometry
+└   elapsed_s = 0.860719335
+[ Info: Startup: Packing walking adjacency
+┌ Info: Startup complete: Packing walking adjacency
+└   elapsed_s = 0.571528358
+[ Info: Startup: Indexing walking output IDs
+┌ Info: Startup complete: Indexing walking output IDs
+└   elapsed_s = 0.000186343
+[ Info: Startup: Aggregating population at res6
+┌ Info: Startup complete: Aggregating population at res6
+└   elapsed_s = 1.938824762
+[ Info: Startup: Preparing indexed population weights and walks
+┌ Info: Startup complete: Preparing indexed population weights and walks
+└   elapsed_s = 0.005033258
+MEASURE rail_and_friends 6 Paris 0/1 CPU_ms=46.41 reused=0
+MEASURE rail_and_friends 6 Paris 3/2 CPU_ms=119.75 reused=2
+MEASURE rail_and_friends 6 Paris 2/3 CPU_ms=62.15 reused=2
+MEASURE rail_and_friends 6 Hamburg 1/4 CPU_ms=100.75 reused=0
+MEASURE rail_and_friends 6 Hamburg 3/5 CPU_ms=398.48 reused=2
+PREPARE rail_and_friends 8 rss_GiB=5.096035003662109
+┌ Info: Preparing resident walking adjacency
+│   workers = 8
+│   nodes = 125488
+└   max_walk_h = 1.0
+[ Info: Startup: Counting walking geometry
+┌ Info: Startup complete: Counting walking geometry
+└   elapsed_s = 18.857747213
+[ Info: Startup: Packing walking adjacency
+┌ Info: Startup complete: Packing walking adjacency
+└   elapsed_s = 19.763758571
+[ Info: Startup: Indexing walking output IDs
+┌ Info: Startup complete: Indexing walking output IDs
+└   elapsed_s = 0.908051771
+[ Info: Startup: Aggregating population at res8
+┌ Info: Startup complete: Aggregating population at res8
+└   elapsed_s = 5.807865085
+[ Info: Startup: Preparing indexed population weights and walks
+┌ Info: Startup complete: Preparing indexed population weights and walks
+└   elapsed_s = 0.895963737
+MEASURE rail_and_friends 8 Paris 0/1 CPU_ms=69.9 reused=0
+MEASURE rail_and_friends 8 Paris 3/2 CPU_ms=520.43 reused=2
+MEASURE rail_and_friends 8 Paris 2/3 CPU_ms=77.8 reused=2
+MEASURE rail_and_friends 8 Hamburg 1/4 CPU_ms=269.94 reused=0
+MEASURE rail_and_friends 8 Hamburg 3/5 CPU_ms=575.15 reused=1

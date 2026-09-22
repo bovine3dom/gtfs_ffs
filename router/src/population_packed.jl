@@ -512,9 +512,9 @@ function _route_population_impl(graph, population::Population, origin, departure
                           max_walk_ms=3_600_000, window_mode=:mean_intersection,
                           walking_index=WalkingIndex(graph), prepared_population=nothing,
                           origin_batch_size=nothing, exclude_origin_population::Bool=false,
-                          result_cache=nothing, workspace_pool=nothing,
+                          result_cache=nothing, workspace_pool=nothing, origins=nothing,
                           workers::Integer=Threads.nthreads(:default), probe_only::Bool=false,
-                          normalisation=:none, normalisation_param=nothing)
+                          normalisation=:none, normalisation_param=nothing, stats=nothing)
     workers > 0 || throw(ArgumentError("workers must be positive"))
     normalisation, normalisation_param = _population_normalisation(normalisation, normalisation_param)
     ready, _ = query_times(graph, origin, departure_ms, budget_ms)
@@ -545,15 +545,21 @@ function _route_population_impl(graph, population::Population, origin, departure
     prepared = _prepare_population(population, walking_index)
     isnothing(prepared_population) || prepared_population === prepared ||
         throw(ArgumentError("prepared population does not match population and walking index"))
-    origins = H3.API.gridDisk(origin, radius)
+    origins = isnothing(origins) ? H3.API.gridDisk(origin, radius) : origins
     origins isa Vector{UInt64} || throw(ArgumentError("H3 origin disk failed"))
     sort!(filter!(!iszero, origins))
+    isempty(origins) && return (; h3=origins, value=Float64[], origin_count=0,
+        shared_expansions=0, query_expansions=0, workers=0, cache_hits=0, cache_misses=0)
     weights = _population_rollup(population, graph.resolution)
     function route_missing(selected)
-        if isnothing(prepared) || limit > walking_index.prepared.limit
+        if !isnothing(graph.trip_id)
+            return _route_population_trip_reference(graph, population, origin, departure_ms, budget_ms;
+                origin_radius, window_ms, step_ms, max_walk_ms, window_mode, walking_index,
+                origin_batch_size, exclude_origin_population, origins=selected, workers, stats)
+        elseif isnothing(prepared) || limit > walking_index.prepared.limit
             return _route_population_reference(graph, population, origin, departure_ms, budget_ms;
                 origin_radius, window_ms, step_ms, max_walk_ms, window_mode, walking_index,
-                origin_batch_size, exclude_origin_population, origins=selected, workers)
+                origin_batch_size, exclude_origin_population, origins=selected, workers, stats)
         end
         return _route_population_origins_impl(graph, walking_index, population, prepared, weights,
             selected, ready, budget_ms, step, samples, limit, mode, origin_batch_size,

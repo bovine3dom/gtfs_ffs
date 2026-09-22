@@ -238,8 +238,203 @@ function _apply_population_normalisation(result, population, resolution, normali
         origin_count=length(origins)))
 end
 
+function _route_population_trip_reference(graph, population::Population, origin, departure_ms, budget_ms;
+        origin_radius=0, window_ms=0, step_ms=60_000, max_walk_ms=3_600_000,
+        window_mode=:mean_intersection, walking_index=WalkingIndex(graph), origin_batch_size=nothing,
+        origins=nothing, exclude_origin_population::Bool=false,
+        workers::Integer=Threads.nthreads(:default), stats=nothing)
+    return _route_population_reference(graph, population, origin, departure_ms, budget_ms;
+        origin_radius, window_ms, step_ms, max_walk_ms, window_mode, walking_index,
+        origin_batch_size, exclude_origin_population, origins, workers, stats)
+end
+
+function _population_sample_trip(graph, topology, origins, ready, cutoffs, weights, stats=nothing)
+    queue = UInt32RadixHeap{UInt128}()
+    pending = Dict{UInt128,UInt64}()
+    settled = Dict{UInt128,UInt64}()
+    reached = Dict{UInt64,UInt64}()
+    used = typemax(UInt64) >> (64 - length(origins))
+    best_any = fill(INF, length(graph.h3), length(origins))
+    best_walk = fill(INF, length(graph.h3), length(origins))
+    dominance_cache = Dict{UInt128,UInt32}()
+    dominance_cache_limit = 200_000
+    seen_trip = zeros(Int32, maximum(graph.trip_id; init=UInt32(0)))
+    generation = Int32(0)
+    function deadline_mask(time)
+        first = searchsortedfirst(cutoffs, time)
+        first > length(cutoffs) ? UInt64(0) : used & (typemax(UInt64) << (first - 1))
+    end
+    function enqueue(time, cell, trip, walk, mask)
+        state_key = _population_state_key(cell, trip, walk)
+        mask &= deadline_mask(time) & ~get(settled, state_key, UInt64(0))
+        node = get(graph.node_id, cell, Int32(0))
+        if node != 0
+            threshold = walk ? time : time < MIN_TRIP_CONNECTION_MS ? UInt32(0) :
+                time - MIN_TRIP_CONNECTION_MS
+            best = walk ? best_walk : best_any
+            dominated = UInt64(0)
+            lane_count = count_ones(mask)
+            if lane_count >= 8
+                cache_key = UInt128(mask) | (UInt128(UInt32(node)) << 64) |
+                    (walk ? UInt128(1) << 96 : UInt128(0))
+                cached = get(dominance_cache, cache_key, INF)
+                if cached <= threshold
+                    dominated = mask
+                    isnothing(stats) || (stats.dominance_cache_hits += 1)
+                else
+                    max_best = UInt32(0)
+                    bits = mask
+                    while bits != 0
+                        lane = trailing_zeros(bits) + 1
+                        @inbounds value = best[node, lane]
+                        max_best = max(max_best, value)
+                        value <= threshold && (dominated |= UInt64(1) << (lane - 1))
+                        bits &= bits - UInt64(1)
+                    end
+                    if max_best != INF && max_best < cached &&
+                       (cached != INF || length(dominance_cache) < dominance_cache_limit)
+                        dominance_cache[cache_key] = max_best
+                    end
+                end
+            else
+                bits = mask
+                while bits != 0
+                    lane = trailing_zeros(bits) + 1
+                    @inbounds best[node, lane] <= threshold && (dominated |= UInt64(1) << (lane - 1))
+                    bits &= bits - UInt64(1)
+                end
+            end
+            mask &= ~dominated
+            isnothing(stats) || (stats.state_dominance_discards += count_ones(dominated))
+            iszero(mask) && return
+            bits = mask
+            while bits != 0
+                lane = trailing_zeros(bits) + 1
+                @inbounds best[node, lane] = min(best[node, lane], time)
+                @inbounds best_any[node, lane] = min(best_any[node, lane], time)
+                bits &= bits - UInt64(1)
+            end
+        end
+        pending_key = (state_key << 32) | UInt128(time)
+        if haskey(pending, pending_key)
+            isnothing(stats) || (stats.mask_merges += 1)
+        else
+            push!(queue, time, pending_key)
+            isnothing(stats) || (stats.state_enqueues += 1; stats.queue_peak = max(stats.queue_peak, length(queue)))
+        end
+        pending[pending_key] = get(pending, pending_key, UInt64(0)) | mask
+    end
+    function credit(cell, mask)
+        iszero(mask) || get(weights, cell, 0.0) <= 0 ||
+            (reached[cell] = get(reached, cell, UInt64(0)) | mask)
+    end
+    for (i, cell) in enumerate(origins)
+        mask = UInt64(1) << (i - 1)
+        enqueue(ready[i], cell, UInt32(0), false, mask)
+        iszero(topology.limit) || enqueue(ready[i], cell, UInt32(0), true, mask)
+    end
+    expansions = queries = 0
+    while !isempty(queue)
+        time, pending_key = pop!(queue)
+        isnothing(stats) || (stats.state_pops += 1)
+        state_key = pending_key >> 32
+        cell = _population_state_cell(state_key)
+        current_trip = _population_state_trip(state_key)
+        walk = _population_state_walk(state_key)
+        previous = get(settled, state_key, UInt64(0))
+        mask = pop!(pending, pending_key) & ~previous
+        if iszero(mask)
+            isnothing(stats) || (stats.stale_pops += 1)
+            continue
+        end
+        settled[state_key] = previous | mask
+        expansions += 1
+        queries += count_ones(mask)
+        credit(cell, mask)
+        cutoff = cutoffs[64 - leading_zeros(mask)]
+        if walk
+            limit = min(topology.limit, cutoff - time)
+            for hop in _walking_hops(topology, cell; geographic=true, limit)
+                hop.duration_ms <= limit || continue
+                credit(hop.cell, mask & deadline_mask(time + hop.duration_ms))
+            end
+            for hop in _walking_hops(topology, cell; limit)
+                hop.duration_ms <= limit || continue
+                target = hop.cell isa Int32 ? graph.h3[hop.cell] : hop.cell
+                enqueue(time + hop.duration_ms, target, UInt32(0), false, mask)
+            end
+        else
+            node = get(graph.node_id, cell, Int32(0))
+            iszero(node) && continue
+            base = (time ÷ PERIOD) * PERIOD
+            other_ready = _trip_other_ready(time, current_trip, cutoff)
+            for edge in graph.out_ptr[node]:(graph.out_ptr[node + 1] - Int32(1))
+                generation += Int32(1)
+                isnothing(stats) || (stats.edge_queries += 1)
+                target_node = graph.edge_to[edge]
+                target = graph.h3[target_node]
+                dominance_limit = _trip_lane_dominance_limit(best_any, best_walk, target_node, mask)
+                lower = time - base
+                upper = cutoff - base
+
+                if current_trip != 0
+                    first_group, stop = _trip_group_range(graph, edge, current_trip, stats)
+                    if first_group != 0
+                        connection = _trip_group_lower_bound(graph, first_group, stop, lower, stats)
+                        if connection < stop
+                            isnothing(stats) || (stats.event_rows_scanned += 1)
+                            @inbounds d = graph.departure[connection]
+                            if d <= upper
+                                isnothing(stats) || (stats.event_groups += 1)
+                                @inbounds a = graph.arrival[connection]
+                                if a <= upper
+                                    arrival = base + a
+                                    enqueue(arrival, target, current_trip, false, mask)
+                                    enqueue(arrival, target, UInt32(0), true, mask)
+                                end
+                            end
+                        end
+                    end
+                end
+
+                if current_trip == 0 || other_ready != INF
+                    event_clock = current_trip == 0 ? lower : other_ready - base
+                    slot = _trip_event_lower_bound(graph, edge, event_clock, stats)
+                    stop = graph.trip_event_ptr[edge + Int32(1)]
+                    while slot < stop
+                        if _trip_suffix_reaches_limit(graph, slot, base, dominance_limit)
+                            isnothing(stats) || (stats.event_dominance_breaks += 1)
+                            break
+                        end
+                        connection = graph.trip_event_index[slot]
+                        isnothing(stats) || (stats.event_rows_scanned += 1)
+                        @inbounds d = graph.departure[connection]
+                        d > upper && break
+                        @inbounds next_trip = graph.trip_id[connection]
+                        current_trip != 0 && next_trip == current_trip || begin
+                            @inbounds seen_trip[next_trip] == generation || begin
+                                @inbounds a = graph.arrival[connection]
+                                @inbounds seen_trip[next_trip] = generation
+                                isnothing(stats) || (stats.event_groups += 1)
+                                if a <= upper
+                                    arrival = base + a
+                                    enqueue(arrival, target, next_trip, false, mask)
+                                    enqueue(arrival, target, UInt32(0), true, mask)
+                                end
+                            end
+                        end
+                        slot += Int32(1)
+                    end
+                end
+            end
+        end
+    end
+    return reached, expansions, queries
+end
+
 # Each bit is an origin/sample query. Cutoffs follow sample-major lane order.
-function _population_sample(graph, topology, origins, ready, cutoffs, weights)
+function _population_sample(graph, topology, origins, ready, cutoffs, weights, stats=nothing)
+    isnothing(graph.trip_id) || return _population_sample_trip(graph, topology, origins, ready, cutoffs, weights, stats)
     State = Tuple{UInt32,UInt64,Bool}
     queue = BinaryMinHeap{State}()
     pending = Dict{State,UInt64}()
@@ -318,15 +513,12 @@ function _population_totals!(values, ids, coverage, weights, divisor)
     end
 end
 
-const PopulationReferenceResult = @NamedTuple{tile::Int, block::Int, ids::UnitRange{Int},
-    masks::Vector{UInt64}, reached::Dict{UInt64,UInt64}, shared::Int, separate::Int}
-
 function _route_population_reference(graph, population::Population, origin, departure_ms, budget_ms;
                           origin_radius=0, window_ms=0, step_ms=60_000,
                           max_walk_ms=3_600_000, window_mode=:mean_intersection,
                           walking_index=WalkingIndex(graph), origin_batch_size=nothing,
                           exclude_origin_population::Bool=false, origins=nothing,
-                          workers::Integer=Threads.nthreads(:default))
+                          workers::Integer=Threads.nthreads(:default), stats=nothing)
     workers > 0 || throw(ArgumentError("workers must be positive"))
     ready, _ = query_times(graph, origin, departure_ms, budget_ms)
     radius = _origin_radius(string(origin_radius))
@@ -369,16 +561,20 @@ function _route_population_reference(graph, population::Population, origin, depa
                 cutoffs = lane_ready .+ UInt32(budget_ms)
                 masks = [sum(UInt64(1) << (sample * length(ids) + i - 1)
                     for sample in 0:(length(times) - 1)) for i in 1:length(ids)]
+                task_stats = isnothing(stats) ? nothing : TripRouteStats()
                 reached, shared, separate = _population_sample(graph, topologies[worker + 1],
-                    lane_origins, lane_ready, cutoffs, weights)
-                (; tile, block, ids, masks, reached, shared, separate)
+                    lane_origins, lane_ready, cutoffs, weights, task_stats)
+                (; tile, block, ids, masks, reached, shared, separate, stats=task_stats)
             end
         end
         # Reduce in tile/time order. Only unfinished tiles retain coverage.
         for task in tasks
-            (; tile, block, ids, masks, reached, shared, separate) = fetch(task)::PopulationReferenceResult
+            task_result = fetch(task)
+            (; tile, block, ids, masks, reached, shared, separate) = task_result
+            task_stats = task_result.stats
             expansions += shared
             queries += separate
+            isnothing(stats) || _merge_trip_stats!(stats, task_stats)
             if exclude_origin_population
                 for (i, id) in enumerate(ids)
                     cell = origins[id]

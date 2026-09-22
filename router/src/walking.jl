@@ -71,17 +71,18 @@ _walking_node(graph, cell::Int32) = cell
 """Walking-aware CPU reference, returning sorted reachable H3 cells, arrivals and km."""
 function route_walking(graph::Graph, origin::UInt64, departure_ms::Integer, budget_ms::Integer;
                        max_walk_ms::Integer=3_600_000, walking_index::Union{Nothing,WalkingIndex}=nothing,
-                       distance_mode="itinerary")
+                       distance_mode="itinerary", stats=nothing)
     mode = _distance_mode(distance_mode)
     ready, cutoff = query_times(graph, origin, departure_ms, budget_ms)
     limit = min(_walking_limit(max_walk_ms), budget_ms)
     index = isnothing(walking_index) ? WalkingIndex(graph) : walking_index
     topology = WalkingTopology(index, limit)
-    result = _walking_route_at(graph, topology, origin, ready, cutoff, mode == :itinerary)
+    result = _walking_route_at(graph, topology, origin, ready, cutoff, mode == :itinerary, stats)
     return mode == :itinerary ? result : merge(result, (distance_km=_od_distances(origin, result.h3),))
 end
 
-function _walking_route_at(graph, topology, origin, ready::UInt32, cutoff::UInt32, track_distance=true)
+function _walking_route_at(graph, topology, origin, ready::UInt32, cutoff::UInt32, track_distance=true, stats=nothing)
+    isnothing(graph.trip_id) || return _walking_route_trip_at(graph, topology, origin, ready, cutoff, track_distance, stats)
     topology.index.resolution == graph.resolution && topology.index.cells == graph.h3 ||
         throw(ArgumentError("walking index does not match graph"))
     n = length(graph.h3)
@@ -144,6 +145,168 @@ function _walking_route_at(graph, topology, origin, ready::UInt32, cutoff::UInt3
     end
     return _walking_result(graph, topology, origin, ready, cutoff, arrival, eligible,
                            distance, eligible_distance)
+end
+
+function _walking_route_trip_at(graph, topology, origin, ready::UInt32, cutoff::UInt32, track_distance=true, stats=nothing)
+    topology.index.resolution == graph.resolution && topology.index.cells == graph.h3 ||
+        throw(ArgumentError("walking index does not match graph"))
+    labels = Dict{UInt64,UInt32}()
+    transit_best = fill(INF, length(graph.h3))
+    walk_best = fill(INF, length(graph.h3))
+    state_distance = track_distance ? Dict{UInt64,Float64}() : nothing
+    queue = UInt32RadixHeap{UInt64}()
+    seen_trip = zeros(Int32, maximum(graph.trip_id; init=UInt32(0)))
+    generation = Int32(0)
+    function enqueue!(time, node, trip, is_walk, km)
+        key = _trip_state_key(node, trip, is_walk)
+        old = get(labels, key, INF)
+        if time >= old
+            isnothing(stats) || (stats.state_dominance_discards += 1)
+            return
+        end
+        labels[key] = time
+        is_walk && (walk_best[node] = min(walk_best[node], time))
+        track_distance && (state_distance[key] = km)
+        push!(queue, time, key)
+        isnothing(stats) || (stats.state_enqueues += 1; stats.queue_peak = max(stats.queue_peak, length(queue)))
+    end
+    source = get(graph.node_id, origin, Int32(0))
+    if source != 0
+        enqueue!(ready, source, UInt32(0), false, 0.0)
+        enqueue!(ready, source, UInt32(0), true, 0.0)
+        transit_best[source] = ready
+    else
+        for hop in _walking_hops(topology, origin)
+            hop.duration_ms <= min(topology.limit, cutoff - ready) || continue
+            v = _walking_node(graph, hop.cell)
+            enqueue!(ready + hop.duration_ms, v, UInt32(0), false, hop.distance_km)
+            transit_best[v] = min(transit_best[v], ready + hop.duration_ms)
+        end
+    end
+    while !isempty(queue)
+        time, key = pop!(queue)
+        isnothing(stats) || (stats.state_pops += 1)
+        is_walk = _trip_state_walk(key)
+        if get(labels, key, INF) != time
+            isnothing(stats) || (stats.stale_pops += 1)
+            continue
+        end
+        u = _trip_state_node(key)
+        current_trip = _trip_state_trip(key)
+        if is_walk
+            for hop in _walking_hops(topology, graph.h3[u])
+                hop.duration_ms <= min(topology.limit, cutoff - time) || continue
+                v, candidate = _walking_node(graph, hop.cell), time + hop.duration_ms
+                km = track_distance ? state_distance[key] + hop.distance_km : 0.0
+                enqueue!(candidate, v, UInt32(0), false, km)
+                transit_best[v] = min(transit_best[v], candidate)
+            end
+        else
+            base = (time ÷ PERIOD) * PERIOD
+            lower = time - base
+            upper = cutoff - base
+            other_ready = _trip_other_ready(time, current_trip, cutoff)
+            for edge in graph.out_ptr[u]:(graph.out_ptr[u + 1] - Int32(1))
+                generation += Int32(1)
+                isnothing(stats) || (stats.edge_queries += 1)
+                v = graph.edge_to[edge]
+                dominance_limit = _trip_combined_dominance_limit(transit_best[v], walk_best[v])
+
+                if current_trip != 0
+                    first_group, stop = _trip_group_range(graph, edge, current_trip, stats)
+                    if first_group != 0
+                        connection = _trip_group_lower_bound(graph, first_group, stop, lower, stats)
+                        if connection < stop
+                            isnothing(stats) || (stats.event_rows_scanned += 1)
+                            @inbounds d = graph.departure[connection]
+                            if d <= upper
+                                isnothing(stats) || (stats.event_groups += 1)
+                                @inbounds a = graph.arrival[connection]
+                                if a <= upper
+                                    candidate = base + a
+                                    km = track_distance ? (isnothing(graph.distance_km) ? NaN :
+                                        state_distance[key] + graph.distance_km[connection]) : 0.0
+                                    next_key = _trip_state_key(v, current_trip)
+                                    if candidate < get(labels, next_key, INF) &&
+                                            !(candidate >= MIN_TRIP_CONNECTION_MS &&
+                                              transit_best[v] <= candidate - MIN_TRIP_CONNECTION_MS)
+                                        transit_best[v] = min(transit_best[v], candidate)
+                                        enqueue!(candidate, v, current_trip, false, km)
+                                    end
+                                    enqueue!(candidate, v, UInt32(0), true, km)
+                                end
+                            end
+                        end
+                    end
+                end
+
+                if current_trip == 0 || other_ready != INF
+                    event_clock = current_trip == 0 ? lower : other_ready - base
+                    slot = _trip_event_lower_bound(graph, edge, event_clock, stats)
+                    stop = graph.trip_event_ptr[edge + Int32(1)]
+                    while slot < stop
+                        if _trip_suffix_reaches_limit(graph, slot, base, dominance_limit)
+                            isnothing(stats) || (stats.event_dominance_breaks += 1)
+                            break
+                        end
+                        connection = graph.trip_event_index[slot]
+                        isnothing(stats) || (stats.event_rows_scanned += 1)
+                        @inbounds d = graph.departure[connection]
+                        d > upper && break
+                        @inbounds trip = graph.trip_id[connection]
+                        current_trip != 0 && trip == current_trip || begin
+                            @inbounds seen_trip[trip] == generation || begin
+                                @inbounds a = graph.arrival[connection]
+                                @inbounds seen_trip[trip] = generation
+                                isnothing(stats) || (stats.event_groups += 1)
+                                if a <= upper
+                                    candidate = base + a
+                                    km = track_distance ? (isnothing(graph.distance_km) ? NaN :
+                                        state_distance[key] + graph.distance_km[connection]) : 0.0
+                                    next_key = _trip_state_key(v, trip)
+                                    if candidate < get(labels, next_key, INF) &&
+                                            !(candidate >= MIN_TRIP_CONNECTION_MS &&
+                                              transit_best[v] <= candidate - MIN_TRIP_CONNECTION_MS)
+                                        transit_best[v] = min(transit_best[v], candidate)
+                                        enqueue!(candidate, v, trip, false, km)
+                                    end
+                                    enqueue!(candidate, v, UInt32(0), true, km)
+                                end
+                            end
+                        end
+                        slot += Int32(1)
+                    end
+                end
+            end
+        end
+    end
+    result = Dict{UInt64,Tuple{UInt32,Float64}}(origin => (ready, 0.0))
+    for (key, time) in labels
+        time <= cutoff || continue
+        node = _trip_state_node(key)
+        _trip_state_walk(key) && continue
+        result[graph.h3[node]] = min(get(result, graph.h3[node], (INF, NaN)),
+                                     (time, track_distance ? state_distance[key] : NaN))
+    end
+    for (key, time) in labels
+        time <= cutoff || continue
+        _trip_state_walk(key) || continue
+        node = _trip_state_node(key)
+        km = track_distance ? state_distance[key] : NaN
+        for hop in _walking_hops(topology, graph.h3[node]; geographic=true,
+                                 limit=min(topology.limit, cutoff - time))
+            hop.duration_ms <= min(topology.limit, cutoff - time) || continue
+            cell, candidate = hop.cell, time + hop.duration_ms
+            total_km = track_distance ? km + hop.distance_km : NaN
+            result[cell] = min(get(result, cell, (INF, NaN)), (candidate, total_km))
+        end
+    end
+    h3 = sort!(collect(keys(result)))
+    if track_distance
+        return (h3=h3, arrival=UInt32[result[h][1] for h in h3],
+                distance_km=Float64[result[h][2] for h in h3])
+    end
+    return (h3=h3, arrival=UInt32[result[h][1] for h in h3])
 end
 
 function _walking_result(graph, topology, origin, ready, cutoff, arrival, eligible,

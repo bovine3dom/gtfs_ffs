@@ -29,6 +29,9 @@ end
 
 @testset "Input validation and packing" begin
     table = fixture_table()
+    trip_table = merge(table, (trip_id=fill("trip", length(table.from_h3)),))
+    @test !isnothing(pack_graph(trip_table).trip_id)
+    @test isnothing(pack_graph(trip_table; trip_aware=false).trip_id)
     graph = pack_graph(table)
     @test graph.h3 == sort!(unique([table.from_h3; table.to_h3]))
     @test DEMO_CELLS[6] in graph.h3 # destination-only node
@@ -60,6 +63,47 @@ end
             @test restored.departure == graph.departure
             @test restored.arrival == graph.arrival
         end
+    end
+end
+
+@testset "Runtime trip-aware routing" begin
+    a, b, c = DEMO_CELLS[1:3]
+    graph = pack_graph((from_h3=UInt64[a, b], to_h3=UInt64[b, c],
+        departure_ms=UInt32[0, 300_999], duration_ms=Int64[1000, 1000],
+        trip_id=["first", "second"]))
+    loaded = Ref(false)
+    handler = make_handler(graph; trip_graph_loader=() -> (loaded[] = true; graph))
+    base = "/reachable?index=$(string(a; base=16))&departure_h=0&budget_h=$(302_000 / 3_600_000)&max_walk_h=0&encoding=string"
+    legacy = handler(HTTP.Request("GET", base))
+    aware = handler(HTTP.Request("GET", base * "&trip_aware=true"))
+    @test legacy.status == aware.status == 200
+    @test HTTP.header(legacy, "X-Router-Trip-Aware") == "false"
+    @test loaded[]
+    @test HTTP.header(aware, "X-Router-Trip-Aware") == "true"
+    @test legacy.body != aware.body
+    @test handler(HTTP.Request("GET", base * "&trip_aware=maybe")).status == 400
+end
+
+@testset "Prepared trip shard" begin
+    a, b, c = DEMO_CELLS[1:3]
+    mktempdir() do dir
+        source = joinpath(dir, "trips_res5.arrow")
+        Arrow.write(source, (from_h3=UInt64[a, a, b], to_h3=UInt64[b, c, c],
+            departure_ms=UInt32[0, 600_000, 1_200_000],
+            duration_ms=Int64[60_000, 60_000, 60_000], trip_id=["a", "a", "b"],
+            distance_km=[1.0, 1.0, 1.0]))
+        legacy = pack_graph(source; skip_invalid_durations=true, badajoz_shuttle=true,
+            trip_aware=false)
+        set = TripShardSet(source, legacy)
+        output = joinpath(dir, "shards")
+        prepare_trip_shard_set!(set, output)
+        loaded = TripShardSet(source, legacy; prepared_dir=output)
+        lease = trip_shard_acquire!(loaded, a, 0)
+        @test lease isa Reachability.TripShardLease
+        @test lease.shard.graph.h3 == sort!(unique(UInt64[a, b, c]))
+        @test !isnothing(lease.shard.graph.trip_id)
+        @test lease.shard.graph.distance_km == [1.0, 1.0, 1.0]
+        Reachability._trip_shard_release!(lease)
     end
 end
 

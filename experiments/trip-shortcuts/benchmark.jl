@@ -9,7 +9,7 @@ elseif "--backend=cuda" in ARGS
     import CUDA
 end
 
-function benchmark(backend_name, cases)
+function benchmark(backend_name, cases; prefix="data/austria")
     backend = if backend_name == "oneapi"
         oneAPI.functional() || error("oneAPI unavailable")
         oneAPI.allowscalar(false)
@@ -26,13 +26,17 @@ function benchmark(backend_name, cases)
         error("backend must be cpu, oneapi, or cuda")
     end
     println("julia=", VERSION, " threads=", Threads.nthreads(), " backend=", backend_name)
-    graphs = map(("data/austria_adjacent_res8.arrow", "data/austria_shortcuts_res8.arrow")) do path
+    graphs = map(("$(prefix)_adjacent_res8.arrow", "$(prefix)_shortcuts_res8.arrow")) do path
         measured = @timed pack_graph(path)
         g = measured.value
+        arrays = (g.h3, g.out_ptr, g.edge_from, g.edge_to, g.schedule_ptr, g.departure, g.arrival,
+            g.distance_km, g.trip_id, g.trip_event_ptr, g.trip_event_index,
+            g.trip_event_suffix_arrival, g.trip_group_ptr, g.trip_group_id,
+            g.trip_group_schedule_ptr)
+        packed_bytes = sum(sizeof, (array for array in arrays if !isnothing(array)))
         println("graph=", path, " sha256=", open(sha256, path) |> bytes2hex,
             " load_pack_s=", measured.time, " nodes=", length(g.h3), " edges=", length(g.edge_to),
-            " profile_entries=", length(g.departure), " packed_array_bytes=",
-            sum(sizeof, (g.h3, g.out_ptr, g.edge_from, g.edge_to, g.schedule_ptr, g.departure, g.arrival, g.distance_km)),
+            " profile_entries=", length(g.departure), " packed_array_bytes=", packed_bytes,
             " graph_summary_bytes=", Base.summarysize(g))
         flush(stdout)
         g
@@ -50,9 +54,18 @@ function benchmark(backend_name, cases)
     end
     for (name, graph) in zip(("adjacent", "shortcuts"), graphs)
         f() = route_cpu(graph, origin, 28_800_000, 10_800_000)
+        point_stats = graph.trip_id === nothing ? nothing : R.TripRouteStats()
+        point_labels = route_cpu(graph, origin, 28_800_000, 10_800_000; stats=point_stats)
         f()
         times = [(@timed f()).time for _ in 1:3]
-        println("point graph=", name, " median_s=", median(times), " reached=", count(!=(R.INF), f()))
+        println("point graph=", name, " median_s=", median(times), " reached=", count(!=(R.INF), point_labels),
+            isnothing(point_stats) ? "" : " edge_queries=$(point_stats.edge_queries) event_rows=$(point_stats.event_rows_scanned)" *
+                " event_groups=$(point_stats.event_groups) binary_searches=$(point_stats.event_binary_searches)" *
+                " binary_steps=$(point_stats.event_binary_search_steps) dominance_breaks=$(point_stats.event_dominance_breaks)" *
+                " group_lookups=$(point_stats.trip_group_lookups) group_hits=$(point_stats.trip_group_hits)" *
+                " state_enqueues=$(point_stats.state_enqueues) state_pops=$(point_stats.state_pops)" *
+                " stale_pops=$(point_stats.stale_pops) state_discards=$(point_stats.state_dominance_discards)" *
+                " dominance_cache_hits=$(point_stats.dominance_cache_hits) queue_peak=$(point_stats.queue_peak)")
     end
     prepared = @timed prepare_walking(WalkingIndex(g); max_walk_ms=3_600_000)
     index = prepared.value
@@ -97,8 +110,12 @@ function benchmark(backend_name, cases)
         expected = nothing
         for (i, name) in enumerate(("adjacent", "shortcuts"))
             cpu() = encode(route_population(graphs[i], population, origin, 28_800_000, 10_800_000; options...))
+            stats = graphs[i].trip_id === nothing ? nothing : R.TripRouteStats()
+            instrumented = route_population(graphs[i], population, origin, 28_800_000, 10_800_000;
+                options..., stats)
             warm = @timed cpu()
             i == 1 && (expected = warm.value.result)
+            parity(instrumented, expected)
             parity(warm.value.result, expected)
             times = Float64[]
             allocations = Int[]
@@ -113,6 +130,13 @@ function benchmark(backend_name, cases)
                 " warm_s=", warm.time, " repetitions=", length(times), " median_s=", median(times),
                 " allocation_bytes=", maximum(allocations), " workers=", result.workers,
                 " shared_expansions=", result.shared_expansions, " query_expansions=", result.query_expansions,
+                isnothing(stats) ? "" : " event_rows=$(stats.event_rows_scanned) event_groups=$(stats.event_groups)" *
+                    " binary_searches=$(stats.event_binary_searches) binary_steps=$(stats.event_binary_search_steps)" *
+                    " dominance_breaks=$(stats.event_dominance_breaks) group_lookups=$(stats.trip_group_lookups)" *
+                    " group_hits=$(stats.trip_group_hits) state_enqueues=$(stats.state_enqueues)" *
+                    " state_pops=$(stats.state_pops) stale_pops=$(stats.stale_pops)" *
+                    " state_discards=$(stats.state_dominance_discards) dominance_cache_hits=$(stats.dominance_cache_hits)" *
+                    " queue_peak=$(stats.queue_peak) mask_merges=$(stats.mask_merges)",
                 " min_population=", minimum(result.value), " max_population=", maximum(result.value),
                 " encoded_bytes=", length(warm.value.encoded), " parity=exact")
             flush(stdout)
@@ -152,6 +176,7 @@ function main(args)
     backend = "cpu"
     cases = Tuple{Int,Int}[]
     logfile = nothing
+    prefix = "data/austria"
     for arg in args
         if startswith(arg, "--backend=")
             backend = split(arg, '='; limit=2)[2]
@@ -159,19 +184,21 @@ function main(args)
             push!(cases, Tuple(parse.(Int, split(split(arg, '='; limit=2)[2], ':'))))
         elseif startswith(arg, "--log=")
             logfile = split(arg, '='; limit=2)[2]
+        elseif startswith(arg, "--prefix=")
+            prefix = split(arg, '='; limit=2)[2]
         else
-            error("Usage: benchmark.jl [--backend=cpu|oneapi|cuda] [--case=radius:samples] [--log=fresh_path]")
+            error("Usage: benchmark.jl [--backend=cpu|oneapi|cuda] [--case=radius:samples] [--prefix=data/austria] [--log=fresh_path]")
         end
     end
     isempty(cases) && append!(cases, backend == "cpu" ? [(0,1), (6,1), (6,4), (6,96), (10,96), (18,96)] : [(0,1), (6,1), (6,4)])
     all(c -> c[1] >= 0 && c[2] >= 1, cases) || error("Cases require a nonnegative radius and at least one sample")
     if isnothing(logfile)
-        benchmark(backend, cases)
+        benchmark(backend, cases; prefix)
     else
         ispath(logfile) && error("Log already exists: $logfile")
         open(logfile, "w") do io
             redirect_stdout(io) do
-                benchmark(backend, cases)
+                benchmark(backend, cases; prefix)
             end
         end
     end

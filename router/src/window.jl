@@ -141,6 +141,25 @@ function _finish_window(acc, plan; searches::Int, origin=nothing, cells=nothing,
             searches, reused_samples=plan.samples - searches, elapsed_sum_ms=acc.elapsed_sum_ms, kwargs...)
 end
 
+function _route_window_trip(graph, origin, departure_ms, budget_ms, window_ms;
+                            step_ms, distance_mode, window_mode)
+    mode = _distance_mode(distance_mode)
+    ready, _ = query_times(graph, origin, departure_ms, budget_ms)
+    step, samples, _ = _window_times(ready, budget_ms, window_ms, step_ms)
+    plan = (; source=get(graph.node_id, origin, Int32(0)), ready, budget=UInt32(budget_ms),
+            step, samples=Int(samples))
+    acc = _window_accumulator(graph, plan, mode == :itinerary; window_mode)
+    for sample in 0:(samples - 1)
+        time = UInt32(Int64(ready) + sample * step)
+        distances = mode == :itinerary ? Vector{Float64}(undef, length(graph.h3)) : nothing
+        labels = _route_at(graph, plan.source, time, time + UInt32(budget_ms), distances)
+        _accumulate_window!(acc, plan, (sample, 1), labels, distances)
+    end
+    return _finish_window(acc, plan; searches=Int(samples), origin, cells=graph.h3,
+                          backend="trip", full_searches=Int(samples), repair_searches=0,
+                          profile_lookups=0, routing_expansions=0, workers=1)
+end
+
 """Replay canonical Dijkstra discoveries using cached connections and final arrivals."""
 function _replay_distances!(distances, seen, graph, source, ready, cutoff, labels, connections)
     fill!(distances, NaN)

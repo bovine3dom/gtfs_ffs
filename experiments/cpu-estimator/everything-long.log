@@ -1,0 +1,96 @@
+LOAD everything available_GiB=54.238460540771484
+[ Info: Startup: Opening Arrow file /home/olie/projects/gtfs_ffs/data/everything_res8.arrow
+┌ Info: Startup complete: Opening Arrow file /home/olie/projects/gtfs_ffs/data/everything_res8.arrow
+└   elapsed_s = 2.120909712
+[ Info: Startup: Validating and filtering rows
+┌ Warning: Skipping 88936 of 205591459 connections: duration_ms outside the two-day UInt32 profile range (3205 negative, 85731 overflowing; range (-20280000, 1767361200000))
+└ @ Main.Reachability ~/projects/gtfs_ffs/router/src/Reachability.jl:99
+┌ Info: Startup complete: Validating and filtering rows
+└   elapsed_s = 17.444308649
+[ Info: Startup: Materializing sort columns
+┌ Info: Startup complete: Materializing sort columns
+└   elapsed_s = 3.294636457
+[ Info: Startup: Indexing and validating H3 endpoints
+┌ Info: Startup complete: Indexing and validating H3 endpoints
+└   elapsed_s = 6.068549124
+┌ Info: Added Elvas-Badajoz fantasy rail shuttle
+│   resolution = 8
+└   connections = 2342
+[ Info: Startup: Sorting connections by edge
+┌ Info: Startup complete: Sorting connections by edge
+└   elapsed_s = 50.335582505
+[ Info: Startup: Packing daily profiles
+┌ Info: Startup complete: Packing daily profiles
+└   elapsed_s = 34.756876121
+[ Info: Startup: Grouping resolution 7 edges
+┌ Info: Startup complete: Grouping resolution 7 edges
+└   elapsed_s = 0.806414044
+[ Info: Startup: Merging resolution 7 profiles
+┌ Info: Startup complete: Merging resolution 7 profiles
+└   elapsed_s = 25.388255886
+[ Info: Startup: Grouping resolution 6 edges
+┌ Info: Startup complete: Grouping resolution 6 edges
+└   elapsed_s = 0.390284508
+[ Info: Startup: Merging resolution 6 profiles
+┌ Info: Startup complete: Merging resolution 6 profiles
+└   elapsed_s = 16.33388165
+[ Info: Startup: Opening population file /home/olie/projects/gtfs_ffs/data/kontur_h3.arrow
+┌ Info: Startup complete: Opening population file /home/olie/projects/gtfs_ffs/data/kontur_h3.arrow
+└   elapsed_s = 0.648773956
+[ Info: Startup: Validating population rows
+┌ Info: Startup complete: Validating population rows
+└   elapsed_s = 0.673996658
+[ Info: Startup: Checking population cell uniqueness
+┌ Info: Startup complete: Checking population cell uniqueness
+└   elapsed_s = 0.996300753
+PREPARE everything 6 rss_GiB=18.376182556152344
+┌ Info: Preparing resident walking adjacency
+│   workers = 8
+│   nodes = 117777
+└   max_walk_h = 1.0
+[ Info: Startup: Counting walking geometry
+┌ Info: Startup complete: Counting walking geometry
+└   elapsed_s = 1.966475489
+[ Info: Startup: Packing walking adjacency
+┌ Info: Startup complete: Packing walking adjacency
+└   elapsed_s = 1.621062559
+[ Info: Startup: Indexing walking output IDs
+┌ Info: Startup complete: Indexing walking output IDs
+└   elapsed_s = 0.000514653
+[ Info: Startup: Aggregating population at res6
+┌ Info: Startup complete: Aggregating population at res6
+└   elapsed_s = 1.352533375
+[ Info: Startup: Preparing indexed population weights and walks
+┌ Info: Startup complete: Preparing indexed population weights and walks
+└   elapsed_s = 0.009923426
+MEASURE everything 6 Paris 0/1 CPU_ms=137.07 reused=0
+MEASURE everything 6 Paris 3/2 CPU_ms=405.24 reused=2
+MEASURE everything 6 Paris 2/3 CPU_ms=343.03 reused=2
+MEASURE everything 6 Hamburg 1/4 CPU_ms=945.29 reused=0
+MEASURE everything 6 Hamburg 3/5 CPU_ms=2051.4 reused=2
+PREPARE everything 8 rss_GiB=18.396617889404297
+┌ Info: Preparing resident walking adjacency
+│   workers = 8
+│   nodes = 900197
+└   max_walk_h = 1.0
+[ Info: Startup: Counting walking geometry
+┌ Info: Startup complete: Counting walking geometry
+└   elapsed_s = 80.745317062
+[ Info: Startup: Packing walking adjacency
+┌ Info: Startup complete: Packing walking adjacency
+└   elapsed_s = 63.015864248
+[ Info: Startup: Indexing walking output IDs
+┌ Info: Startup complete: Indexing walking output IDs
+└   elapsed_s = 4.381886081
+[ Info: Startup: Aggregating population at res8
+┌ Info: Startup complete: Aggregating population at res8
+└   elapsed_s = 6.283642408
+[ Info: Startup: Preparing indexed population weights and walks
+┌ Info: Startup complete: Preparing indexed population weights and walks
+└   elapsed_s = 6.433692231
+MEASURE everything 8 Paris 0/1 CPU_ms=1515.13 reused=0
+MEASURE everything 8 Paris 3/2 CPU_ms=14592.86 reused=2
+MEASURE everything 8 Paris 2/3 CPU_ms=1650.18 reused=2
+MEASURE everything 8 Hamburg 1/4 CPU_ms=5358.68 reused=0
+MEASURE everything 8 Hamburg 3/5 CPU_ms=17676.56 reused=2
+MEASURE everything 8 Paris 2/6 CPU_ms=144846.13 reused=3

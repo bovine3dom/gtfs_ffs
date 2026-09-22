@@ -24,6 +24,8 @@ end
 
 function PopulationKernelRouter(graph::Graph, population::Union{Population,Nothing}, backend;
                                 walking_index=prepare_walking(WalkingIndex(graph)))
+    isnothing(graph.trip_id) || length(unique(graph.trip_id)) == 1 ||
+        throw(ArgumentError("GPU population does not support multiple trip IDs"))
     p = walking_index.prepared
     isnothing(p) && throw(ArgumentError("GPU population requires a prepared walking index"))
     walking_index.resolution == graph.resolution && walking_index.cells == graph.h3 ||

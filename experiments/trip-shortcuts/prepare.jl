@@ -1,11 +1,12 @@
 include("inspect.jl")
 
-connections() = (from_h3=UInt64[], to_h3=UInt64[], departure_ms=UInt32[], duration_ms=Int64[], distance_km=Float64[])
+connections() = (from_h3=UInt64[], to_h3=UInt64[], departure_ms=UInt32[], duration_ms=Int64[], distance_km=Float64[], trip_id=String[])
 
 function add_trip!(base, shortcuts, t, rows, resolution, stats)
     bump(k, n=1) = stats[k] = get(stats, k, 0) + n
     n = length(rows)-1
     n <= 0 && return
+    trip_id = hasproperty(t, :trip_id) ? String(t.trip_id[rows[1]]) : "shared"
     cells = zeros(UInt64, n+1)
     coords = Vector{H3.API.LatLng}(undef, n+1)
     for (p, i) in enumerate(rows)
@@ -36,6 +37,7 @@ function add_trip!(base, shortcuts, t, rows, resolution, stats)
             km[p] = H3.Lib.greatCircleDistanceKm(Ref(coords[p]), Ref(coords[p+1]))
             push!(base.from_h3, cells[p]); push!(base.to_h3, cells[p+1])
             push!(base.departure_ms, clock); push!(base.duration_ms, Int64(duration)); push!(base.distance_km, km[p])
+            push!(base.trip_id, trip_id)
         end
     end
     bump("valid_adjacent_legs", count(valid))
@@ -59,7 +61,7 @@ function add_trip!(base, shortcuts, t, rows, resolution, stats)
         end
         push!(shortcuts.from_h3, cells[p]); push!(shortcuts.to_h3, cells[q])
         push!(shortcuts.departure_ms, t.departure_clock_ms[i]); push!(shortcuts.duration_ms, Int64(duration))
-        push!(shortcuts.distance_km, sum(@view km[p:q-1]))
+        push!(shortcuts.distance_km, sum(@view km[p:q-1])); push!(shortcuts.trip_id, trip_id)
         bump("added_shortcuts")
     end
 end
@@ -86,7 +88,7 @@ function prepare(input="data/at_test.arrow", resolution=8; prefix="data/austria"
         else
             columns = (; h3=t.h3, stop_lat=t.stop_lat, stop_lon=t.stop_lon,
                 arrival_epoch_ms=t.arrival_epoch_ms, departure_epoch_ms=t.departure_epoch_ms,
-                departure_clock_ms=t.departure_clock_ms)
+                departure_clock_ms=t.departure_clock_ms, trip_id=t.trip_id)
             add_trip!(base, shortcuts, columns, rows, resolution, stats)
         end
     end)

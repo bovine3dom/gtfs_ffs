@@ -23,6 +23,7 @@ function build(t)
     return base, shorts, stats
 end
 
+
 # Independent two-label relaxation exposes both transit-ready and walk-eligible labels.
 function both_labels(g, index, origin, ready, budget, walk)
     a, e = fill(R.INF, length(g.h3)), fill(R.INF, length(g.h3))
@@ -149,6 +150,34 @@ end
         exported = Arrow.Table(prefix*"_shortcuts_res8.arrow")
         @test all(collect(getproperty(exported, n)[1:2]) == getproperty(result.base, n) for n in keys(result.base))
     end
+end
+
+@testset "Trip connection buffer" begin
+    centre = H3.API.latLngToCell(H3.API.LatLng(deg2rad(48.1855), deg2rad(16.3768)), 8)
+    cells = filter(!iszero, H3.API.gridDisk(centre, 1))
+    a, b, c, d = UInt64.(cells[1:4])
+    table = (from_h3=UInt64[a, b], to_h3=UInt64[b, c], departure_ms=UInt32[1000, 302001],
+        duration_ms=Int64[1000, 1000], distance_km=Float64[1, 1], trip_id=["a", "b"])
+    graph = pack_graph(table)
+    @test route_cpu(graph, a, 1000, 302000)[graph.node_id[c]] == R.INF
+    @test route_cpu(graph, a, 1000, 304000)[graph.node_id[c]] == 303001
+    same_trip = merge(table, (departure_ms=UInt32[1000, 2001], trip_id=["a", "a"],))
+    same_graph = pack_graph(same_trip)
+    @test route_cpu(same_graph, a, 1000, 3001)[same_graph.node_id[c]] == 3001
+
+    initial = (from_h3=UInt64[a, b, c], to_h3=UInt64[b, b, d], departure_ms=UInt32[1000, 1000, 1000],
+        duration_ms=Int64[1000, 1, 1], distance_km=Float64[1, 0, 0], trip_id=["a", "unused", "b"])
+    initial_graph = pack_graph(initial)
+    initial_index = WalkingIndex(initial_graph)
+    hop = only(filter(x -> x.cell == c, walking_neighbors(initial_index, b, 3_600_000)))
+    second_departure = UInt32(1000 + 1000 + hop.duration_ms)
+    walk_graph = pack_graph((from_h3=UInt64[a, c], to_h3=UInt64[b, d],
+        departure_ms=UInt32[1000, second_departure], duration_ms=Int64[1000, 1000],
+        distance_km=Float64[1, 1], trip_id=["a", "b"]))
+    walk_index = WalkingIndex(walk_graph)
+    walked = route_walking(walk_graph, a, 1000, second_departure;
+        max_walk_ms=hop.duration_ms, walking_index=walk_index, distance_mode=:straight_line)
+    @test walked.arrival[walk_graph.node_id[d]] == second_departure + 1000
 end
 
 @testset "Walking and population parity" begin

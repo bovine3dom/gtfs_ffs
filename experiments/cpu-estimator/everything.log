@@ -1,0 +1,323 @@
+LOAD everything available_GiB=54.672847747802734
+[ Info: Startup: Opening Arrow file /home/olie/projects/gtfs_ffs/data/everything_res8.arrow
+┌ Info: Startup complete: Opening Arrow file /home/olie/projects/gtfs_ffs/data/everything_res8.arrow
+└   elapsed_s = 1.901773284
+[ Info: Startup: Validating and filtering rows
+┌ Warning: Skipping 88936 of 205591459 connections: duration_ms outside the two-day UInt32 profile range (3205 negative, 85731 overflowing; range (-20280000, 1767361200000))
+└ @ Main.Reachability ~/projects/gtfs_ffs/router/src/Reachability.jl:99
+┌ Info: Startup complete: Validating and filtering rows
+└   elapsed_s = 14.021884182
+[ Info: Startup: Materializing sort columns
+┌ Info: Startup complete: Materializing sort columns
+└   elapsed_s = 2.921516383
+[ Info: Startup: Indexing and validating H3 endpoints
+┌ Info: Startup complete: Indexing and validating H3 endpoints
+└   elapsed_s = 4.717828677
+┌ Info: Added Elvas-Badajoz fantasy rail shuttle
+│   resolution = 8
+└   connections = 2342
+[ Info: Startup: Sorting connections by edge
+┌ Info: Startup complete: Sorting connections by edge
+└   elapsed_s = 43.643322942
+[ Info: Startup: Packing daily profiles
+┌ Info: Startup complete: Packing daily profiles
+└   elapsed_s = 34.878923685
+[ Info: Startup: Grouping resolution 7 edges
+┌ Info: Startup complete: Grouping resolution 7 edges
+└   elapsed_s = 0.857111978
+[ Info: Startup: Merging resolution 7 profiles
+┌ Info: Startup complete: Merging resolution 7 profiles
+└   elapsed_s = 23.712316749
+[ Info: Startup: Grouping resolution 6 edges
+┌ Info: Startup complete: Grouping resolution 6 edges
+└   elapsed_s = 0.239742871
+[ Info: Startup: Merging resolution 6 profiles
+┌ Info: Startup complete: Merging resolution 6 profiles
+└   elapsed_s = 15.023368516
+[ Info: Startup: Grouping resolution 5 edges
+┌ Info: Startup complete: Grouping resolution 5 edges
+└   elapsed_s = 0.088175081
+[ Info: Startup: Merging resolution 5 profiles
+┌ Info: Startup complete: Merging resolution 5 profiles
+└   elapsed_s = 7.7206493
+[ Info: Startup: Opening population file /home/olie/projects/gtfs_ffs/data/kontur_h3.arrow
+┌ Info: Startup complete: Opening population file /home/olie/projects/gtfs_ffs/data/kontur_h3.arrow
+└   elapsed_s = 0.369762792
+[ Info: Startup: Validating population rows
+┌ Info: Startup complete: Validating population rows
+└   elapsed_s = 0.488783893
+[ Info: Startup: Checking population cell uniqueness
+┌ Info: Startup complete: Checking population cell uniqueness
+└   elapsed_s = 0.984929713
+PREPARE everything 5 rss_GiB=19.520977020263672
+┌ Info: Preparing resident walking adjacency
+│   workers = 8
+│   nodes = 31917
+└   max_walk_h = 1.0
+[ Info: Startup: Counting walking geometry
+┌ Info: Startup complete: Counting walking geometry
+└   elapsed_s = 0.33282173
+[ Info: Startup: Packing walking adjacency
+┌ Info: Startup complete: Packing walking adjacency
+└   elapsed_s = 0.223048624
+[ Info: Startup: Indexing walking output IDs
+┌ Info: Startup complete: Indexing walking output IDs
+└   elapsed_s = 2.2464e-5
+[ Info: Startup: Aggregating population at res5
+┌ Info: Startup complete: Aggregating population at res5
+└   elapsed_s = 1.031984313
+[ Info: Startup: Preparing indexed population weights and walks
+┌ Info: Startup complete: Preparing indexed population weights and walks
+└   elapsed_s = 0.003359802
+MEASURE everything 5 Paris 0/0 CPU_ms=0.92 reused=0
+MEASURE everything 5 Paris 0/1 CPU_ms=18.26 reused=0
+MEASURE everything 5 Paris 1/0 CPU_ms=0.99 reused=0
+MEASURE everything 5 Paris 1/1 CPU_ms=5.51 reused=0
+MEASURE everything 5 Paris 2/0 CPU_ms=39.09 reused=1
+MEASURE everything 5 Paris 2/1 CPU_ms=106.52 reused=3
+MEASURE everything 5 Paris 3/0 CPU_ms=74.91 reused=3
+MEASURE everything 5 Paris 3/1 CPU_ms=9638.11 reused=3
+MEASURE everything 5 Berlin 0/0 CPU_ms=1.51 reused=0
+MEASURE everything 5 Berlin 0/1 CPU_ms=3.59 reused=0
+MEASURE everything 5 Berlin 1/0 CPU_ms=17.73 reused=0
+MEASURE everything 5 Berlin 1/1 CPU_ms=17.62 reused=0
+MEASURE everything 5 Berlin 2/0 CPU_ms=4.03 reused=2
+MEASURE everything 5 Berlin 2/1 CPU_ms=522.34 reused=3
+MEASURE everything 5 Berlin 3/0 CPU_ms=4535.11 reused=3
+MEASURE everything 5 Berlin 3/1 CPU_ms=2.6 reused=1
+MEASURE everything 5 Vienna 0/0 CPU_ms=1.11 reused=0
+MEASURE everything 5 Vienna 0/1 CPU_ms=5.46 reused=0
+MEASURE everything 5 Vienna 1/0 CPU_ms=17.54 reused=0
+MEASURE everything 5 Vienna 1/1 CPU_ms=65.74 reused=0
+MEASURE everything 5 Vienna 2/0 CPU_ms=97.15 reused=3
+MEASURE everything 5 Vienna 2/1 CPU_ms=2.01 reused=1
+MEASURE everything 5 Vienna 3/0 CPU_ms=1816.1 reused=3
+MEASURE everything 5 Vienna 3/1 CPU_ms=3.83 reused=1
+MEASURE everything 5 rural 0/0 CPU_ms=1.91 reused=0
+MEASURE everything 5 rural 0/1 CPU_ms=8.77 reused=0
+MEASURE everything 5 rural 1/0 CPU_ms=83.55 reused=0
+MEASURE everything 5 rural 1/1 CPU_ms=1.86 reused=0
+MEASURE everything 5 rural 2/0 CPU_ms=819.3 reused=3
+MEASURE everything 5 rural 2/1 CPU_ms=1.82 reused=1
+MEASURE everything 5 rural 3/0 CPU_ms=18.96 reused=1
+MEASURE everything 5 rural 3/1 CPU_ms=7.59 reused=2
+MEASURE everything 5 Munich 0/0 CPU_ms=11.96 reused=0
+MEASURE everything 5 Munich 0/1 CPU_ms=0.37 reused=0
+MEASURE everything 5 Munich 1/0 CPU_ms=96.37 reused=0
+MEASURE everything 5 Munich 1/1 CPU_ms=1.78 reused=0
+MEASURE everything 5 Munich 2/0 CPU_ms=120.06 reused=1
+MEASURE everything 5 Munich 2/1 CPU_ms=2.3 reused=1
+MEASURE everything 5 Munich 3/0 CPU_ms=2.82 reused=1
+MEASURE everything 5 Munich 3/1 CPU_ms=51.43 reused=3
+MEASURE everything 5 London 0/0 CPU_ms=10.12 reused=0
+MEASURE everything 5 London 0/1 CPU_ms=1.19 reused=0
+MEASURE everything 5 London 1/0 CPU_ms=1.13 reused=0
+MEASURE everything 5 London 1/1 CPU_ms=3.52 reused=0
+MEASURE everything 5 London 2/0 CPU_ms=19.22 reused=1
+MEASURE everything 5 London 2/1 CPU_ms=6.33 reused=2
+MEASURE everything 5 London 3/0 CPU_ms=33.68 reused=2
+MEASURE everything 5 London 3/1 CPU_ms=631.25 reused=3
+PREPARE everything 6 rss_GiB=19.115554809570312
+┌ Info: Preparing resident walking adjacency
+│   workers = 8
+│   nodes = 117777
+└   max_walk_h = 1.0
+[ Info: Startup: Counting walking geometry
+┌ Info: Startup complete: Counting walking geometry
+└   elapsed_s = 1.06122957
+[ Info: Startup: Packing walking adjacency
+┌ Info: Startup complete: Packing walking adjacency
+└   elapsed_s = 1.122037133
+[ Info: Startup: Indexing walking output IDs
+┌ Info: Startup complete: Indexing walking output IDs
+└   elapsed_s = 0.000551096
+[ Info: Startup: Aggregating population at res6
+┌ Info: Startup complete: Aggregating population at res6
+└   elapsed_s = 1.28687744
+[ Info: Startup: Preparing indexed population weights and walks
+┌ Info: Startup complete: Preparing indexed population weights and walks
+└   elapsed_s = 0.016452105
+MEASURE everything 6 Paris 0/0 CPU_ms=2.04 reused=0
+MEASURE everything 6 Paris 0/1 CPU_ms=3.05 reused=0
+MEASURE everything 6 Paris 1/0 CPU_ms=5.83 reused=0
+MEASURE everything 6 Paris 1/1 CPU_ms=18.15 reused=0
+MEASURE everything 6 Paris 2/0 CPU_ms=2.79 reused=1
+MEASURE everything 6 Paris 2/1 CPU_ms=126.68 reused=3
+MEASURE everything 6 Paris 3/0 CPU_ms=204.02 reused=3
+MEASURE everything 6 Paris 3/1 CPU_ms=22853.14 reused=3
+MEASURE everything 6 Berlin 0/0 CPU_ms=3.69 reused=0
+MEASURE everything 6 Berlin 0/1 CPU_ms=2.87 reused=0
+MEASURE everything 6 Berlin 1/0 CPU_ms=21.2 reused=0
+MEASURE everything 6 Berlin 1/1 CPU_ms=46.58 reused=0
+MEASURE everything 6 Berlin 2/0 CPU_ms=5.5 reused=2
+MEASURE everything 6 Berlin 2/1 CPU_ms=435.8 reused=3
+MEASURE everything 6 Berlin 3/0 CPU_ms=5152.79 reused=3
+MEASURE everything 6 Berlin 3/1 CPU_ms=28.91 reused=1
+MEASURE everything 6 Vienna 0/0 CPU_ms=31.2 reused=0
+MEASURE everything 6 Vienna 0/1 CPU_ms=4.86 reused=0
+MEASURE everything 6 Vienna 1/0 CPU_ms=87.29 reused=0
+MEASURE everything 6 Vienna 1/1 CPU_ms=256.27 reused=0
+MEASURE everything 6 Vienna 2/0 CPU_ms=69.81 reused=3
+MEASURE everything 6 Vienna 2/1 CPU_ms=2.77 reused=1
+MEASURE everything 6 Vienna 3/0 CPU_ms=1702.47 reused=3
+MEASURE everything 6 Vienna 3/1 CPU_ms=2.91 reused=1
+MEASURE everything 6 rural 0/0 CPU_ms=2.03 reused=0
+MEASURE everything 6 rural 0/1 CPU_ms=8.3 reused=0
+MEASURE everything 6 rural 1/0 CPU_ms=8.58 reused=0
+MEASURE everything 6 rural 1/1 CPU_ms=4.66 reused=0
+MEASURE everything 6 rural 2/0 CPU_ms=849.86 reused=3
+MEASURE everything 6 rural 2/1 CPU_ms=3.08 reused=1
+MEASURE everything 6 rural 3/0 CPU_ms=2.62 reused=1
+MEASURE everything 6 rural 3/1 CPU_ms=1.82 reused=1
+MEASURE everything 6 Munich 0/0 CPU_ms=3.24 reused=0
+MEASURE everything 6 Munich 0/1 CPU_ms=1.72 reused=0
+MEASURE everything 6 Munich 1/0 CPU_ms=257.56 reused=0
+MEASURE everything 6 Munich 1/1 CPU_ms=27.61 reused=0
+MEASURE everything 6 Munich 2/0 CPU_ms=4.96 reused=1
+MEASURE everything 6 Munich 2/1 CPU_ms=27.92 reused=1
+MEASURE everything 6 Munich 3/0 CPU_ms=2.48 reused=1
+MEASURE everything 6 Munich 3/1 CPU_ms=29.44 reused=3
+MEASURE everything 6 London 0/0 CPU_ms=22.63 reused=0
+MEASURE everything 6 London 0/1 CPU_ms=1.72 reused=0
+MEASURE everything 6 London 1/0 CPU_ms=7.82 reused=0
+MEASURE everything 6 London 1/1 CPU_ms=7.26 reused=0
+MEASURE everything 6 London 2/0 CPU_ms=4.27 reused=1
+MEASURE everything 6 London 2/1 CPU_ms=9.7 reused=2
+MEASURE everything 6 London 3/0 CPU_ms=10.35 reused=2
+MEASURE everything 6 London 3/1 CPU_ms=2284.38 reused=3
+PREPARE everything 7 rss_GiB=19.534996032714844
+┌ Info: Preparing resident walking adjacency
+│   workers = 8
+│   nodes = 379305
+└   max_walk_h = 1.0
+[ Info: Startup: Counting walking geometry
+┌ Info: Startup complete: Counting walking geometry
+└   elapsed_s = 7.877352589
+[ Info: Startup: Packing walking adjacency
+┌ Info: Startup complete: Packing walking adjacency
+└   elapsed_s = 7.903812377
+[ Info: Startup: Indexing walking output IDs
+┌ Info: Startup complete: Indexing walking output IDs
+└   elapsed_s = 0.208398795
+[ Info: Startup: Aggregating population at res7
+┌ Info: Startup complete: Aggregating population at res7
+└   elapsed_s = 2.329651321
+[ Info: Startup: Preparing indexed population weights and walks
+┌ Info: Startup complete: Preparing indexed population weights and walks
+└   elapsed_s = 0.353782067
+MEASURE everything 7 Paris 0/0 CPU_ms=0.48 reused=0
+MEASURE everything 7 Paris 0/1 CPU_ms=5.23 reused=0
+MEASURE everything 7 Paris 1/0 CPU_ms=49.84 reused=0
+MEASURE everything 7 Paris 1/1 CPU_ms=23.58 reused=0
+MEASURE everything 7 Paris 2/0 CPU_ms=30.99 reused=1
+MEASURE everything 7 Paris 2/1 CPU_ms=515.08 reused=3
+MEASURE everything 7 Paris 3/0 CPU_ms=870.88 reused=3
+MEASURE everything 7 Paris 3/1 CPU_ms=108771.83 reused=3
+MEASURE everything 7 Berlin 0/0 CPU_ms=17.66 reused=0
+MEASURE everything 7 Berlin 0/1 CPU_ms=18.76 reused=0
+MEASURE everything 7 Berlin 1/0 CPU_ms=83.32 reused=0
+MEASURE everything 7 Berlin 1/1 CPU_ms=200.43 reused=0
+MEASURE everything 7 Berlin 2/0 CPU_ms=17.8 reused=2
+MEASURE everything 7 Berlin 2/1 CPU_ms=810.42 reused=3
+MEASURE everything 7 Berlin 3/0 CPU_ms=16375.46 reused=3
+MEASURE everything 7 Berlin 3/1 CPU_ms=20.6 reused=1
+MEASURE everything 7 Vienna 0/0 CPU_ms=3.3 reused=0
+MEASURE everything 7 Vienna 0/1 CPU_ms=23.61 reused=0
+MEASURE everything 7 Vienna 1/0 CPU_ms=305.44 reused=0
+MEASURE everything 7 Vienna 1/1 CPU_ms=468.43 reused=0
+MEASURE everything 7 Vienna 2/0 CPU_ms=172.56 reused=3
+MEASURE everything 7 Vienna 2/1 CPU_ms=28.25 reused=1
+MEASURE everything 7 Vienna 3/0 CPU_ms=5786.14 reused=3
+MEASURE everything 7 Vienna 3/1 CPU_ms=4.5 reused=1
+MEASURE everything 7 rural 0/0 CPU_ms=5.19 reused=0
+MEASURE everything 7 rural 0/1 CPU_ms=2.3 reused=0
+MEASURE everything 7 rural 1/0 CPU_ms=6.15 reused=0
+MEASURE everything 7 rural 1/1 CPU_ms=19.18 reused=0
+MEASURE everything 7 rural 2/0 CPU_ms=823.62 reused=3
+MEASURE everything 7 rural 2/1 CPU_ms=10.2 reused=1
+MEASURE everything 7 rural 3/0 CPU_ms=7.51 reused=0
+MEASURE everything 7 rural 3/1 CPU_ms=12.19 reused=1
+MEASURE everything 7 Munich 0/0 CPU_ms=6.46 reused=0
+MEASURE everything 7 Munich 0/1 CPU_ms=3.61 reused=0
+MEASURE everything 7 Munich 1/0 CPU_ms=1162.72 reused=0
+MEASURE everything 7 Munich 1/1 CPU_ms=6.13 reused=0
+MEASURE everything 7 Munich 2/0 CPU_ms=3.74 reused=1
+MEASURE everything 7 Munich 2/1 CPU_ms=47.51 reused=1
+MEASURE everything 7 Munich 3/0 CPU_ms=29.42 reused=1
+MEASURE everything 7 Munich 3/1 CPU_ms=38.65 reused=3
+MEASURE everything 7 London 0/0 CPU_ms=63.21 reused=0
+MEASURE everything 7 London 0/1 CPU_ms=4.43 reused=0
+MEASURE everything 7 London 1/0 CPU_ms=8.88 reused=0
+MEASURE everything 7 London 1/1 CPU_ms=10.38 reused=0
+MEASURE everything 7 London 2/0 CPU_ms=4.91 reused=1
+MEASURE everything 7 London 2/1 CPU_ms=20.97 reused=2
+MEASURE everything 7 London 3/0 CPU_ms=32.1 reused=2
+MEASURE everything 7 London 3/1 CPU_ms=7255.03 reused=3
+PREPARE everything 8 rss_GiB=20.515663146972656
+┌ Info: Preparing resident walking adjacency
+│   workers = 8
+│   nodes = 900197
+└   max_walk_h = 1.0
+[ Info: Startup: Counting walking geometry
+┌ Info: Startup complete: Counting walking geometry
+└   elapsed_s = 62.781083868
+[ Info: Startup: Packing walking adjacency
+┌ Info: Startup complete: Packing walking adjacency
+└   elapsed_s = 69.330666745
+[ Info: Startup: Indexing walking output IDs
+┌ Info: Startup complete: Indexing walking output IDs
+└   elapsed_s = 3.737675701
+[ Info: Startup: Aggregating population at res8
+┌ Info: Startup complete: Aggregating population at res8
+└   elapsed_s = 5.944635524
+[ Info: Startup: Preparing indexed population weights and walks
+┌ Info: Startup complete: Preparing indexed population weights and walks
+└   elapsed_s = 6.348647235
+MEASURE everything 8 Paris 0/0 CPU_ms=2.07 reused=0
+MEASURE everything 8 Paris 0/1 CPU_ms=7.83 reused=0
+MEASURE everything 8 Paris 1/0 CPU_ms=96.34 reused=0
+MEASURE everything 8 Paris 1/1 CPU_ms=187.28 reused=0
+MEASURE everything 8 Paris 2/0 CPU_ms=11.02 reused=1
+MEASURE everything 8 Paris 2/1 CPU_ms=4218.65 reused=3
+MEASURE everything 8 Paris 3/0 CPU_ms=3923.65 reused=3
+MEASURE everything 8 Paris 3/1 CPU_ms=286214.68 reused=3
+MEASURE everything 8 Berlin 0/0 CPU_ms=7.52 reused=0
+MEASURE everything 8 Berlin 0/1 CPU_ms=44.83 reused=0
+MEASURE everything 8 Berlin 1/0 CPU_ms=230.29 reused=0
+MEASURE everything 8 Berlin 1/1 CPU_ms=773.9 reused=0
+MEASURE everything 8 Berlin 2/0 CPU_ms=120.01 reused=2
+MEASURE everything 8 Berlin 2/1 CPU_ms=1029.43 reused=3
+MEASURE everything 8 Berlin 3/0 CPU_ms=33177.36 reused=3
+MEASURE everything 8 Berlin 3/1 CPU_ms=4.42 reused=1
+MEASURE everything 8 Vienna 0/0 CPU_ms=18.29 reused=0
+MEASURE everything 8 Vienna 0/1 CPU_ms=108.78 reused=0
+MEASURE everything 8 Vienna 1/0 CPU_ms=814.83 reused=0
+MEASURE everything 8 Vienna 1/1 CPU_ms=1046.13 reused=0
+MEASURE everything 8 Vienna 2/0 CPU_ms=74.82 reused=3
+MEASURE everything 8 Vienna 2/1 CPU_ms=2.89 reused=1
+MEASURE everything 8 Vienna 3/0 CPU_ms=11728.21 reused=3
+MEASURE everything 8 Vienna 3/1 CPU_ms=4.5 reused=1
+MEASURE everything 8 rural 0/0 CPU_ms=6.42 reused=0
+MEASURE everything 8 rural 0/1 CPU_ms=2.1 reused=0
+MEASURE everything 8 rural 1/0 CPU_ms=6.47 reused=0
+MEASURE everything 8 rural 1/1 CPU_ms=155.43 reused=0
+MEASURE everything 8 rural 2/0 CPU_ms=467.72 reused=3
+MEASURE everything 8 rural 2/1 CPU_ms=2.15 reused=0
+MEASURE everything 8 rural 3/0 CPU_ms=1.9 reused=0
+MEASURE everything 8 rural 3/1 CPU_ms=7.16 reused=1
+MEASURE everything 8 Munich 0/0 CPU_ms=7.85 reused=0
+MEASURE everything 8 Munich 0/1 CPU_ms=4.25 reused=0
+MEASURE everything 8 Munich 1/0 CPU_ms=2703.12 reused=0
+MEASURE everything 8 Munich 1/1 CPU_ms=72.2 reused=0
+MEASURE everything 8 Munich 2/0 CPU_ms=2.09 reused=1
+MEASURE everything 8 Munich 2/1 CPU_ms=7.8 reused=1
+MEASURE everything 8 Munich 3/0 CPU_ms=5.28 reused=1
+MEASURE everything 8 Munich 3/1 CPU_ms=91.52 reused=3
+MEASURE everything 8 London 0/0 CPU_ms=161.8 reused=0
+MEASURE everything 8 London 0/1 CPU_ms=6.11 reused=0
+MEASURE everything 8 London 1/0 CPU_ms=24.92 reused=0
+MEASURE everything 8 London 1/1 CPU_ms=22.85 reused=0
+MEASURE everything 8 London 2/0 CPU_ms=42.38 reused=1
+MEASURE everything 8 London 2/1 CPU_ms=58.74 reused=2
+MEASURE everything 8 London 3/0 CPU_ms=29.2 reused=2
+MEASURE everything 8 London 3/1 CPU_ms=19269.32 reused=3

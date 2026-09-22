@@ -55,6 +55,18 @@ If you omit `network`, the server uses the network of the first command-line fil
 The shell expands filename patterns before it supplies this file list.
 The server uses the origin cell's H3 resolution.
 An unavailable resolution returns HTTP 400.
+Startup loads the fast graph view. Without prepared shards, the first `trip_aware=true` request scans and packs only the requested trip-aware region. Trip-aware regions use a shared 30 GiB SLRU cache. Walking stays inside the loaded region.
+
+For production trip-aware routing, prepare numeric, memory-mapped shards before startup:
+
+```sh
+julia --project=. prepare_trip_shards.jl /data/trip-shards /data/everything_res8.arrow
+julia --threads=8 --project=. serve.jl --trip-shards /data/trip-shards /data/everything_res8.arrow
+```
+
+The preparation command derives missing resolutions 5 through 7 from a resolution-8 file. It writes one shard for each disconnected transit region. With `--trip-shards`, requests load shard bytes without scanning or sorting the Arrow source. The first request still builds the shard's local walking index. The prepared manifest records the source file size and modification time.
+
+Without `--trip-shards`, the slower request-time fallback remains available. The first request has extra startup work and memory use.
 Startup logs show the default network, each supplied or derived source, and the resolutions in each network.
 
 To run a small example with synthetic data, use this command:
@@ -181,6 +193,7 @@ The server ignores extra columns.
 | `departure_ms` | `UInt32` | Milliseconds after midnight, `0..86399999` |
 | `duration_ms` | `Int64` | Connection duration in milliseconds, zero or more |
 | `distance_km` | `Float64`, optional | Connection distance in kilometres; finite and zero or more |
+| `trip_id` | String, optional | Transport trip ID used by `trip_aware=true`; keep it consistent across a trip and distinct from other trips that share a routing cell |
 
 All source and destination cells in a file must have the same resolution.
 An empty input has resolution 5. Thus, the server rejects an empty file named `name_res7.arrow`.
@@ -196,7 +209,8 @@ It rejects invalid column definitions, H3 cells, and departure times.
 ## Model
 
 - Transfers between stops in one H3 cell take zero time.
-- Timetables repeat every 24 hours. Journey times include waiting. The model does not use dates or service calendars. It does not track whether you stay on the same vehicle.
+- Timetables repeat every 24 hours. Journey times include waiting. The model does not use dates or service calendars. It does not track whether you stay on the same vehicle unless `trip_aware=true`.
+- With `trip_aware=true`, different transport trip IDs require a five-minute connection. Walking resets the trip ID, so transport-walk-transport has no five-minute buffer.
 - Walking uses great-circle distance between H3 cell centres at 5 km/h. The server rounds walking times up to integer milliseconds. It does not use roads, terrain, or water barriers.
 - Walking can connect an origin to transit, two transit cells, or transit to a destination. Direct walking is also permitted. A transit connection permits another walk. Two consecutive walks are not permitted.
 - A journey or walk can equal its time limit. The default walking limit is one hour per walk. Set `max_walk_h=0` to disable all walking.
@@ -239,6 +253,8 @@ curl --fail --show-error 'http://127.0.0.1:1988/reachable?index=85075dd7fffffff&
 Maximum mode uses the worst sample's distance. Mean and coverage modes average distance over reachable samples.
 If equal times occur, the server selects the earliest sampled departure.
 Itinerary quantiles require an input `distance_km` column.
+Set `trip_aware=true` to apply the five-minute connection rule. The default is `false`.
+The parameter has no effect when the input has no `trip_id` column.
 Use `metric=time` with `reachable_union` when window sampling is active.
 
 Use `metric=accessible_population&origin_radius=2` for independent origins within two H3 grid steps.
