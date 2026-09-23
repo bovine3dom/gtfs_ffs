@@ -111,8 +111,8 @@ it does not promise maximum bulk throughput or a 30 ms response time.
 For `T` default-pool threads, the short reserve is `ceil(T / 4)`.
 The bulk limit is `T - reserve`, with at most `ceil(bulk / 2)` workers per query.
 With one thread, both classes share one slot and take turns when both queues wait.
-Window requests reserve no more workers than their departure samples. Trip-aware windows
-run independent sample searches in parallel. Routing yields between tiles, batches, or
+Non-population window requests reserve no more workers than their departure samples.
+Trip-aware windows run independent sample searches in parallel. Routing yields between tiles, batches, or
 sample waves. A long search can still delay other work. Worker slots are logical
 concurrency limits, not physical CPU affinity or preemption.
 
