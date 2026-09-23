@@ -152,11 +152,12 @@ function _walking_route_trip_at(graph, topology, origin, ready::UInt32, cutoff::
         throw(ArgumentError("walking index does not match graph"))
     labels = Dict{UInt64,UInt32}()
     transit_best = fill(INF, length(graph.h3))
+    transferred = fill(INF, length(graph.h3))
     walk_best = fill(INF, length(graph.h3))
     state_distance = track_distance ? Dict{UInt64,Float64}() : nothing
     queue = UInt32RadixHeap{UInt64}()
-    seen_trip = zeros(Int32, maximum(graph.trip_id; init=UInt32(0)))
-    generation = Int32(0)
+    seen_trip = Dict{UInt32,Int}()
+    generation = 0
     function enqueue!(time, node, trip, is_walk, km)
         key = _trip_state_key(node, trip, is_walk)
         old = get(labels, key, INF)
@@ -205,12 +206,16 @@ function _walking_route_trip_at(graph, topology, origin, ready::UInt32, cutoff::
             base = (time ÷ PERIOD) * PERIOD
             lower = time - base
             upper = cutoff - base
-            other_ready = _trip_other_ready(time, current_trip, cutoff)
+            other_ready = _trip_other_ready(graph, time, current_trip, cutoff)
+            # Walking can remove the transfer delay, even after a transit arrival.
+            scan_transfers = other_ready < transferred[u]
+            scan_transfers && (transferred[u] = other_ready)
+            isnothing(stats) || scan_transfers || (stats.transfer_scans_skipped += 1)
             for edge in graph.out_ptr[u]:(graph.out_ptr[u + 1] - Int32(1))
-                generation += Int32(1)
+                generation += 1
                 isnothing(stats) || (stats.edge_queries += 1)
                 v = graph.edge_to[edge]
-                dominance_limit = _trip_combined_dominance_limit(transit_best[v], walk_best[v])
+                dominance_limit = _trip_combined_dominance_limit(graph, transit_best[v], walk_best[v])
 
                 if current_trip != 0
                     first_group, stop = _trip_group_range(graph, edge, current_trip, stats)
@@ -228,8 +233,8 @@ function _walking_route_trip_at(graph, topology, origin, ready::UInt32, cutoff::
                                         state_distance[key] + graph.distance_km[connection]) : 0.0
                                     next_key = _trip_state_key(v, current_trip)
                                     if candidate < get(labels, next_key, INF) &&
-                                            !(candidate >= MIN_TRIP_CONNECTION_MS &&
-                                              transit_best[v] <= candidate - MIN_TRIP_CONNECTION_MS)
+                                            !(candidate >= trip_connection_ms(graph) &&
+                                              transit_best[v] <= candidate - trip_connection_ms(graph))
                                         transit_best[v] = min(transit_best[v], candidate)
                                         enqueue!(candidate, v, current_trip, false, km)
                                     end
@@ -240,7 +245,7 @@ function _walking_route_trip_at(graph, topology, origin, ready::UInt32, cutoff::
                     end
                 end
 
-                if current_trip == 0 || other_ready != INF
+                if scan_transfers
                     event_clock = current_trip == 0 ? lower : other_ready - base
                     slot = _trip_event_lower_bound(graph, edge, event_clock, stats)
                     stop = graph.trip_event_ptr[edge + Int32(1)]
@@ -255,9 +260,9 @@ function _walking_route_trip_at(graph, topology, origin, ready::UInt32, cutoff::
                         d > upper && break
                         @inbounds trip = graph.trip_id[connection]
                         current_trip != 0 && trip == current_trip || begin
-                            @inbounds seen_trip[trip] == generation || begin
+                            get(seen_trip, trip, 0) == generation || begin
                                 @inbounds a = graph.arrival[connection]
-                                @inbounds seen_trip[trip] = generation
+                                seen_trip[trip] = generation
                                 isnothing(stats) || (stats.event_groups += 1)
                                 if a <= upper
                                     candidate = base + a
@@ -265,8 +270,8 @@ function _walking_route_trip_at(graph, topology, origin, ready::UInt32, cutoff::
                                         state_distance[key] + graph.distance_km[connection]) : 0.0
                                     next_key = _trip_state_key(v, trip)
                                     if candidate < get(labels, next_key, INF) &&
-                                            !(candidate >= MIN_TRIP_CONNECTION_MS &&
-                                              transit_best[v] <= candidate - MIN_TRIP_CONNECTION_MS)
+                                            !(candidate >= trip_connection_ms(graph) &&
+                                              transit_best[v] <= candidate - trip_connection_ms(graph))
                                         transit_best[v] = min(transit_best[v], candidate)
                                         enqueue!(candidate, v, trip, false, km)
                                     end

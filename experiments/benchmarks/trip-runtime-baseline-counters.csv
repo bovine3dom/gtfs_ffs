@@ -1,0 +1,4 @@
+city,budget_ms,seconds,allocated_bytes,gc_seconds,reached,edge_queries,event_rows_scanned,event_groups,event_binary_searches,event_binary_search_steps,event_dominance_breaks,trip_group_lookups,trip_group_hits,state_enqueues,state_pops,stale_pops,state_dominance_discards,dominance_cache_hits,queue_peak,mask_merges
+London,10800000,0.399653435,45485152,0.0,145,1007543,825324,422778,564943,3372807,263004,1007491,43189,28473,28473,324,4518,0,20665,0
+Paris,10800000,0.150538181,30891216,0.005739273,174,2213902,1751028,842366,1359397,7228363,566759,2213760,37132,26015,26015,321,2136,0,21712,0
+Berlin,10800000,0.076317083,29840440,0.0,126,534338,334365,104836,315833,1626101,128958,534268,18632,12533,12533,115,1043,0,10001,0

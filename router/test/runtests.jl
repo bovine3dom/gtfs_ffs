@@ -102,7 +102,7 @@ end
         @test lease isa Reachability.TripShardLease
         @test lease.shard.graph.h3 == sort!(unique(UInt64[a, b, c]))
         @test !isnothing(lease.shard.graph.trip_id)
-        @test lease.shard.graph.distance_km == [1.0, 1.0, 1.0]
+        @test lease.shard.graph.distance_km == fill(1.0, length(lease.shard.graph.departure))
         Reachability._trip_shard_release!(lease)
     end
 end

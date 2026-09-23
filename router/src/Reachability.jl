@@ -78,7 +78,13 @@ function _without_trip_ids(graph::Graph)
         graph.schedule_ptr, graph.departure, graph.arrival, graph.resolution, graph.distance_km)
 end
 
-const MIN_TRIP_CONNECTION_MS = UInt32(5 * 60_000)
+# Average H3 edge length estimates the centre-to-vertex radius, at 5 km/h.
+# https://h3geo.org/docs/core-library/restable/
+const TRIP_CONNECTION_MS = Tuple(UInt32(ceil(km * 720_000)) for km in
+    (1281.256011, 483.0568391, 182.5129565, 68.97922179, 26.07175968,
+     9.854090990, 3.724532667, 1.406475763, 0.531414010, 0.200786148,
+     0.075863783, 0.028663897, 0.010830188, 0.004092010, 0.001546100, 0.000584169))
+@inline trip_connection_ms(graph::Graph) = TRIP_CONNECTION_MS[graph.resolution + 1]
 
 mutable struct UInt32RadixHeap{P}
     buckets::Vector{Vector{Tuple{UInt32,P}}}
@@ -166,9 +172,10 @@ mutable struct TripRouteStats
     dominance_cache_hits::Int
     queue_peak::Int
     mask_merges::Int
+    transfer_scans_skipped::Int
 end
 
-TripRouteStats() = TripRouteStats(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0)
+TripRouteStats() = TripRouteStats(ntuple(_ -> 0, fieldcount(TripRouteStats))...)
 
 function _merge_trip_stats!(target::TripRouteStats, source::TripRouteStats)
     target.edge_queries += source.edge_queries
@@ -186,6 +193,7 @@ function _merge_trip_stats!(target::TripRouteStats, source::TripRouteStats)
     target.dominance_cache_hits += source.dominance_cache_hits
     target.queue_peak = max(target.queue_peak, source.queue_peak)
     target.mask_merges += source.mask_merges
+    target.transfer_scans_skipped += source.transfer_scans_skipped
     return target
 end
 
@@ -435,25 +443,26 @@ end
     @inbounds return graph.trip_event_suffix_arrival[slot] >= limit - base
 end
 
-@inline function _trip_transfer_limit(best)
-    best == INF || best > MAX_TIME_MS - MIN_TRIP_CONNECTION_MS ? INF : best + MIN_TRIP_CONNECTION_MS
+@inline function _trip_transfer_limit(graph, best)
+    delay = trip_connection_ms(graph)
+    best == INF || best > MAX_TIME_MS - delay ? INF : best + delay
 end
 
 @inline function _trip_suffix_dominated(graph::Graph, slot, base, best)
-    return _trip_suffix_reaches_limit(graph, slot, base, _trip_transfer_limit(best))
+    return _trip_suffix_reaches_limit(graph, slot, base, _trip_transfer_limit(graph, best))
 end
 
-@inline function _trip_combined_dominance_limit(transit_best, walk_best)
-    transit_limit = _trip_transfer_limit(transit_best)
+@inline function _trip_combined_dominance_limit(graph, transit_best, walk_best)
+    transit_limit = _trip_transfer_limit(graph, transit_best)
     transit_limit == INF || walk_best == INF ? INF : max(transit_limit, walk_best)
 end
 
-function _trip_lane_dominance_limit(best, walk, node, mask)
+function _trip_lane_dominance_limit(graph, best, walk, node, mask)
     limit = UInt32(0)
     bits = mask
     while bits != 0
         lane = trailing_zeros(bits) + 1
-        transit_limit = @inbounds _trip_transfer_limit(best[node, lane])
+        transit_limit = @inbounds _trip_transfer_limit(graph, best[node, lane])
         walk_limit = @inbounds walk[node, lane]
         if transit_limit == INF || walk_limit == INF
             return INF
@@ -651,10 +660,10 @@ end
     @inbounds return (ready ÷ PERIOD) * PERIOD + arrival[connection]
 end
 
-@inline function _trip_other_ready(ready::UInt32, current_trip::UInt32, cutoff::UInt32)
+@inline function _trip_other_ready(graph, ready::UInt32, current_trip::UInt32, cutoff::UInt32)
     current_trip == 0 && return ready
-    cutoff >= MIN_TRIP_CONNECTION_MS && ready <= cutoff - MIN_TRIP_CONNECTION_MS &&
-        return ready + MIN_TRIP_CONNECTION_MS
+    delay = trip_connection_ms(graph)
+    cutoff >= delay && ready <= cutoff - delay && return ready + delay
     return INF
 end
 
@@ -719,10 +728,12 @@ function _route_trip_at(graph::Graph, source::Int32, ready::UInt32, cutoff::UInt
     source_key = _trip_state_key(source, UInt32(0))
     states = Dict{UInt64,UInt32}(source_key => ready)
     node_best = fill(INF, length(graph.h3)); node_best[source] = ready
+    transferred = falses(length(graph.h3))
     state_distance = isnothing(distances) || isnothing(graph.distance_km) ? nothing : Dict{UInt64,Float64}(source_key => 0.0)
     queue = UInt32RadixHeap{UInt64}()
-    seen_trip = zeros(Int32, maximum(graph.trip_id; init=UInt32(0)))
-    generation = Int32(0)
+    # Track only visited trips. Do not scan the full mmap timetable per query.
+    seen_trip = Dict{UInt32,Int}()
+    generation = 0
     push!(queue, ready, source_key)
     isnothing(stats) || (stats.state_enqueues += 1; stats.queue_peak = 1)
     while !isempty(queue)
@@ -737,13 +748,18 @@ function _route_trip_at(graph::Graph, source::Int32, ready::UInt32, cutoff::UInt
         base = (time ÷ PERIOD) * PERIOD
         lower = time - base
         upper = cutoff - base
-        other_ready = _trip_other_ready(time, current_trip, cutoff)
+        other_ready = _trip_other_ready(graph, time, current_trip, cutoff)
+        # Queue times are monotone. Later arrivals cannot improve transfer access.
+        # Always retain the separate same-trip continuation lookup.
+        scan_transfers = !transferred[u]
+        transferred[u] = true
+        isnothing(stats) || scan_transfers || (stats.transfer_scans_skipped += 1)
         for edge in graph.out_ptr[u]:(graph.out_ptr[u + 1] - Int32(1))
-            generation += Int32(1)
+            generation += 1
             isnothing(stats) || (stats.edge_queries += 1)
             v = graph.edge_to[edge]
 
-            # A continuing trip can board before the five-minute transfer
+            # A continuing trip can board before the resolution-based transfer
             # threshold. Its group is kept in schedule order for this lookup.
             if current_trip != 0
                 first_group, stop = _trip_group_range(graph, edge, current_trip, stats)
@@ -760,8 +776,8 @@ function _route_trip_at(graph::Graph, source::Int32, ready::UInt32, cutoff::UInt
                                 next_key = _trip_state_key(v, current_trip)
                                 old = get(states, next_key, INF)
                                 if candidate < old
-                                    if candidate >= MIN_TRIP_CONNECTION_MS &&
-                                            node_best[v] <= candidate - MIN_TRIP_CONNECTION_MS
+                                    if candidate >= trip_connection_ms(graph) &&
+                                            node_best[v] <= candidate - trip_connection_ms(graph)
                                         isnothing(stats) || (stats.state_dominance_discards += 1)
                                     else
                                         node_best[v] = min(node_best[v], candidate)
@@ -783,7 +799,7 @@ function _route_trip_at(graph::Graph, source::Int32, ready::UInt32, cutoff::UInt
 
             # Other trips need the transfer delay. The departure-sorted event
             # index lets this scan start at the first eligible departure.
-            if current_trip == 0 || other_ready != INF
+            if scan_transfers && (current_trip == 0 || other_ready != INF)
                 event_clock = current_trip == 0 ? lower : other_ready - base
                 slot = _trip_event_lower_bound(graph, edge, event_clock, stats)
                 stop = graph.trip_event_ptr[edge + Int32(1)]
@@ -798,17 +814,17 @@ function _route_trip_at(graph::Graph, source::Int32, ready::UInt32, cutoff::UInt
                     d > upper && break
                     @inbounds next_trip = graph.trip_id[connection]
                     current_trip != 0 && next_trip == current_trip || begin
-                        @inbounds seen_trip[next_trip] == generation || begin
+                        get(seen_trip, next_trip, 0) == generation || begin
                             @inbounds a = graph.arrival[connection]
-                            @inbounds seen_trip[next_trip] = generation
+                            seen_trip[next_trip] = generation
                             isnothing(stats) || (stats.event_groups += 1)
                             if a <= upper
                                 candidate = base + a
                                 next_key = _trip_state_key(v, next_trip)
                                 old = get(states, next_key, INF)
                                 if candidate < old
-                                    if candidate >= MIN_TRIP_CONNECTION_MS &&
-                                            node_best[v] <= candidate - MIN_TRIP_CONNECTION_MS
+                                    if candidate >= trip_connection_ms(graph) &&
+                                            node_best[v] <= candidate - trip_connection_ms(graph)
                                         isnothing(stats) || (stats.state_dominance_discards += 1)
                                     else
                                         node_best[v] = min(node_best[v], candidate)

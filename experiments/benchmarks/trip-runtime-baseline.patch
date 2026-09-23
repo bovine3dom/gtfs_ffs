@@ -1,0 +1,196 @@
+--- Reachability.jl
++++ Reachability.jl
+@@ -172,10 +172,9 @@
+     dominance_cache_hits::Int
+     queue_peak::Int
+     mask_merges::Int
+-    transfer_scans_skipped::Int
+ end
+ 
+-TripRouteStats() = TripRouteStats(ntuple(_ -> 0, fieldcount(TripRouteStats))...)
++TripRouteStats() = TripRouteStats(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0)
+ 
+ function _merge_trip_stats!(target::TripRouteStats, source::TripRouteStats)
+     target.edge_queries += source.edge_queries
+@@ -193,7 +192,6 @@
+     target.dominance_cache_hits += source.dominance_cache_hits
+     target.queue_peak = max(target.queue_peak, source.queue_peak)
+     target.mask_merges += source.mask_merges
+-    target.transfer_scans_skipped += source.transfer_scans_skipped
+     return target
+ end
+ 
+@@ -728,12 +726,10 @@
+     source_key = _trip_state_key(source, UInt32(0))
+     states = Dict{UInt64,UInt32}(source_key => ready)
+     node_best = fill(INF, length(graph.h3)); node_best[source] = ready
+-    transferred = falses(length(graph.h3))
+     state_distance = isnothing(distances) || isnothing(graph.distance_km) ? nothing : Dict{UInt64,Float64}(source_key => 0.0)
+     queue = UInt32RadixHeap{UInt64}()
+-    # Track only visited trips. Do not scan the full mmap timetable per query.
+-    seen_trip = Dict{UInt32,Int}()
+-    generation = 0
++    seen_trip = zeros(Int32, maximum(graph.trip_id; init=UInt32(0)))
++    generation = Int32(0)
+     push!(queue, ready, source_key)
+     isnothing(stats) || (stats.state_enqueues += 1; stats.queue_peak = 1)
+     while !isempty(queue)
+@@ -749,17 +745,12 @@
+         lower = time - base
+         upper = cutoff - base
+         other_ready = _trip_other_ready(graph, time, current_trip, cutoff)
+-        # Queue times are monotone. Later arrivals cannot improve transfer access.
+-        # Always retain the separate same-trip continuation lookup.
+-        scan_transfers = !transferred[u]
+-        transferred[u] = true
+-        isnothing(stats) || scan_transfers || (stats.transfer_scans_skipped += 1)
+         for edge in graph.out_ptr[u]:(graph.out_ptr[u + 1] - Int32(1))
+-            generation += 1
++            generation += Int32(1)
+             isnothing(stats) || (stats.edge_queries += 1)
+             v = graph.edge_to[edge]
+ 
+-            # A continuing trip can board before the resolution-based transfer
++            # A continuing trip can board before the five-minute transfer
+             # threshold. Its group is kept in schedule order for this lookup.
+             if current_trip != 0
+                 first_group, stop = _trip_group_range(graph, edge, current_trip, stats)
+@@ -799,7 +790,7 @@
+ 
+             # Other trips need the transfer delay. The departure-sorted event
+             # index lets this scan start at the first eligible departure.
+-            if scan_transfers && (current_trip == 0 || other_ready != INF)
++            if current_trip == 0 || other_ready != INF
+                 event_clock = current_trip == 0 ? lower : other_ready - base
+                 slot = _trip_event_lower_bound(graph, edge, event_clock, stats)
+                 stop = graph.trip_event_ptr[edge + Int32(1)]
+@@ -814,9 +805,9 @@
+                     d > upper && break
+                     @inbounds next_trip = graph.trip_id[connection]
+                     current_trip != 0 && next_trip == current_trip || begin
+-                        get(seen_trip, next_trip, 0) == generation || begin
++                        @inbounds seen_trip[next_trip] == generation || begin
+                             @inbounds a = graph.arrival[connection]
+-                            seen_trip[next_trip] = generation
++                            @inbounds seen_trip[next_trip] = generation
+                             isnothing(stats) || (stats.event_groups += 1)
+                             if a <= upper
+                                 candidate = base + a
+--- walking.jl
++++ walking.jl
+@@ -152,12 +152,11 @@
+         throw(ArgumentError("walking index does not match graph"))
+     labels = Dict{UInt64,UInt32}()
+     transit_best = fill(INF, length(graph.h3))
+-    transferred = fill(INF, length(graph.h3))
+     walk_best = fill(INF, length(graph.h3))
+     state_distance = track_distance ? Dict{UInt64,Float64}() : nothing
+     queue = UInt32RadixHeap{UInt64}()
+-    seen_trip = Dict{UInt32,Int}()
+-    generation = 0
++    seen_trip = zeros(Int32, maximum(graph.trip_id; init=UInt32(0)))
++    generation = Int32(0)
+     function enqueue!(time, node, trip, is_walk, km)
+         key = _trip_state_key(node, trip, is_walk)
+         old = get(labels, key, INF)
+@@ -207,12 +206,8 @@
+             lower = time - base
+             upper = cutoff - base
+             other_ready = _trip_other_ready(graph, time, current_trip, cutoff)
+-            # Walking can remove the transfer delay, even after a transit arrival.
+-            scan_transfers = other_ready < transferred[u]
+-            scan_transfers && (transferred[u] = other_ready)
+-            isnothing(stats) || scan_transfers || (stats.transfer_scans_skipped += 1)
+             for edge in graph.out_ptr[u]:(graph.out_ptr[u + 1] - Int32(1))
+-                generation += 1
++                generation += Int32(1)
+                 isnothing(stats) || (stats.edge_queries += 1)
+                 v = graph.edge_to[edge]
+                 dominance_limit = _trip_combined_dominance_limit(graph, transit_best[v], walk_best[v])
+@@ -245,7 +240,7 @@
+                     end
+                 end
+ 
+-                if scan_transfers
++                if current_trip == 0 || other_ready != INF
+                     event_clock = current_trip == 0 ? lower : other_ready - base
+                     slot = _trip_event_lower_bound(graph, edge, event_clock, stats)
+                     stop = graph.trip_event_ptr[edge + Int32(1)]
+@@ -260,9 +255,9 @@
+                         d > upper && break
+                         @inbounds trip = graph.trip_id[connection]
+                         current_trip != 0 && trip == current_trip || begin
+-                            get(seen_trip, trip, 0) == generation || begin
++                            @inbounds seen_trip[trip] == generation || begin
+                                 @inbounds a = graph.arrival[connection]
+-                                seen_trip[trip] = generation
++                                @inbounds seen_trip[trip] = generation
+                                 isnothing(stats) || (stats.event_groups += 1)
+                                 if a <= upper
+                                     candidate = base + a
+--- population.jl
++++ population.jl
+@@ -255,12 +255,11 @@
+     reached = Dict{UInt64,UInt64}()
+     used = typemax(UInt64) >> (64 - length(origins))
+     best_any = fill(INF, length(graph.h3), length(origins))
+-    transferred = fill(INF, length(graph.h3), length(origins))
+     best_walk = fill(INF, length(graph.h3), length(origins))
+     dominance_cache = Dict{UInt128,UInt32}()
+     dominance_cache_limit = 200_000
+-    seen_trip = Dict{UInt32,Int}()
+-    generation = 0
++    seen_trip = zeros(Int32, maximum(graph.trip_id; init=UInt32(0)))
++    generation = Int32(0)
+     function deadline_mask(time)
+         first = searchsortedfirst(cutoffs, time)
+         first > length(cutoffs) ? UInt64(0) : used & (typemax(UInt64) << (first - 1))
+@@ -369,19 +368,8 @@
+             iszero(node) && continue
+             base = (time ÷ PERIOD) * PERIOD
+             other_ready = _trip_other_ready(graph, time, current_trip, cutoff)
+-            transfer_mask = UInt64(0)
+-            bits = mask
+-            while bits != 0
+-                lane = trailing_zeros(bits) + 1
+-                if other_ready < transferred[node, lane]
+-                    transferred[node, lane] = other_ready
+-                    transfer_mask |= UInt64(1) << (lane - 1)
+-                end
+-                bits &= bits - UInt64(1)
+-            end
+-            isnothing(stats) || transfer_mask != 0 || (stats.transfer_scans_skipped += 1)
+             for edge in graph.out_ptr[node]:(graph.out_ptr[node + 1] - Int32(1))
+-                generation += 1
++                generation += Int32(1)
+                 isnothing(stats) || (stats.edge_queries += 1)
+                 target_node = graph.edge_to[edge]
+                 target = graph.h3[target_node]
+@@ -409,7 +397,7 @@
+                     end
+                 end
+ 
+-                if transfer_mask != 0
++                if current_trip == 0 || other_ready != INF
+                     event_clock = current_trip == 0 ? lower : other_ready - base
+                     slot = _trip_event_lower_bound(graph, edge, event_clock, stats)
+                     stop = graph.trip_event_ptr[edge + Int32(1)]
+@@ -424,14 +412,14 @@
+                         d > upper && break
+                         @inbounds next_trip = graph.trip_id[connection]
+                         current_trip != 0 && next_trip == current_trip || begin
+-                            get(seen_trip, next_trip, 0) == generation || begin
++                            @inbounds seen_trip[next_trip] == generation || begin
+                                 @inbounds a = graph.arrival[connection]
+-                                seen_trip[next_trip] = generation
++                                @inbounds seen_trip[next_trip] = generation
+                                 isnothing(stats) || (stats.event_groups += 1)
+                                 if a <= upper
+                                     arrival = base + a
+-                                    enqueue(arrival, target, next_trip, false, transfer_mask)
+-                                    enqueue(arrival, target, UInt32(0), true, transfer_mask)
++                                    enqueue(arrival, target, next_trip, false, mask)
++                                    enqueue(arrival, target, UInt32(0), true, mask)
+                                 end
+                             end
+                         end

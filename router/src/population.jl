@@ -255,11 +255,12 @@ function _population_sample_trip(graph, topology, origins, ready, cutoffs, weigh
     reached = Dict{UInt64,UInt64}()
     used = typemax(UInt64) >> (64 - length(origins))
     best_any = fill(INF, length(graph.h3), length(origins))
+    transferred = fill(INF, length(graph.h3), length(origins))
     best_walk = fill(INF, length(graph.h3), length(origins))
     dominance_cache = Dict{UInt128,UInt32}()
     dominance_cache_limit = 200_000
-    seen_trip = zeros(Int32, maximum(graph.trip_id; init=UInt32(0)))
-    generation = Int32(0)
+    seen_trip = Dict{UInt32,Int}()
+    generation = 0
     function deadline_mask(time)
         first = searchsortedfirst(cutoffs, time)
         first > length(cutoffs) ? UInt64(0) : used & (typemax(UInt64) << (first - 1))
@@ -269,8 +270,8 @@ function _population_sample_trip(graph, topology, origins, ready, cutoffs, weigh
         mask &= deadline_mask(time) & ~get(settled, state_key, UInt64(0))
         node = get(graph.node_id, cell, Int32(0))
         if node != 0
-            threshold = walk ? time : time < MIN_TRIP_CONNECTION_MS ? UInt32(0) :
-                time - MIN_TRIP_CONNECTION_MS
+            threshold = walk ? time : time < trip_connection_ms(graph) ? UInt32(0) :
+                time - trip_connection_ms(graph)
             best = walk ? best_walk : best_any
             dominated = UInt64(0)
             lane_count = count_ones(mask)
@@ -367,13 +368,24 @@ function _population_sample_trip(graph, topology, origins, ready, cutoffs, weigh
             node = get(graph.node_id, cell, Int32(0))
             iszero(node) && continue
             base = (time ÷ PERIOD) * PERIOD
-            other_ready = _trip_other_ready(time, current_trip, cutoff)
+            other_ready = _trip_other_ready(graph, time, current_trip, cutoff)
+            transfer_mask = UInt64(0)
+            bits = mask
+            while bits != 0
+                lane = trailing_zeros(bits) + 1
+                if other_ready < transferred[node, lane]
+                    transferred[node, lane] = other_ready
+                    transfer_mask |= UInt64(1) << (lane - 1)
+                end
+                bits &= bits - UInt64(1)
+            end
+            isnothing(stats) || transfer_mask != 0 || (stats.transfer_scans_skipped += 1)
             for edge in graph.out_ptr[node]:(graph.out_ptr[node + 1] - Int32(1))
-                generation += Int32(1)
+                generation += 1
                 isnothing(stats) || (stats.edge_queries += 1)
                 target_node = graph.edge_to[edge]
                 target = graph.h3[target_node]
-                dominance_limit = _trip_lane_dominance_limit(best_any, best_walk, target_node, mask)
+                dominance_limit = _trip_lane_dominance_limit(graph, best_any, best_walk, target_node, mask)
                 lower = time - base
                 upper = cutoff - base
 
@@ -397,7 +409,7 @@ function _population_sample_trip(graph, topology, origins, ready, cutoffs, weigh
                     end
                 end
 
-                if current_trip == 0 || other_ready != INF
+                if transfer_mask != 0
                     event_clock = current_trip == 0 ? lower : other_ready - base
                     slot = _trip_event_lower_bound(graph, edge, event_clock, stats)
                     stop = graph.trip_event_ptr[edge + Int32(1)]
@@ -412,14 +424,14 @@ function _population_sample_trip(graph, topology, origins, ready, cutoffs, weigh
                         d > upper && break
                         @inbounds next_trip = graph.trip_id[connection]
                         current_trip != 0 && next_trip == current_trip || begin
-                            @inbounds seen_trip[next_trip] == generation || begin
+                            get(seen_trip, next_trip, 0) == generation || begin
                                 @inbounds a = graph.arrival[connection]
-                                @inbounds seen_trip[next_trip] = generation
+                                seen_trip[next_trip] = generation
                                 isnothing(stats) || (stats.event_groups += 1)
                                 if a <= upper
                                     arrival = base + a
-                                    enqueue(arrival, target, next_trip, false, mask)
-                                    enqueue(arrival, target, UInt32(0), true, mask)
+                                    enqueue(arrival, target, next_trip, false, transfer_mask)
+                                    enqueue(arrival, target, UInt32(0), true, transfer_mask)
                                 end
                             end
                         end

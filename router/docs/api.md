@@ -29,7 +29,7 @@ The server rejects unknown parameters, duplicate parameters, and invalid paramet
 | `distance_mode` | `itinerary` or `straight_line` | `itinerary` |
 | `window_mode` | One of the six modes below | `mean_intersection` |
 | `metric` | `time`, `time_distance_quantile`, or `accessible_population` | `time` |
-| `trip_aware` | `true` or `1` applies the five-minute buffer between different transport trips; `false` or `0` uses the fast route | `false` |
+| `trip_aware` | `true` or `1` applies the resolution-based transfer delay between different transport trips; `false` or `0` uses the fast route | `false` |
 | `origin_radius` | Nonnegative integer H3 grid steps; population metric only | `0` |
 | `exclude_origin_population` | `true` or `1` excludes each origin's own population; `false` or `0` includes it; population metric only | `false` |
 | `normalisation` | `none` or `pop`; population metric only | `none` |
@@ -88,6 +88,9 @@ julia --threads=8 --project=. serve.jl --trip-shards /data/trip-shards /data/eve
 ```
 
 The preparation command writes memory-mapped numeric shards for disconnected transit regions.
+It writes each prepared walking index to a `.walking` file beside its shard.
+Requests load these indexes without counting or packing walking edges.
+Format version 3 requires a new preparation directory. Restart the server with that directory.
 It derives missing resolutions 5 through 7 from resolution 8. The server checks the source
 file size and modification time in the manifest. Re-run preparation after the source changes.
 The server uses a shared 30 GiB SLRU cache for loaded trip-aware shards. Walking does not
@@ -143,7 +146,9 @@ the origin's routing-cell population from both the numerator and denominator.
 `normalisation=none` keeps the existing people values. `normalisation_param` is
 ignored unless `normalisation=pop`. The CPU `route_population` function accepts
 the `normalisation` and `normalisation_param` keywords.
-Set `trip_aware=true` to apply the five-minute minimum connection time between different transport trip IDs.
+Set `trip_aware=true` to apply a fixed transfer delay between different transport trip IDs.
+The delay equals the average H3 hexagon radius divided by 5 km/h at the graph resolution.
+It is about 118, 45, 17, and 6 minutes at resolutions 5–8. The same trip has no transfer delay.
 Walking resets the trip ID, so transport-walk-transport does not receive this buffer.
 The parameter has no effect when the input graph has no trip IDs.
 Trip IDs do not need global uniqueness. Keep an ID consistent across one trip and use different IDs for unrelated trips that can meet in one routing cell.

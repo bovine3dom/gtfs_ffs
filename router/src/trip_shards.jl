@@ -11,7 +11,7 @@ struct _TripSpoolRow
 end
 
 const TRIP_SHARD_MAGIC = :gtfs_trip_shard
-const TRIP_SHARD_VERSION = 2
+const TRIP_SHARD_VERSION = 3
 
 _trip_shard_source_signature(path) = begin
     info = stat(path)
@@ -37,11 +37,15 @@ function write_trip_shard(path::AbstractString, graph::Graph, component::Integer
         padding = mod(-position(io), 8)
         padding == 0 || write(io, zeros(UInt8, padding))
         for array in arrays
-            isnothing(array) && continue
+            (isnothing(array) || isempty(array)) && continue
             padding = mod(-position(io), 8)
             padding == 0 || write(io, zeros(UInt8, padding))
             write(io, reinterpret(UInt8, array))
         end
+    end
+    index = prepare_walking(WalkingIndex(graph))
+    open(path * ".walking", "w") do io
+        serialize(io, index)
     end
     return path
 end
@@ -341,13 +345,7 @@ function _build_trip_shard(set::TripShardSet, component::Int32)
     prepared_path = isnothing(set.prepared_dir) ? nothing :
         joinpath(set.prepared_dir, "shard_$(component).bin")
     graph = if !isnothing(prepared_path)
-        if isfile(prepared_path)
-            read_trip_shard(prepared_path; component, resolution=set.graph.resolution)
-        elseif component in set.prepared_components
-            throw(ArgumentError("trip shard is not prepared: $prepared_path"))
-        else
-            _empty_trip_graph(set, component)
-        end
+        read_trip_shard(prepared_path; component, resolution=set.graph.resolution)
     elseif isnothing(set.startup_cache) || isnothing(set.disk_key_prefix)
         nothing
     else
@@ -365,8 +363,10 @@ function _build_trip_shard(set::TripShardSet, component::Int32)
         @info (isnothing(prepared_path) ? "Trip shard cache hit" : "Loaded prepared trip shard") component resolution=graph.resolution
     end
     isnothing(graph.trip_id) && return nothing
-    GC.gc(false)
-    index = prepare_walking(WalkingIndex(graph); progress=set.progress)
+    isnothing(prepared_path) && GC.gc(false)
+    index = isnothing(prepared_path) ?
+        prepare_walking(WalkingIndex(graph); progress=set.progress) :
+        open(deserialize, prepared_path * ".walking")
     return TripShard(graph, index, nothing, nothing, component, ReentrantLock())
 end
 
@@ -532,7 +532,12 @@ function prepare_trip_shard_set!(set::TripShardSet, output_dir::AbstractString; 
         has_distance = _spool_trip_source!(set, spool_dir; progress)
         for component in Int32(1):set.component_count
             spool = joinpath(spool_dir, "raw_$(component).bin")
-            isfile(spool) || continue
+            if !isfile(spool)
+                write_trip_shard(joinpath(output_dir, "shard_$(component).bin"),
+                    _empty_trip_graph(set, component), component)
+                push!(components, component)
+                continue
+            end
             rows = _read_trip_spool_rows(spool)
             table = (from_h3=UInt64[row.from_h3 for row in rows],
                 to_h3=UInt64[row.to_h3 for row in rows],
