@@ -380,7 +380,7 @@ function _population_sample_trip(graph, topology, origins, ready, cutoffs, weigh
                 bits &= bits - UInt64(1)
             end
             isnothing(stats) || transfer_mask != 0 || (stats.transfer_scans_skipped += 1)
-            for edge in graph.out_ptr[node]:(graph.out_ptr[node + 1] - Int32(1))
+            for edge in _trip_edges(graph, node, current_trip, transfer_mask != 0)
                 generation += 1
                 isnothing(stats) || (stats.edge_queries += 1)
                 target_node = graph.edge_to[edge]

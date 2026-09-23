@@ -18,7 +18,10 @@ function startup_cache_load(c::StartupCache, key)
     isfile(path) || return nothing
     try
         record = open(deserialize, path)
-        record.version == 1 ? record.value : nothing
+        record.version == 1 || return nothing
+        value = record.value
+        value isa Graph && !isdefined(value, :continuation) && return nothing
+        return value
     catch
         rm(path; force=true)
         nothing

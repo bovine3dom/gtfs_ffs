@@ -66,6 +66,22 @@ julia --threads=8 --project=. serve.jl --trip-shards /data/trip-shards /data/eve
 
 The preparation command derives missing resolutions 5 through 7 from a resolution-8 file. It writes one shard for each disconnected transit region. With `--trip-shards`, requests load shard bytes without scanning or sorting the Arrow source. Preparation also writes the local walking index to a `.walking` file beside each shard. Requests load this index without counting or packing walking edges. The prepared manifest records the source file size and modification time.
 
+To reduce trip-aware continuation lookups, add optional indexes to existing shards:
+
+```sh
+julia --project=. prepare_continuation.jl /data/trip-shards
+```
+
+This command writes a `.continuation` file beside each shard. It does not change the
+transit or walking files. Restart the server to load the indexes. Shards without
+an index keep the existing routing method. A stale index causes an error; regenerate
+it after replacing its shard. Indexes use the shared shard cache budget.
+
+The command limits index arrays to 512 MiB per shard. Use `--max-index-mib=1024`
+to increase this limit. This is not a process RSS limit: preparation also maps the
+transit shard. The command processes one shard at a time and rejects an index that
+exceeds the limit before it allocates the pair array.
+
 Without `--trip-shards`, the slower request-time fallback remains available. The first request has extra startup work and memory use.
 Startup logs show the default network, each supplied or derived source, and the resolutions in each network.
 

@@ -60,7 +60,7 @@ function _trip_shard_mmap(io, ::Type{T}, length::Integer) where T
     return array
 end
 
-function read_trip_shard(path::AbstractString; component=nothing, resolution=nothing)
+function read_trip_shard(path::AbstractString; component=nothing, resolution=nothing, continuation=true)
     io = open(path, "r")
     try
         metadata = deserialize(io)
@@ -86,9 +86,10 @@ function read_trip_shard(path::AbstractString; component=nothing, resolution=not
         trip_event_index = _trip_shard_mmap(io, Int32, lengths[11])
         trip_event_suffix_arrival = _trip_shard_mmap(io, UInt32, lengths[12])
         node_id = Dict{UInt64,Int32}(h => Int32(i) for (i, h) in enumerate(h3))
-        return Graph(h3, node_id, out_ptr, edge_from, edge_to, schedule_ptr,
+        graph = Graph(h3, node_id, out_ptr, edge_from, edge_to, schedule_ptr,
             departure, arrival, Int(metadata.resolution), distance_km, trip_id,
             trip_event_ptr, trip_event_index, trip_event_suffix_arrival)
+        return continuation && isfile(path * ".continuation") ? read_continuation(path, graph) : graph
     finally
         close(io)
     end

@@ -211,7 +211,7 @@ function _walking_route_trip_at(graph, topology, origin, ready::UInt32, cutoff::
             scan_transfers = other_ready < transferred[u]
             scan_transfers && (transferred[u] = other_ready)
             isnothing(stats) || scan_transfers || (stats.transfer_scans_skipped += 1)
-            for edge in graph.out_ptr[u]:(graph.out_ptr[u + 1] - Int32(1))
+            for edge in _trip_edges(graph, u, current_trip, scan_transfers)
                 generation += 1
                 isnothing(stats) || (stats.edge_queries += 1)
                 v = graph.edge_to[edge]

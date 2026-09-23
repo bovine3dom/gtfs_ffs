@@ -1,5 +1,8 @@
 # Trip-aware runtime tests
 
+These results describe commit `9d875a2`. See [the continuation index results](trip-continuation-results.md)
+for the next optimization and its deployment commands.
+
 ## Result
 
 The first CPU changes improve measured query time by 2.2–7.2 times.
@@ -105,9 +108,9 @@ Use a temporary source copy; do not apply it to the working router.
 
 ```sh
 mkdir -p /tmp/trip-baseline
-cp -r router/src /tmp/trip-baseline/
-patch -d /tmp/trip-baseline/src -p0 < experiments/benchmarks/trip-runtime-baseline.patch
-export TRIP_BASELINE_SRC=/tmp/trip-baseline/src
+git archive 9d875a2 router/src | tar -x -C /tmp/trip-baseline
+patch -d /tmp/trip-baseline/router/src -p0 < experiments/benchmarks/trip-runtime-baseline.patch
+export TRIP_BASELINE_SRC=/tmp/trip-baseline/router/src
 julia --project=router experiments/benchmarks/trip-runtime-random-parity.jl
 (ulimit -v 33554432; timeout 240 julia --project=router \
   experiments/benchmarks/trip-runtime-parity.jl \

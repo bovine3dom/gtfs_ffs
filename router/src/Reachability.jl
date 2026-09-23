@@ -25,6 +25,11 @@ function _od_distances(origin, cells)
     return [cell == origin ? 0.0 : H3.Lib.greatCircleDistanceKm(Ref(centre), Ref(H3.API.cellToLatLng(cell))) for cell in cells]
 end
 
+struct ContinuationIndex
+    offsets::Vector{Int64}
+    pairs::Vector{UInt64}
+end
+
 struct Graph
     h3::Vector{UInt64}
     node_id::Dict{UInt64,Int32}
@@ -43,7 +48,10 @@ struct Graph
     trip_group_ptr::Union{Nothing,Vector{Int32}}
     trip_group_id::Union{Nothing,Vector{UInt32}}
     trip_group_schedule_ptr::Union{Nothing,Vector{Int32}}
+    continuation::Union{Nothing,ContinuationIndex}
 end
+
+Graph(args::Vararg{Any,17}) = Graph(args..., nothing)
 
 Graph(h3, node_id, out_ptr, edge_from, edge_to, schedule_ptr, departure, arrival,
       resolution, distance_km, trip_id, event_ptr, event_index, event_suffix) = begin
@@ -754,7 +762,7 @@ function _route_trip_at(graph::Graph, source::Int32, ready::UInt32, cutoff::UInt
         scan_transfers = !transferred[u]
         transferred[u] = true
         isnothing(stats) || scan_transfers || (stats.transfer_scans_skipped += 1)
-        for edge in graph.out_ptr[u]:(graph.out_ptr[u + 1] - Int32(1))
+        for edge in _trip_edges(graph, u, current_trip, scan_transfers)
             generation += 1
             isnothing(stats) || (stats.edge_queries += 1)
             v = graph.edge_to[edge]
@@ -856,6 +864,7 @@ function _route_trip_at(graph::Graph, source::Int32, ready::UInt32, cutoff::UInt
     return labels
 end
 
+include("continuation.jl")
 include("graph_resolution.jl")
 include("window.jl")
 include("catchup.jl")
