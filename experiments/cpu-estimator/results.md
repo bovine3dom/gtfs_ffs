@@ -1,12 +1,12 @@
 # Rough CPU Estimator
 
-The standalone function is 874 bytes and 13 lines, including its comment. There is no runtime model file.
+The standalone function is 1044 bytes and 15 lines, including its comment. There is no runtime model file.
 
 ## Fit
 
 Eight coefficients fit log CPU-ms by constrained least squares. Work exponents are nonnegative. The budget term is a power of 1 + log(1 + hours), so it grows beyond six hours without a hard cutoff. Coefficients are rounded to three significant digits.
 
-The fitted walking exponent is 0.0049. A zero exponent removes that term from the generated function.
+The fitted walking exponent is 0.0049. A zero exponent removes that term from the generated function. The trip-aware multiplier is 5.7 and is not part of the fit. For non-population trip-aware windows, sample cost is linear because each sample runs a full search.
 
 The original 384 records are development data, including the previously inspected London records. New 100-hour records also supply fitting data. New 168-hour Hamburg records are held out. Their CPU values are not used to fit the formula.
 
@@ -49,6 +49,7 @@ Factor error is the larger of predicted/actual and actual/predicted CPU time. Th
 - The target is parsing, routing, and Arrow serialization process CPU time. It is not HTTP elapsed time.
 - Measurements use Julia 1.12.7 on the local Xeon E3-1275 v6, eight default threads, and at most three route workers. Each process runs one query at a time.
 - Graphs, compilation, and workspace pools are warm. Population result caching is disabled. Retained timings have zero compilation time.
+- Trip-aware records are not in the fit. The 5.7 multiplier comes from one Austria point-query comparison. Population comparisons ranged from 2.8 to 9.5 times.
 - Location, departure time, output encoding, distance mode, exclusion, and window aggregation mode are ignored.
 - The sample design pairs some parameters. Independent parameter effects are not established.
 - Unknown networks use the everything factor. Other resolutions, walking above one hour, and larger parameters extrapolate without rejection. They were not validated.

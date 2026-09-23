@@ -40,14 +40,16 @@ source = """
 export function estimateCpuMs(url) {
   const p = new URL(url, 'https://router.invalid').searchParams;
   const n = (key, fallback) => Number(p.get(key) ?? fallback);
+  const trip = p.get('trip_aware') === 'true', k = trip ? 5.7 : 1;
   const pop = p.get('metric') === 'accessible_population', r = pop ? n('origin_radius', 0) : 0;
   const res = p.has('index') ? parseInt(p.get('index')[1], 16) : (n('index_upper', 8 << 20) >>> 20) & 15;
   const b = n('budget_h', 100), w = Math.min(b, n('max_walk_h', 1));
   const window = n('window_h', 0), step = n('step_h', 1 / 60);
   const s = window > 0 && step > 0 ? Math.ceil(window / step) : 1;
-  return $a * (p.get('network') === 'rail_and_friends' ? $rail : 1) * $resolution ** (res - 8)
+  // The trip multiplier is a rough Austria measurement, not part of the fit.
+  return $a * k * (p.get('network') === 'rail_and_friends' ? $rail : 1) * $resolution ** (res - 8)
     * (pop ? $population : 1) * (1 + 3 * r * (r + 1)) ** $origins
-    * (1 + Math.log1p(b)) ** $budget * (1 + w) ** $walk * s ** $samples;
+    * (1 + Math.log1p(b)) ** $budget * (1 + w) ** $walk * s ** (trip && !pop ? 1 : $samples);
 }
 """
 walk == "0" && (source = replace(source, ", w = Math.min(b, n('max_walk_h', 1))"=>"", " * (1 + w) ** 0"=>""))
@@ -68,7 +70,7 @@ end
 open(joinpath(@__DIR__, "results.md"), "w") do io
     println(io,"# Rough CPU Estimator\n\nThe standalone function is $(sizeof(source)) bytes and $(count(==('\n'),source)) lines, including its comment. There is no runtime model file.\n")
     println(io,"## Fit\n\nEight coefficients fit log CPU-ms by constrained least squares. Work exponents are nonnegative. The budget term is a power of 1 + log(1 + hours), so it grows beyond six hours without a hard cutoff. Coefficients are rounded to three significant digits.\n")
-    println(io,"The fitted walking exponent is $walk. A zero exponent removes that term from the generated function.\n")
+    println(io,"The fitted walking exponent is $walk. A zero exponent removes that term from the generated function. The trip-aware multiplier is 5.7 and is not part of the fit. For non-population trip-aware windows, sample cost is linear because each sample runs a full search.\n")
     println(io,"The original 384 records are development data, including the previously inspected London records. New 100-hour records also supply fitting data. New 168-hour Hamburg records are held out. Their CPU values are not used to fit the formula.\n")
     println(io,"| Set | Rows | Median Factor Error | P90 Factor Error | Maximum Factor Error |\n|---|---:|---:|---:|---:|")
     for (label, group) in (("Development",train),("168-hour holdout",filter(r->r["fold"] == "long_test",rows)))
@@ -82,6 +84,6 @@ open(joinpath(@__DIR__, "results.md"), "w") do io
         n = r["normalized"]
         println(io,"| $(n["network"]) | $(n["resolution"]) | $(n["budgetMs"]/3_600_000) | $(n["metric"] == "accessible_population" ? string(n["originRadius"]) : "not population") | $(n["samples"]) | $(round(r["cpuMs"];digits=1)) | $(round(prediction(r);digits=1)) | $(r["fold"]) |")
     end
-    println(io,"\n## Limits\n\n- This is an order-of-magnitude estimate, not an admission or billing limit.\n- The target is parsing, routing, and Arrow serialization process CPU time. It is not HTTP elapsed time.\n- Measurements use Julia 1.12.7 on the local Xeon E3-1275 v6, eight default threads, and at most three route workers. Each process runs one query at a time.\n- Graphs, compilation, and workspace pools are warm. Population result caching is disabled. Retained timings have zero compilation time.\n- Location, departure time, output encoding, distance mode, exclusion, and window aggregation mode are ignored.\n- The sample design pairs some parameters. Independent parameter effects are not established.\n- Unknown networks use the everything factor. Other resolutions, walking above one hour, and larger parameters extrapolate without rejection. They were not validated.\n- All 384 original observations remain in calibration.csv and the original JSONL files. New observations are in the *-long.jsonl files.\n- No live endpoint, production file, server configuration, or input data was changed.\n")
+    println(io,"\n## Limits\n\n- This is an order-of-magnitude estimate, not an admission or billing limit.\n- The target is parsing, routing, and Arrow serialization process CPU time. It is not HTTP elapsed time.\n- Measurements use Julia 1.12.7 on the local Xeon E3-1275 v6, eight default threads, and at most three route workers. Each process runs one query at a time.\n- Graphs, compilation, and workspace pools are warm. Population result caching is disabled. Retained timings have zero compilation time.\n- Trip-aware records are not in the fit. The 5.7 multiplier comes from one Austria point-query comparison. Population comparisons ranged from 2.8 to 9.5 times.\n- Location, departure time, output encoding, distance mode, exclusion, and window aggregation mode are ignored.\n- The sample design pairs some parameters. Independent parameter effects are not established.\n- Unknown networks use the everything factor. Other resolutions, walking above one hour, and larger parameters extrapolate without rejection. They were not validated.\n- All 384 original observations remain in calibration.csv and the original JSONL files. New observations are in the *-long.jsonl files.\n- No live endpoint, production file, server configuration, or input data was changed.\n")
 end
 println("Fitted $(length(train)) development rows; wrote $(sizeof(source))-byte estimate.mjs and results.md")

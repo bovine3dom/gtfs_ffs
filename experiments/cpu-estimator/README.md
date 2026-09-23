@@ -11,7 +11,7 @@ The input is assumed to be a valid router URL. Full, relative, and query-only UR
 
 Budget defaults to 100 hours when omitted. Walking defaults to one hour, the window to zero, and the step to one minute. The default network is `everything`. Unknown networks use its factor. H3 resolution comes from `index` or the upper UInt32 word. It defaults to 8 if neither is supplied. Population disk size affects only the population metric.
 
-The formula uses network, resolution, population disk size, budget, effective walking allowance, and sample count. Other flags and location are ignored. The budget term grows logarithmically before its fitted exponent is applied. It does not stop at six hours. Other resolutions and large parameter values extrapolate.
+The formula uses network, resolution, population disk size, budget, effective walking allowance, sample count, and `trip_aware`. Trip-aware requests use a rough 5.7 CPU multiplier. Non-population trip-aware windows use linear sample scaling because each sample runs a full search. This trip adjustment is a heuristic, not part of the fit. The budget term grows logarithmically before its fitted exponent is applied. It does not stop at six hours. Other resolutions and large parameter values extrapolate.
 
 A fitted zero exponent removes that term from the generated function. The results report shows the fitted walking exponent.
 

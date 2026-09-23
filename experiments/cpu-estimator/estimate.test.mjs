@@ -44,6 +44,15 @@ test('sample count uses ceil and collapses a step larger than the window', () =>
   assert.equal(estimateCpuMs(base + '&window_h=1&step_h=2'), estimateCpuMs(base));
   assert.equal(estimateCpuMs(base + '&window_h=1&step_h=0.3'), estimateCpuMs(base + '&window_h=4&step_h=1'));
 });
+test('trip-aware routing adds its rough cost and full-search window scaling', () => {
+  const trip = base + '&trip_aware=true';
+  const close = (a, b) => assert.ok(Math.abs(a / b - 1) < 1e-12);
+  close(estimateCpuMs(trip), estimateCpuMs(base) * 5.7);
+  close(estimateCpuMs(trip + '&window_h=4&step_h=1'), estimateCpuMs(trip) * 4);
+  close(estimateCpuMs(trip + '&metric=accessible_population'),
+    estimateCpuMs(base + '&metric=accessible_population') * 5.7);
+  assert.equal(estimateCpuMs(base + '&trip_aware=false'), estimateCpuMs(base));
+});
 test('all recorded URLs are positive and match the shipped-coefficient report', () => {
   const lines = readFileSync(new URL('./validation.csv', import.meta.url), 'utf8').trim().split('\n').slice(1);
   assert.ok(lines.length >= 384);
