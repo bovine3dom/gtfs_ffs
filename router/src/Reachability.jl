@@ -151,6 +151,8 @@ function Base.pop!(queue::UInt32RadixHeap)
     return pop!(queue.buckets[1])
 end
 
+include("trip_workspace.jl")
+
 const WALK_STATE_BIT = UInt32(1) << 31
 
 @inline _trip_state_key(node::Int32, trip::UInt32, walk::Bool=false) =
@@ -181,6 +183,8 @@ mutable struct TripRouteStats
     queue_peak::Int
     mask_merges::Int
     transfer_scans_skipped::Int
+    pending_event_probes::Int
+    pending_probe_peak::Int
 end
 
 TripRouteStats() = TripRouteStats(ntuple(_ -> 0, fieldcount(TripRouteStats))...)
@@ -202,6 +206,8 @@ function _merge_trip_stats!(target::TripRouteStats, source::TripRouteStats)
     target.queue_peak = max(target.queue_peak, source.queue_peak)
     target.mask_merges += source.mask_merges
     target.transfer_scans_skipped += source.transfer_scans_skipped
+    target.pending_event_probes += source.pending_event_probes
+    target.pending_probe_peak = max(target.pending_probe_peak, source.pending_probe_peak)
     return target
 end
 
@@ -730,24 +736,31 @@ function _route_at(graph::Graph, source::Int32, ready::UInt32, cutoff::UInt32, d
 end
 
 function _route_trip_at(graph::Graph, source::Int32, ready::UInt32, cutoff::UInt32, distances, stats=nothing)
+    _with_trip_workspace(UInt64, length(graph.h3), 1) do ws
+        _route_trip_workspace(graph, source, ready, cutoff, distances, stats, ws)
+    end
+end
+
+function _route_trip_workspace(graph, source, ready, cutoff, distances, stats, ws)
     labels = fill(INF, length(graph.h3))
     isnothing(distances) || fill!(distances, NaN)
     source == 0 && return labels
     source_key = _trip_state_key(source, UInt32(0))
-    states = Dict{UInt64,UInt32}(source_key => ready)
-    node_best = fill(INF, length(graph.h3)); node_best[source] = ready
-    transferred = falses(length(graph.h3))
-    state_distance = isnothing(distances) || isnothing(graph.distance_km) ? nothing : Dict{UInt64,Float64}(source_key => 0.0)
-    queue = UInt32RadixHeap{UInt64}()
-    # Track only visited trips. Do not scan the full mmap timetable per query.
-    seen_trip = Dict{UInt32,Int}()
+    source_id = _trip_id!(ws, source_key)
+    ws.arrival[source_id] = ready; ws.distance[source_id] = 0.0
+    node_best = ws.best; node_best[source] = ready
+    transferred = ws.transferred
+    track_distance = !isnothing(distances) && !isnothing(graph.distance_km)
+    queue = ws.queue
+    seen_trip = ws.seen_trip
     generation = 0
-    push!(queue, ready, source_key)
+    push!(queue, ready, source_id)
     isnothing(stats) || (stats.state_enqueues += 1; stats.queue_peak = 1)
     while !isempty(queue)
-        time, key = pop!(queue)
+        time, id = pop!(queue)
+        key = ws.keys[id]
         isnothing(stats) || (stats.state_pops += 1)
-        if get(states, key, INF) != time
+        if ws.arrival[id] != time
             isnothing(stats) || (stats.stale_pops += 1)
             continue
         end
@@ -759,8 +772,8 @@ function _route_trip_at(graph::Graph, source::Int32, ready::UInt32, cutoff::UInt
         other_ready = _trip_other_ready(graph, time, current_trip, cutoff)
         # Queue times are monotone. Later arrivals cannot improve transfer access.
         # Always retain the separate same-trip continuation lookup.
-        scan_transfers = !transferred[u]
-        transferred[u] = true
+        scan_transfers = transferred[u] == INF
+        transferred[u] = time
         isnothing(stats) || scan_transfers || (stats.transfer_scans_skipped += 1)
         for edge in _trip_edges(graph, u, current_trip, scan_transfers)
             generation += 1
@@ -782,20 +795,22 @@ function _route_trip_at(graph::Graph, source::Int32, ready::UInt32, cutoff::UInt
                             if a <= upper
                                 candidate = base + a
                                 next_key = _trip_state_key(v, current_trip)
-                                old = get(states, next_key, INF)
+                                next_id = get(ws.ids, next_key, UInt32(0))
+                                old = next_id == 0 ? INF : ws.arrival[next_id]
                                 if candidate < old
                                     if candidate >= trip_connection_ms(graph) &&
                                             node_best[v] <= candidate - trip_connection_ms(graph)
                                         isnothing(stats) || (stats.state_dominance_discards += 1)
                                     else
                                         node_best[v] = min(node_best[v], candidate)
-                                        if !isnothing(state_distance)
-                                            km = state_distance[key] + graph.distance_km[connection]
+                                        next_id == 0 && (next_id = _trip_id!(ws, next_key))
+                                        if track_distance
+                                            km = ws.distance[id] + graph.distance_km[connection]
                                             isfinite(km) || throw(ArgumentError("accumulated route distance is not finite"))
-                                            state_distance[next_key] = km
+                                            ws.distance[next_id] = km
                                         end
-                                        states[next_key] = candidate
-                                        push!(queue, candidate, next_key)
+                                        ws.arrival[next_id] = candidate
+                                        push!(queue, candidate, next_id)
                                         isnothing(stats) || (stats.state_enqueues += 1; stats.queue_peak = max(stats.queue_peak, length(queue)))
                                     end
                                 end
@@ -829,20 +844,22 @@ function _route_trip_at(graph::Graph, source::Int32, ready::UInt32, cutoff::UInt
                             if a <= upper
                                 candidate = base + a
                                 next_key = _trip_state_key(v, next_trip)
-                                old = get(states, next_key, INF)
+                                next_id = get(ws.ids, next_key, UInt32(0))
+                                old = next_id == 0 ? INF : ws.arrival[next_id]
                                 if candidate < old
                                     if candidate >= trip_connection_ms(graph) &&
                                             node_best[v] <= candidate - trip_connection_ms(graph)
                                         isnothing(stats) || (stats.state_dominance_discards += 1)
                                     else
                                         node_best[v] = min(node_best[v], candidate)
-                                        if !isnothing(state_distance)
-                                            km = state_distance[key] + graph.distance_km[connection]
+                                        next_id == 0 && (next_id = _trip_id!(ws, next_key))
+                                        if track_distance
+                                            km = ws.distance[id] + graph.distance_km[connection]
                                             isfinite(km) || throw(ArgumentError("accumulated route distance is not finite"))
-                                            state_distance[next_key] = km
+                                            ws.distance[next_id] = km
                                         end
-                                        states[next_key] = candidate
-                                        push!(queue, candidate, next_key)
+                                        ws.arrival[next_id] = candidate
+                                        push!(queue, candidate, next_id)
                                         isnothing(stats) || (stats.state_enqueues += 1; stats.queue_peak = max(stats.queue_peak, length(queue)))
                                     end
                                 end
@@ -854,11 +871,14 @@ function _route_trip_at(graph::Graph, source::Int32, ready::UInt32, cutoff::UInt
             end
         end
     end
-    for (key, time) in states
+    for (key, id) in ws.ids
+        time = ws.arrival[id]
         node = _trip_state_node(key)
-        if time < labels[node]
+        # Pool reuse can change hash-table capacity and iteration order.
+        # Resolve equal-time distance ties independently of that order.
+        if time < labels[node] || (track_distance && time == labels[node] && ws.distance[id] < distances[node])
             labels[node] = time
-            isnothing(state_distance) || (distances[node] = state_distance[key])
+            track_distance && (distances[node] = ws.distance[id])
         end
     end
     return labels

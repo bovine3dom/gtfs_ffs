@@ -249,17 +249,22 @@ function _route_population_trip_reference(graph, population::Population, origin,
 end
 
 function _population_sample_trip(graph, topology, origins, ready, cutoffs, weights, stats=nothing)
-    queue = UInt32RadixHeap{UInt128}()
-    pending = Dict{UInt128,UInt64}()
-    settled = Dict{UInt128,UInt64}()
+    _with_trip_workspace(UInt128, length(graph.h3), length(origins)) do ws
+        _population_trip_workspace(graph, topology, origins, ready, cutoffs, weights, stats, ws)
+    end
+end
+
+function _population_trip_workspace(graph, topology, origins, ready, cutoffs, weights, stats, ws)
+    queue = ws.queue
+    settled = ws.settled
     reached = Dict{UInt64,UInt64}()
     used = typemax(UInt64) >> (64 - length(origins))
-    best_any = fill(INF, length(graph.h3), length(origins))
-    transferred = fill(INF, length(graph.h3), length(origins))
-    best_walk = fill(INF, length(graph.h3), length(origins))
-    dominance_cache = Dict{UInt128,UInt32}()
+    best_any = reshape(ws.best, length(graph.h3), length(origins))
+    transferred = reshape(ws.transferred, length(graph.h3), length(origins))
+    best_walk = reshape(ws.walk, length(graph.h3), length(origins))
+    dominance_cache = ws.dominance
     dominance_cache_limit = 200_000
-    seen_trip = Dict{UInt32,Int}()
+    seen_trip = ws.seen_trip
     generation = 0
     function deadline_mask(time)
         first = searchsortedfirst(cutoffs, time)
@@ -267,7 +272,9 @@ function _population_sample_trip(graph, topology, origins, ready, cutoffs, weigh
     end
     function enqueue(time, cell, trip, walk, mask)
         state_key = _population_state_key(cell, trip, walk)
-        mask &= deadline_mask(time) & ~get(settled, state_key, UInt64(0))
+        state_id = get(ws.ids, state_key, UInt32(0))
+        mask &= deadline_mask(time) & ~(state_id == 0 ? UInt64(0) : settled[state_id])
+        iszero(mask) && return
         node = get(graph.node_id, cell, Int32(0))
         if node != 0
             threshold = walk ? time : time < trip_connection_ms(graph) ? UInt32(0) :
@@ -316,14 +323,31 @@ function _population_sample_trip(graph, topology, origins, ready, cutoffs, weigh
                 bits &= bits - UInt64(1)
             end
         end
-        pending_key = (state_key << 32) | UInt128(time)
-        if haskey(pending, pending_key)
+        state_id == 0 && (state_id = _trip_id!(ws,state_key))
+        # Most states have short pending lists. Long lists use a sparse fallback index.
+        event = _pending_event(ws,state_id,time,stats)
+        if event != 0
             isnothing(stats) || (stats.mask_merges += 1)
+            ws.event_mask[event] |= mask
         else
-            push!(queue, time, pending_key)
+            if isempty(ws.free_events)
+                length(ws.event_state) < typemax(UInt32) || throw(ArgumentError("too many trip events"))
+                push!(ws.event_state,state_id); push!(ws.event_mask,mask)
+                push!(ws.event_time,time); push!(ws.event_next,UInt32(0)); push!(ws.event_prev,UInt32(0))
+                event = UInt32(length(ws.event_state))
+            else
+                event = pop!(ws.free_events)
+                ws.event_state[event] = state_id; ws.event_mask[event] = mask
+                ws.event_time[event] = time
+            end
+            head = ws.heads[state_id]
+            ws.event_next[event] = head; ws.event_prev[event] = UInt32(0)
+            head == 0 || (ws.event_prev[head] = event)
+            ws.heads[state_id] = event
+            ws.indexed_pending[state_id] && (ws.pending_index[_pending_key(state_id,time)] = event)
+            push!(queue, time, event)
             isnothing(stats) || (stats.state_enqueues += 1; stats.queue_peak = max(stats.queue_peak, length(queue)))
         end
-        pending[pending_key] = get(pending, pending_key, UInt64(0)) | mask
     end
     function credit(cell, mask)
         iszero(mask) || get(weights, cell, 0.0) <= 0 ||
@@ -336,19 +360,32 @@ function _population_sample_trip(graph, topology, origins, ready, cutoffs, weigh
     end
     expansions = queries = 0
     while !isempty(queue)
-        time, pending_key = pop!(queue)
+        time, event = pop!(queue)
+        state_id = ws.event_state[event]
+        previous_event, next_event = ws.event_prev[event], ws.event_next[event]
+        if previous_event == 0
+            ws.heads[state_id] = next_event
+        else
+            ws.event_next[previous_event] = next_event
+        end
+        next_event == 0 || (ws.event_prev[next_event] = previous_event)
+        if ws.indexed_pending[state_id]
+            delete!(ws.pending_index,_pending_key(state_id,time))
+            ws.heads[state_id] == 0 && (ws.indexed_pending[state_id] = false)
+        end
         isnothing(stats) || (stats.state_pops += 1)
-        state_key = pending_key >> 32
+        state_key = ws.keys[state_id]
         cell = _population_state_cell(state_key)
         current_trip = _population_state_trip(state_key)
         walk = _population_state_walk(state_key)
-        previous = get(settled, state_key, UInt64(0))
-        mask = pop!(pending, pending_key) & ~previous
+        previous = settled[state_id]
+        mask = ws.event_mask[event] & ~previous
+        push!(ws.free_events,event)
         if iszero(mask)
             isnothing(stats) || (stats.stale_pops += 1)
             continue
         end
-        settled[state_key] = previous | mask
+        settled[state_id] = previous | mask
         expansions += 1
         queries += count_ones(mask)
         credit(cell, mask)

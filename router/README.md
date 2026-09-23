@@ -155,6 +155,17 @@ Packed estimates include fixed arrays and a scheduler allowance for dynamic scra
 Returned buffers are measured before the pool retains them. A failed query discards
 only its own buffers, after all its workers finish.
 
+Trip-aware routing also reuses sparse query scratch in a separate cache. Set
+`ROUTER_TRIP_WORKSPACE_CACHE_MIB` before startup to change its default 256 MiB limit.
+Use `0` to disable retention. This limit covers idle scratch only, not active-query
+memory, and is separate from `--workspace-memory-gib`. Each active worker owns its
+scratch. Results do not refer to pooled arrays. Large scratch buffers are discarded
+on release if they exceed the retention limit. No shard rebuild is needed.
+
+Trip states receive compact IDs only when visited. Labels, distances, and masks use
+arrays indexed by these IDs. The router does not allocate a cell-by-trip matrix.
+Longer queries can still visit more states and use more active memory.
+
 Response buffers have a separate budget of 1 GiB, or the scratch budget if smaller.
 This budget has the same short/bulk split. The server reserves estimated encoding
 space before Arrow encoding, then keeps the actual body bytes until the write ends
@@ -268,6 +279,7 @@ curl --fail --show-error 'http://127.0.0.1:1988/reachable?index=85075dd7fffffff&
 `distance_mode=itinerary` is the default. Minimum and difference modes use the best sample's itinerary distance.
 Maximum mode uses the worst sample's distance. Mean and coverage modes average distance over reachable samples.
 If equal times occur, the server selects the earliest sampled departure.
+For a point trip-aware itinerary, equal arrivals across retained trip states use the smaller distance.
 Itinerary quantiles require an input `distance_km` column.
 Set `trip_aware=true` to apply the resolution-based transfer delay. The default is `false`.
 The parameter has no effect when the input has no `trip_id` column.
