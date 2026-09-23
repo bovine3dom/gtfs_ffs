@@ -1238,25 +1238,43 @@ function make_handler(graph::Graph; progress::Bool=false, population=nothing,
                     result = if sharded_population
                         _route_population_sharded(trip_graph_set, nothing, population, origin, ready, budget;
                             radius, options, normalisation, normalisation_param,
-                            workers=lease.workers, workspace_wait=() -> _workspace_wait(lease))
+                            workers=lease.workers, workspace_wait=() -> _workspace_wait(lease), probe_only=true)
                     else
                         _cached_route_population(population_cache, origin, ready, budget;
                             options..., probe_only=true)
                     end
-                    if !sharded_population && !hasproperty(result, :h3)
+                    if !hasproperty(result, :h3)
                         count = result.cache_misses
                         samples = window == 0 ? 1 : cld(window, min(step, window))
                         target = count <= 16 && samples <= 4 && budget <= 10_800_000 && max_walk_ms <= 3_600_000 ? 1 : 2
-                        packed = !isnothing(request_prepared_population) &&
-                            min(max_walk_ms, budget) <= routing_walking_index.prepared.limit
-                        tile = min(count, samples == 1 || (samples > 4 && count >= 128 * Threads.nthreads(:default)) ? 64 : 16)
+                        tile_width = samples == 1 || (!trip_aware && samples > 4 &&
+                            count >= 128 * Threads.nthreads(:default)) ? 64 : 16
+                        tile = max(1, min(count, tile_width))
                         range_origins = samples > fld(64, tile) ? tile : 0
-                        fixed = population_workspace_estimate(n, destinations + count, range_origins, 1)
-                        bytes = (packed ? fixed + cld(fixed, 4) + 64n : scratch) + Int(metadata)
+                        worker_limit = trip_aware ?
+                            get(result, :worker_limit, _trip_population_jobs(count, samples)) : cld(count, tile)
+                        bytes = if trip_aware
+                            worker_bytes = hasproperty(result, :worker_bytes) ? result.worker_bytes :
+                                _trip_population_worker_bytes(routing_graph, count, samples, destinations)
+                            worker_bytes <= typemax(Int) - Int(metadata) ||
+                                throw(PopulationMemoryError(UInt128(worker_bytes) + metadata, typemax(Int)))
+                            worker_bytes + Int(metadata)
+                        else
+                            fixed = population_workspace_estimate(n, destinations + count, range_origins, 1)
+                            packed = !isnothing(request_prepared_population) &&
+                                min(max_walk_ms, budget) <= routing_walking_index.prepared.limit
+                            (packed ? fixed + cld(fixed, 4) + 64n : scratch) + Int(metadata)
+                        end
                         _release_compute!(lease)
-                        _acquire_compute!(lease, target, bytes; max_workers=cld(count, tile))
-                        result = _cached_route_population(population_cache, origin, ready, budget;
-                            options..., workers=lease.workers, workspace_wait=() -> _workspace_wait(lease))
+                        _acquire_compute!(lease, target, bytes; max_workers=worker_limit)
+                        result = if sharded_population
+                            _route_population_sharded(trip_graph_set, nothing, population, origin, ready, budget;
+                                radius, options, normalisation, normalisation_param,
+                                workers=lease.workers, workspace_wait=() -> _workspace_wait(lease))
+                        else
+                            _cached_route_population(population_cache, origin, ready, budget;
+                                options..., workers=lease.workers, workspace_wait=() -> _workspace_wait(lease))
+                        end
                     end
                     append!(headers, ["X-Router-Backend" => "shared-population",
                         "X-Router-Metric" => metric, "X-Router-Distance" => "not-computed",

@@ -428,12 +428,13 @@ end
 function _route_population_sharded(set::TripShardSet, current_lease, population,
                                    origin, ready, budget; radius, options,
                                    normalisation, normalisation_param, workers,
-                                   workspace_wait=nothing)
+                                   workspace_wait=nothing, probe_only=false)
     all_origins, groups = trip_shard_population_groups(set, origin, radius,
         min(options.max_walk_ms, budget))
     values = Dict{UInt64,Float64}()
-    shared = separate = cache_hits = cache_misses = 0
+    shared = separate = cache_hits = cache_misses = worker_limit = worker_bytes = 0
     used_workers = 0
+    samples = options.window_ms == 0 ? 1 : cld(options.window_ms, min(options.step_ms, options.window_ms))
     for (component, selected) in groups
         lease = !isnothing(current_lease) && current_lease.key == (set.namespace, component) ?
             current_lease : trip_shard_acquire!(set, first(selected), min(options.max_walk_ms, budget))
@@ -443,7 +444,18 @@ function _route_population_sharded(set::TripShardSet, current_lease, population,
         suboptions = merge(options, (prepared_population=prepared, origins=selected,
             normalisation=:none, normalisation_param=nothing))
         result = _cached_route_population(cache, origin, ready, budget;
-            suboptions..., workers=workers, workspace_wait=workspace_wait)
+            suboptions..., workers, workspace_wait, probe_only)
+        if probe_only && !hasproperty(result, :h3)
+            cache_misses += result.cache_misses
+            cache_hits += length(selected) - result.cache_misses
+            worker_limit = max(worker_limit, _trip_population_jobs(result.cache_misses, samples))
+            destinations = isnothing(shard.walking_index.prepared) ? length(shard.graph.h3) :
+                length(shard.walking_index.prepared.output_cells)
+            worker_bytes = max(worker_bytes,
+                _trip_population_worker_bytes(shard.graph, result.cache_misses, samples, destinations))
+            lease === current_lease || _trip_shard_release!(lease)
+            continue
+        end
         for (cell, value) in zip(result.h3, result.value)
             values[cell] = value
         end
@@ -454,6 +466,7 @@ function _route_population_sharded(set::TripShardSet, current_lease, population,
         used_workers = max(used_workers, result.workers)
         lease === current_lease || _trip_shard_release!(lease)
     end
+    probe_only && cache_misses > 0 && return (; cache_hits, cache_misses, worker_limit, worker_bytes)
     result = (; h3=all_origins, value=Float64[get(values, cell, 0.0) for cell in all_origins],
         shared_expansions=shared, query_expansions=separate, workers=used_workers,
         cache_hits, cache_misses, origin_count=length(all_origins))

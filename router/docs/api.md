@@ -358,9 +358,10 @@ uses the short class if its budget is at most three hours and its walk limit is 
 Population cache hits use the short class. Misses use it only for at most 16 origins
 and four samples, with the same budget and walk limits. Other requests use bulk slots.
 These classes estimate cost. They do not guarantee a response time.
-Point queries reserve one worker. Non-population windows reserve no more workers than
-their departure samples. Trip-aware windows run independent sample searches in parallel.
-Small population requests reserve no more workers than their estimated tile count.
+Non-population point queries reserve one worker. Non-population windows reserve no
+more workers than their departure samples. Trip-aware windows run independent sample searches in parallel.
+The server caps population workers by estimated work units. Trip-aware population
+counts both origin tiles and sample blocks.
 
 Response memory has a separate limit of 1 GiB, or the scratch budget if smaller.
 Each class receives a share in proportion to its worker slots. Encoding space is

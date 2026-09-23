@@ -110,6 +110,8 @@ end
     end
 end
 
+include("trip_population_tests.jl")
+
 @testset "Invalid duration exclusion" begin
     valid = fixture_table()
     invalid = (from_h3=fill(DEMO_ORIGIN, 5), to_h3=fill(DEMO_CELLS[7], 5),

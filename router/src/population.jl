@@ -238,6 +238,23 @@ function _apply_population_normalisation(result, population, resolution, normali
         origin_count=length(origins)))
 end
 
+function _trip_population_jobs(origins::Integer, samples::Integer)
+    origins <= 0 && return 0
+    tile_size = samples == 1 ? 64 : min(16, origins)
+    samples_per_block = fld(64, tile_size)
+    return cld(origins, tile_size) * cld(samples, samples_per_block)
+end
+
+function _trip_population_worker_bytes(graph, origins::Integer, samples::Integer, destinations::Integer)
+    origins <= 0 && return 65_536
+    tile_size = samples == 1 ? 64 : min(16, origins)
+    lanes = min(origins, tile_size) * min(samples, fld(64, tile_size))
+    n, d, edges, lanes = UInt128.((length(graph.h3), destinations, length(graph.edge_to), lanes))
+    bytes = UInt128(65_536) + 128n + 128d + 8edges + 12n * lanes
+    bytes <= typemax(Int) || throw(PopulationMemoryError(bytes, typemax(Int)))
+    return Int(bytes)
+end
+
 function _route_population_trip_reference(graph, population::Population, origin, departure_ms, budget_ms;
         origin_radius=0, window_ms=0, step_ms=60_000, max_walk_ms=3_600_000,
         window_mode=:mean_intersection, walking_index=WalkingIndex(graph), origin_batch_size=nothing,
