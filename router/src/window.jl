@@ -141,23 +141,52 @@ function _finish_window(acc, plan; searches::Int, origin=nothing, cells=nothing,
             searches, reused_samples=plan.samples - searches, elapsed_sum_ms=acc.elapsed_sum_ms, kwargs...)
 end
 
+function _foreach_trip_window_sample!(compute, consume, samples, workers)
+    count = Int(min(workers, Threads.nthreads(:default), samples))
+    outcomes = Vector{Any}(undef, count)
+    for first_sample in 0:count:samples-1
+        active = min(count, samples - first_sample)
+        if active == 1
+            consume(first_sample, compute(first_sample, 1))
+            continue
+        end
+        @sync for slot in 1:active
+            sample = first_sample + slot - 1
+            let slot=slot, sample=sample
+                Threads.@spawn outcomes[slot] = try
+                    compute(sample, slot)
+                catch error
+                    error
+                end
+            end
+        end
+        for slot in 1:active
+            outcomes[slot] isa Exception && throw(outcomes[slot])
+            consume(first_sample + slot - 1, outcomes[slot])
+        end
+    end
+    return count
+end
+
 function _route_window_trip(graph, origin, departure_ms, budget_ms, window_ms;
-                            step_ms, distance_mode, window_mode)
+                            step_ms, distance_mode, window_mode, workers)
     mode = _distance_mode(distance_mode)
     ready, _ = query_times(graph, origin, departure_ms, budget_ms)
     step, samples, _ = _window_times(ready, budget_ms, window_ms, step_ms)
     plan = (; source=get(graph.node_id, origin, Int32(0)), ready, budget=UInt32(budget_ms),
             step, samples=Int(samples))
     acc = _window_accumulator(graph, plan, mode == :itinerary; window_mode)
-    for sample in 0:(samples - 1)
+    compute = function (sample, _)
         time = UInt32(Int64(ready) + sample * step)
         distances = mode == :itinerary ? Vector{Float64}(undef, length(graph.h3)) : nothing
         labels = _route_at(graph, plan.source, time, time + UInt32(budget_ms), distances)
-        _accumulate_window!(acc, plan, (sample, 1), labels, distances)
+        (; labels, distances)
     end
+    consume = (sample, result) -> _accumulate_window!(acc, plan, (sample, 1), result.labels, result.distances)
+    worker_count = _foreach_trip_window_sample!(compute, consume, Int(samples), workers)
     return _finish_window(acc, plan; searches=Int(samples), origin, cells=graph.h3,
                           backend="trip", full_searches=Int(samples), repair_searches=0,
-                          profile_lookups=0, routing_expansions=0, workers=1)
+                          profile_lookups=0, routing_expansions=0, workers=worker_count)
 end
 
 """Replay canonical Dijkstra discoveries using cached connections and final arrivals."""

@@ -12,7 +12,7 @@ function route_window_walking_cached(graph::Graph, origin::UInt64, departure_ms:
     chunk_size > 0 || throw(ArgumentError("chunk_size must be positive"))
     workers > 0 || throw(ArgumentError("workers must be positive"))
     isnothing(graph.trip_id) || return _route_window_walking_trip(graph, origin, departure_ms, budget_ms, window_ms;
-        step_ms, max_walk_ms, walking_index, distance_mode, window_mode)
+        step_ms, max_walk_ms, walking_index, distance_mode, window_mode, workers)
     plan = _walking_window_plan(graph, origin, departure_ms, budget_ms, window_ms;
                                  step_ms, max_walk_ms, walking_index, distance_mode)
     worker_count = Int(min(workers, Threads.nthreads(:default), plan.samples))

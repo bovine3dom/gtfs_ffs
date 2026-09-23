@@ -60,6 +60,24 @@ end
             end
         end
     end
+    trip_graph = pack_graph(merge(window_table(rows),
+        (trip_id=["first", "second", "first", "third", "second", "first"],)))
+    walking_index = WalkingIndex(trip_graph)
+    for walking in (false, true), mode in (:mean_intersection, :min_union, :max_intersection,
+            :diff_union, :diff_intersection, :reachable_union), straight in (false, true)
+        points = statistics_points(trip_graph, DEMO_ORIGIN, 0, 60, 61, 30;
+            walking, max_walk_ms=walking ? 1000 : 0, walking_index,
+            distance_mode=straight ? :straight_line : :itinerary)
+        options = (; step_ms=30, window_mode=mode,
+            distance_mode=straight ? :straight_line : :itinerary)
+        for workers in (1, 2, 8)
+            result = walking ? route_window_walking_cached(trip_graph, DEMO_ORIGIN, 0, 60, 61;
+                options..., max_walk_ms=1000, walking_index, workers) :
+                route_window_cached(trip_graph, DEMO_ORIGIN, 0, 60, 61; options..., workers)
+            check_statistics(trip_graph, result, points, mode, 60; straight)
+            @test result.workers == min(workers, Threads.nthreads(:default), result.sample_count)
+        end
+    end
     a, b, c, seconds = WalkingTests.chain(9)
     hop = Int(WalkingTests.walk(a, b).ms)
     graph = pack_graph(WalkingTests.raw_table([a, b, c], [(1, 2, 0, hop, 9.0), (1, 2, 60, hop, 1.0), (2, 3, hop, 0, 3.0)]))

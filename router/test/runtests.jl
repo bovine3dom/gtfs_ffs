@@ -81,6 +81,9 @@ end
     @test loaded[]
     @test HTTP.header(aware, "X-Router-Trip-Aware") == "true"
     @test legacy.body != aware.body
+    window = handler(HTTP.Request("GET", base * "&window_h=$(4 / 60)&step_h=$(1 / 60)&trip_aware=true"))
+    bulk = max(1, Threads.nthreads(:default) - cld(Threads.nthreads(:default), 4))
+    @test HTTP.header(window, "X-Router-Workers") == string(min(4, Threads.nthreads(:default), cld(bulk, 2)))
     @test handler(HTTP.Request("GET", base * "&trip_aware=maybe")).status == 400
 end
 

@@ -11,7 +11,7 @@ function route_window_cached(graph::Graph, origin::UInt64, departure_ms::Integer
     chunk_size > 0 || throw(ArgumentError("chunk_size must be positive"))
     workers > 0 || throw(ArgumentError("workers must be positive"))
     isnothing(graph.trip_id) || return _route_window_trip(graph, origin, departure_ms, budget_ms, window_ms;
-        step_ms, distance_mode, window_mode)
+        step_ms, distance_mode, window_mode, workers)
     plan = _window_plan(graph, origin, departure_ms, budget_ms, window_ms; step_ms)
     acc = _window_accumulator(graph, plan, track; window_mode)
     groups = length(plan.groups)

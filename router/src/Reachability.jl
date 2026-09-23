@@ -1226,8 +1226,9 @@ function make_handler(graph::Graph; progress::Bool=false, population=nothing,
         scratch = max(65536, 128n + 128destinations + 8length(graph.edge_to))
         !is_population && window > 0 && (scratch += 1024n)
         lane = is_population || (metric == "time" && _short_query(window, budget, max_walk_ms)) ? 1 : 2
+        max_workers = is_population || window == 0 ? 1 : cld(window, min(step, window))
         return _with_scheduled(request, admission, lane, is_population ? Int(metadata) : scratch;
-                              max_workers=is_population || window == 0 ? 1 : typemax(Int)) do lease
+                              max_workers) do lease
                 if metric == "accessible_population"
                     options = (; origin_radius=radius, window_ms=window, step_ms=step, max_walk_ms,
                         window_mode, prepared_population=request_prepared_population,

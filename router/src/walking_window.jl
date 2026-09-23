@@ -1,19 +1,26 @@
 function _route_window_walking_trip(graph, origin, departure_ms, budget_ms, window_ms;
-                                    step_ms, max_walk_ms, walking_index, distance_mode, window_mode)
+                                    step_ms, max_walk_ms, walking_index, distance_mode, window_mode, workers)
     mode = _distance_mode(distance_mode)
     ready, _ = query_times(graph, origin, departure_ms, budget_ms)
     step, samples, _ = _window_times(ready, budget_ms, window_ms, step_ms)
     limit = min(_walking_limit(max_walk_ms), UInt32(budget_ms))
     index = isnothing(walking_index) ? WalkingIndex(graph) : walking_index
-    topology = WalkingTopology(index, limit)
+    count = Int(min(workers, Threads.nthreads(:default), samples))
+    shared = count > 1 ? WalkingGeometryCache() : nothing
+    topologies = [WalkingTopology(index, limit, shared) for _ in 1:count]
     acc = _walking_window_accumulator(mode == :itinerary, window_mode)
-    for sample in 0:(samples - 1)
+    compute = function (sample, slot)
         time = UInt32(Int64(ready) + sample * step)
-        point = _walking_route_at(graph, topology, origin, time, time + UInt32(budget_ms), mode == :itinerary)
+        _walking_route_at(graph, topologies[slot], origin, time,
+            time + UInt32(budget_ms), mode == :itinerary)
+    end
+    consume = function (sample, point)
+        time = UInt32(Int64(ready) + sample * step)
         _accumulate_walking!(acc, point, time, UInt32(budget_ms), samples)
     end
+    worker_count = _foreach_trip_window_sample!(compute, consume, Int(samples), count)
     return _finish_walking_window(acc, samples; budget=UInt32(budget_ms), origin,
-        searches=Int(samples), reused_samples=0, backend="trip_walking", workers=1,
+        searches=Int(samples), reused_samples=0, backend="trip_walking", workers=worker_count,
         full_searches=Int(samples), repair_searches=0, profile_lookups=0, routing_expansions=0)
 end
 
