@@ -353,8 +353,13 @@ It can report buffers retained from an earlier query. Other metrics omit these h
 WebSocket success frames contain Arrow data only; they do not carry HTTP headers.
 
 With eight threads, two worker slots are reserved for short queries. Bulk work
-has six slots, with at most three workers per query. A time query without a window
-uses the short class if its budget is at most three hours and its walk limit is at most one hour.
+has six slots, with at most three workers per query. Set `--short-workers` and
+`--max-workers-per-request` at server startup to change these limits. For example,
+set `--short-workers=6` and `--max-workers-per-request=54` on a 60-thread server
+to reserve six short slots and allow one bulk request to use 54 workers. Memory
+admission can still reduce the worker count. A time query without a window uses the
+short class if its budget is
+at most three hours and its walk limit is at most one hour.
 Population cache hits use the short class. Misses use it only for at most 16 origins
 and four samples, with the same budget and walk limits. Other requests use bulk slots.
 These classes estimate cost. They do not guarantee a response time.
@@ -389,7 +394,9 @@ Pass it to `make_network_handler(handlers; default_network="rail")`.
 You must specify a default network that exists in the dictionary.
 Pass the same `admission=RequestScheduler(; max_pending=128, memory_bytes=8*1024^3)` and
 `workspace_pool=PopulationWorkspacePool(; max_bytes=8*1024^3)` objects to each
-`make_handler`. The command-line server does this automatically.
+handler. `RequestScheduler` also accepts `short_workers` and
+`max_workers_per_request` to set the short-query CPU reserve and the per-request
+bulk worker ceiling. The command-line server creates these objects automatically.
 The network dispatcher detects a shared admission object only when all its handlers
 use that same object. It does not select the first gate from different gates.
 An explicit `admission` keyword can add a dispatcher-wide limit.

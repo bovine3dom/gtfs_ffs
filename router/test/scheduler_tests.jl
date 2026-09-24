@@ -10,7 +10,22 @@ waitfor(f) = @test timedwait(f, 20) == :ok
     s = RequestScheduler(; max_pending=8, memory_bytes=800_000)
     @test sum(s.capacity) == (t == 1 ? 2 : t)
     @test s.capacity[1] == cld(t, 4)
+    @test s.max_workers_per_request == cld(s.capacity[2], 2)
     @test s.pending_limit == (1, 7)
+    short_workers = t == 1 ? 1 : cld(t, 10)
+    bulk_workers = max(1, t - short_workers)
+    aggressive = RequestScheduler(; workers=t, max_pending=8, memory_bytes=800_000,
+        short_workers, max_workers_per_request=bulk_workers)
+    @test aggressive.capacity == (short_workers, bulk_workers)
+    @test aggressive.max_workers_per_request == bulk_workers
+    aggressive_lease = R.ComputeLease(aggressive, 2, 0, 0, UInt64(0))
+    R._acquire_compute!(aggressive_lease, 2, 1)
+    @test aggressive_lease.workers == bulk_workers
+    R._release_compute!(aggressive_lease)
+    @test_throws ArgumentError RequestScheduler(; workers=t, max_workers_per_request=bulk_workers + 1)
+    if t > 1
+        @test_throws ArgumentError RequestScheduler(; workers=t, short_workers=t)
+    end
     @test R._short_query(0, 10_800_000, 3_600_000)
     @test !R._short_query(217, 21_600_000, 3_600_000)
     @test !R._short_query(0, 21_600_000, 3_600_000)

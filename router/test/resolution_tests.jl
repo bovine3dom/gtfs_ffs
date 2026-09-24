@@ -114,7 +114,8 @@ import Sockets
         close(listener)
         command = `$(Base.julia_cmd()) --threads=4 --project=$(dirname(@__DIR__)) $(joinpath(dirname(@__DIR__), "serve.jl")) $files`
         log = open(joinpath(dir, "server.log"), "w+")
-        process = run(pipeline(addenv(command, "ROUTER_PORT" => string(port), "ROUTER_HOST" => "127.0.0.1"), stdout=log, stderr=log); wait=false)
+        process = run(pipeline(addenv(command, "ROUTER_PORT" => string(port), "ROUTER_HOST" => "127.0.0.1",
+            "ROUTER_STARTUP_CACHE_DIR" => joinpath(dir, "child-startup-cache")), stdout=log, stderr=log); wait=false)
         http = "http://127.0.0.1:$port"
         try
             @test timedwait(() -> begin

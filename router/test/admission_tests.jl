@@ -18,11 +18,25 @@ end
     @test scheduler_stats(RequestAdmission(; max_pending=0)).pending_limit == (0, 0)
     @test_throws ArgumentError RequestAdmission(; max_pending=-1)
     @test_throws ArgumentError RequestAdmission(; max_pending=typemax(Int))
-    for option in ("--max-pending", "--workspace-memory-gib"), value in ("", "-1", "1.5", "true", "Inf", string(typemax(Int)))
+    threads = Threads.nthreads(:default)
+    cli = parse_cli(["--demo"])
+    @test cli.short_workers == cld(threads, 4)
+    @test cli.max_workers_per_request == cld(max(1, threads - cli.short_workers), 2)
+    short_workers = threads == 1 ? 1 : cld(threads, 10)
+    bulk_workers = max(1, threads - short_workers)
+    custom = parse_cli(["--demo", "--short-workers=$short_workers",
+        "--max-workers-per-request=$bulk_workers"])
+    @test (custom.short_workers, custom.max_workers_per_request) == (short_workers, bulk_workers)
+    changed_reserve = parse_cli(["--demo", "--short-workers=$short_workers"])
+    @test changed_reserve.max_workers_per_request == cld(bulk_workers, 2)
+    for option in ("--max-pending", "--workspace-memory-gib", "--short-workers", "--max-workers-per-request"),
+        value in ("", "-1", "1.5", "true", "Inf", string(typemax(Int)))
         @test_throws ArgumentError parse_cli(["$option=$value", "--demo"])
     end
-    @test_throws ArgumentError parse_cli(["--workspace-memory-gib=0", "--demo"])
-    for option in ("--max-pending", "--workspace-memory-gib")
+    for option in ("--workspace-memory-gib", "--short-workers", "--max-workers-per-request")
+        @test_throws ArgumentError parse_cli(["$option=0", "--demo"])
+    end
+    for option in ("--max-pending", "--workspace-memory-gib", "--short-workers", "--max-workers-per-request")
         @test_throws ArgumentError parse_cli([option])
         @test_throws ArgumentError parse_cli(["$option=1", option, "2"])
     end

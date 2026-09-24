@@ -7,6 +7,7 @@ mutable struct RequestScheduler
     changed::Threads.Condition
     total::Int
     capacity::Tuple{Int,Int}
+    max_workers_per_request::Int
     pending_limit::Tuple{Int,Int}
     memory_limit::Tuple{Int,Int}
     output_limit::Tuple{Int,Int}
@@ -18,26 +19,35 @@ mutable struct RequestScheduler
 end
 
 function RequestScheduler(; workers::Integer=Threads.nthreads(:default),
+        short_workers::Union{Nothing,Integer}=nothing,
+        max_workers_per_request::Union{Nothing,Integer}=nothing,
         max_pending::Integer=128, memory_bytes::Integer=8*1024^3,
         output_bytes::Integer=min(memory_bytes, 1024^3))
     1 <= workers <= Threads.nthreads(:default) || throw(ArgumentError("workers must fit the default thread pool"))
     0 <= max_pending < typemax(Int) || throw(ArgumentError("max_pending must be nonnegative and below typemax(Int)"))
     0 < memory_bytes <= typemax(Int) && 0 < output_bytes <= typemax(Int) ||
         throw(ArgumentError("memory budgets must be positive Int values"))
-    short = cld(workers, 4)
+    short = isnothing(short_workers) ? cld(workers, 4) : Int(short_workers)
+    1 <= short <= workers && (workers == 1 || short < workers) ||
+        throw(ArgumentError("short_workers must leave at least one bulk worker slot"))
+    bulk = max(1, workers - short)
+    per_request = isnothing(max_workers_per_request) ? cld(bulk, 2) : Int(max_workers_per_request)
+    1 <= per_request <= bulk ||
+        throw(ArgumentError("max_workers_per_request must fit the bulk worker slots"))
     split(bytes) = workers == 1 ? (Int(bytes), Int(bytes)) :
         (Int(fld(Int128(bytes) * short, workers)), Int(bytes - fld(Int128(bytes) * short, workers)))
     reserve = min(max_pending, max(1, cld(max_pending, 8)))
     guard = ReentrantLock()
     RequestScheduler(guard, Threads.Condition(guard), Int(workers),
-        (Int(short), Int(max(1, workers - short))), (Int(reserve), Int(max_pending - reserve)),
+        (Int(short), Int(bulk)), per_request, (Int(reserve), Int(max_pending - reserve)),
         split(memory_bytes), split(output_bytes), (Any[], Any[]), zeros(Int, 2), zeros(Int, 2), zeros(Int, 2), 1)
 end
 
 function scheduler_stats(s::RequestScheduler)
     lock(s.lock) do
         (; workers=Tuple(s.cpu), memory_bytes=Tuple(s.memory), output_bytes=Tuple(s.output),
-            pending=length.(s.queues), capacity=s.capacity, pending_limit=s.pending_limit,
+            pending=length.(s.queues), capacity=s.capacity,
+            max_workers_per_request=s.max_workers_per_request, pending_limit=s.pending_limit,
             memory_limit=s.memory_limit, output_limit=s.output_limit)
     end
 end
@@ -53,7 +63,7 @@ end
 function _acquire_compute!(lease::ComputeLease, lane, bytes_per_worker; max_workers::Integer=typemax(Int))
     max_workers > 0 || throw(ArgumentError("max_workers must be positive"))
     s = lease.scheduler
-    workers = min(max_workers, lane == 1 ? 1 : cld(s.capacity[2], 2))
+    workers = min(max_workers, lane == 1 ? 1 : s.max_workers_per_request)
     bytes_per_worker <= s.memory_limit[lane] ||
         throw(PopulationMemoryError(UInt128(bytes_per_worker), s.memory_limit[lane]))
     workers = min(workers, div(s.memory_limit[lane], max(1, bytes_per_worker)))

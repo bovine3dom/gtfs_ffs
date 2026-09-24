@@ -1,19 +1,22 @@
 @testset "Population CLI" begin
+    threads = Threads.nthreads(:default)
+    default_short = cld(threads, 4)
+    default_request_workers = cld(max(1, threads - default_short), 2)
+    cli_defaults = (; max_pending=128, workspace_bytes=8*1024^3,
+        short_workers=default_short, max_workers_per_request=default_request_workers)
     @test parse_cli(["alpha_res5.arrow", "beta_res6.arrow"]) ==
-        (paths=["alpha_res5.arrow", "beta_res6.arrow"], population_path="", trip_shards_path="", max_pending=128, workspace_bytes=8*1024^3)
+        merge((paths=["alpha_res5.arrow", "beta_res6.arrow"], population_path="", trip_shards_path=""), cli_defaults)
     for paths in (["--demo"], ["alpha_res5.arrow", "beta_res6.arrow"]),
         option in (["--population", "data/kontur_h3.arrow"], ["--population=data/kontur_h3.arrow"]),
         position in 0:length(paths)
         args = [paths[1:position]; option; paths[position + 1:end]]
-        @test parse_cli(args) == (; paths, population_path="data/kontur_h3.arrow", trip_shards_path="", max_pending=128, workspace_bytes=8*1024^3)
+        @test parse_cli(args) == merge((; paths, population_path="data/kontur_h3.arrow", trip_shards_path=""), cli_defaults)
         @test args == [paths[1:position]; option; paths[position + 1:end]]
     end
     @test parse_cli(["--trip-shards", "data/trip-shards", "alpha_res5.arrow"]) ==
-        (paths=["alpha_res5.arrow"], population_path="", trip_shards_path="data/trip-shards",
-         max_pending=128, workspace_bytes=8*1024^3)
+        merge((paths=["alpha_res5.arrow"], population_path="", trip_shards_path="data/trip-shards"), cli_defaults)
     @test parse_cli(["--trip-shards=data/trip-shards", "alpha_res5.arrow"]) ==
-        (paths=["alpha_res5.arrow"], population_path="", trip_shards_path="data/trip-shards",
-         max_pending=128, workspace_bytes=8*1024^3)
+        merge((paths=["alpha_res5.arrow"], population_path="", trip_shards_path="data/trip-shards"), cli_defaults)
     for args in (["--population"], ["--population="], ["--population", ""],
                  ["--population", "--demo"], ["--population", "--population=x"],
                  ["--population=x", "--population", "y"],

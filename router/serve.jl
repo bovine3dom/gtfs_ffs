@@ -6,7 +6,12 @@ function parse_cli(args)
     paths = String[]
     population_path = ""
     trip_shards_path = ""
-    limits = Dict("--max-pending" => 128, "--workspace-memory-gib" => 8)
+    threads = Threads.nthreads(:default)
+    short_workers = cld(threads, 4)
+    bulk_workers = max(1, threads - short_workers)
+    limits = Dict("--max-pending" => 128, "--workspace-memory-gib" => 8,
+        "--short-workers" => short_workers,
+        "--max-workers-per-request" => cld(bulk_workers, 2))
     seen = Set{String}()
     i = 1
     while i <= length(args)
@@ -45,7 +50,13 @@ function parse_cli(args)
                 split(arg, '='; limit=2)[2]
             end
             value = occursin(r"^[0-9]+\z", text) ? tryparse(Int, text) : nothing
-            minimum, maximum = name == "--max-pending" ? (0, typemax(Int) - 1) : (1, div(typemax(Int), 1024^3))
+            minimum, maximum = if name == "--max-pending"
+                (0, typemax(Int) - 1)
+            elseif name == "--workspace-memory-gib"
+                (1, div(typemax(Int), 1024^3))
+            else
+                (1, threads)
+            end
             !isnothing(value) && minimum <= value <= maximum ||
                 throw(ArgumentError("$name requires an integer in $minimum..$maximum"))
             limits[name] = value
@@ -56,7 +67,11 @@ function parse_cli(args)
     end
     return (; paths, population_path, trip_shards_path,
             max_pending=limits["--max-pending"],
-            workspace_bytes=limits["--workspace-memory-gib"] * 1024^3)
+            workspace_bytes=limits["--workspace-memory-gib"] * 1024^3,
+            short_workers=limits["--short-workers"],
+            max_workers_per_request="--max-workers-per-request" in seen ?
+                limits["--max-workers-per-request"] :
+                cld(max(1, threads - limits["--short-workers"]), 2))
 end
 
 function _startup_signature(path)
@@ -66,12 +81,14 @@ function _startup_signature(path)
 end
 
 function load_handlers(paths; population_path="", trip_shards_path="", max_pending=128,
-                       workspace_bytes=8*1024^3)
-    admission = RequestAdmission(; max_pending, memory_bytes=workspace_bytes)
+                       workspace_bytes=8*1024^3, short_workers=cld(Threads.nthreads(:default), 4),
+                       max_workers_per_request=cld(max(1, Threads.nthreads(:default) - short_workers), 2))
+    admission = RequestAdmission(; max_pending, memory_bytes=workspace_bytes,
+        short_workers, max_workers_per_request)
     workspace_pool = PopulationWorkspacePool(; max_bytes=workspace_bytes)
     startup_cache = StartupCache()
     if isempty(paths) || ("--demo" in paths && paths != ["--demo"])
-        error("usage: julia --threads=8 --project=router router/serve.jl [--population <path>] [--trip-shards <dir>] [--max-pending 128] [--workspace-memory-gib 8] (<name_resN.arrow> [name_resN.arrow ...] | --demo)")
+        error("usage: julia --threads=8 --project=router router/serve.jl [--population <path>] [--trip-shards <dir>] [--max-pending 128] [--workspace-memory-gib 8] [--short-workers N] [--max-workers-per-request N] (<name_resN.arrow> [name_resN.arrow ...] | --demo)")
     end
     sources = Dict{Tuple{String,Int},String}()
     specs = map(paths) do path
@@ -167,7 +184,8 @@ if abspath(PROGRAM_FILE) == @__FILE__
     options = parse_cli(ARGS)
     options.paths == ["--demo"] && include("fixture.jl")
     handler = load_handlers(options.paths; options.population_path, options.trip_shards_path,
-        options.max_pending, options.workspace_bytes)
+        options.max_pending, options.workspace_bytes, options.short_workers,
+        options.max_workers_per_request)
     warmup_server()
     host = get(ENV, "ROUTER_HOST", "127.0.0.1")
     port = parse(Int, get(ENV, "ROUTER_PORT", "1988"))

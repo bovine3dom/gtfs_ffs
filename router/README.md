@@ -110,7 +110,12 @@ it does not promise maximum bulk throughput or a 30 ms response time.
 
 For `T` default-pool threads, the short reserve is `ceil(T / 4)`.
 The bulk limit is `T - reserve`, with at most `ceil(bulk / 2)` workers per query.
-With one thread, both classes share one slot and take turns when both queues wait.
+Use `--short-workers` and `--max-workers-per-request` to change these limits.
+On a 60-thread server, set `--short-workers=6` and
+`--max-workers-per-request=54` to reserve six slots for short requests and allow
+one bulk request to use 54 slots. This reduces short-query capacity and can make
+other bulk requests wait. Memory admission can still assign fewer workers. With one thread, both classes share one slot and take
+turns when both queues wait.
 Non-population window requests reserve no more workers than their departure samples.
 Trip-aware windows run independent sample searches in parallel. Routing yields between tiles, batches, or
 sample waves. A long search can still delay other work. Worker slots are logical
@@ -125,6 +130,8 @@ An all-cache-hit query does not wait for bulk routing or a workspace lease.
 
 Use `--max-pending=128` to set the total waiting queue size. The value must be a
 nonnegative integer. A value of `0` disables queueing, not concurrent execution.
+`--short-workers` and `--max-workers-per-request` take positive integers. The first
+must leave at least one bulk slot. The second must not exceed the bulk slot count.
 One eighth of the queue, rounded up, is reserved for short queries: 16 of 128 by default.
 The remainder is for bulk queries. Active work and response writes do not use queue slots.
 This default bounds request metadata; it is not a CPU concurrency setting.
@@ -137,9 +144,9 @@ with the message `router busy; retry later`. The server does not retry the query
 
 All server graphs share one population workspace pool. Use
 `--workspace-memory-gib=8` to set its budget in whole GiB. The value must be a
-positive integer. Both options also accept a separate value, such as
-`--max-pending 4 --workspace-memory-gib 2`. Supply each option only once.
-The server checks these settings before it loads graph files.
+positive integer. Each option accepts `--option=value` and `--option value` forms.
+For example, use `--max-pending 4 --workspace-memory-gib 2`. Supply each option only
+once. The server checks these settings before it loads graph files.
 
 The pool allocates buffers when a population cache miss needs them. It reuses
 compatible buffers across multiple graphs and layouts. Each active query owns
@@ -150,8 +157,10 @@ fit, the query returns HTTP 422. The pool can retain several GiB between queries
 
 The same setting limits scheduler scratch estimates. CPU and scratch admission
 are checked together. Each class has a memory share in proportion to its worker slots.
-All routing engines receive an explicit worker budget. A pool memory wait returns
-CPU slots but keeps its scratch reservation. It does not block point routing.
+All routing engines receive an explicit worker budget. Memory admission can assign
+fewer workers than `--max-workers-per-request`; set `--workspace-memory-gib` from
+available physical RAM if a large request needs more worker memory. A pool memory
+wait returns CPU slots but keeps its scratch reservation. It does not block point routing.
 The pool accounts for all active and idle workspaces, not only the last query.
 Packed estimates include fixed arrays and a scheduler allowance for dynamic scratch.
 Returned buffers are measured before the pool retains them. A failed query discards

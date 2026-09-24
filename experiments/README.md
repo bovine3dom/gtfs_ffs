@@ -45,13 +45,15 @@ julia --threads=60 --heap-size-hint=32G --project=router \
 
 The shard directory must contain prepared `everything_res5` through `everything_res8`
 subdirectories, each with a manifest and its shard files. The benchmark uses Paris,
-a 3-hour budget, a 1.6-hour window and 1-minute steps. It uses a new departure time for each request to avoid
-response-cache hits. The caches are not cleared between radii. This is an in-process
+a 3-hour budget, a 1.6-hour window and 1-minute steps. It uses a new departure
+time for each request to avoid response-cache hits. The caches are not cleared between radii. This is an in-process
 handler test. It does not measure network transport or cold startup.
 
 Set `TRIP_POPULATION_RADII` and `TRIP_POPULATION_ROUNDS` to change the sweep and the
 number of timed trials. `TRIP_POPULATION_WORKSPACE_GIB` sets the router workspace
-limit in GiB. Its default is 8 GiB.
+limit in GiB. Its default is 8 GiB. Set `TRIP_POPULATION_SHORT_WORKERS` and
+`TRIP_POPULATION_MAX_WORKERS_PER_REQUEST` to test scheduler limits. Memory admission
+can still assign fewer workers.
 
 Reference comparisons load `router/test/reference.jl` explicitly. Source-level
 profiling instrumentation can depend on a specific source snapshot. Check it before

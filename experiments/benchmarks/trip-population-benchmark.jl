@@ -56,12 +56,17 @@ function main(args)
 
     radii = radii_env()
     rounds = positive_env("TRIP_POPULATION_ROUNDS", 3)
+    threads = Threads.nthreads(:default)
     workspace_gib = positive_env("TRIP_POPULATION_WORKSPACE_GIB", 8)
     workspace_bytes = workspace_gib * 1024^3
-    println("LOAD threads=$(Threads.nthreads(:default)) graph=$graph_path population=$population_path trip_shards=$trip_shards_path")
-    println("CONFIG network=$network resolution=$resolution radii=$(join(radii, ',')) rounds=$rounds workspace_gib=$workspace_gib window_h=1.6 step_min=1 budget_h=3 max_walk_h=1")
+    short_workers = positive_env("TRIP_POPULATION_SHORT_WORKERS", cld(threads, 4))
+    bulk_workers = max(1, threads - short_workers)
+    max_workers_per_request = positive_env("TRIP_POPULATION_MAX_WORKERS_PER_REQUEST", cld(bulk_workers, 2))
+    println("LOAD threads=$threads graph=$graph_path population=$population_path trip_shards=$trip_shards_path")
+    println("CONFIG network=$network resolution=$resolution radii=$(join(radii, ',')) rounds=$rounds workspace_gib=$workspace_gib short_workers=$short_workers max_workers_per_request=$max_workers_per_request window_h=1.6 step_min=1 budget_h=3 max_walk_h=1")
     flush(stdout)
-    handler = load_handlers([graph_path]; population_path, trip_shards_path, workspace_bytes)
+    handler = load_handlers([graph_path]; population_path, trip_shards_path, workspace_bytes,
+        short_workers, max_workers_per_request)
     origin = H3.API.latLngToCell(H3.API.LatLng(deg2rad(48.8566), deg2rad(2.3522)), resolution)::UInt64
     sequence = 0
     mkpath(dirname(output_path))
