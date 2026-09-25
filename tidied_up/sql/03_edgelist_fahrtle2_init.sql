@@ -41,7 +41,12 @@ CREATE TABLE {{OUTPUT_PREFIX}}edgelist_fahrtle2
     final_lat Float64,
     final_lon Float64,
     final_arrival DateTime,
-    final_name String
+    final_name String,
+    PROJECTION arrivals_by_h3
+    (
+        SELECT *
+        ORDER BY (next_h3, next_arrival, departure_time)
+    )
 )
 ENGINE = MergeTree
 ORDER BY (h3, departure_time, arrival_time)

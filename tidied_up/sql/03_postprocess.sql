@@ -469,3 +469,14 @@ FROM trip_data
 ARRAY JOIN
     arraySlice(stops, 1, length(stops) - 1) AS curr_stop,
     arraySlice(stops, 2) AS next_stop_arr;
+
+ALTER TABLE {{OUTPUT_PREFIX}}edgelist_fahrtle2
+ADD PROJECTION arrivals_by_h3
+(
+    SELECT *
+    ORDER BY (next_h3, next_arrival, departure_time)
+);
+
+ALTER TABLE {{OUTPUT_PREFIX}}edgelist_fahrtle2
+MATERIALIZE PROJECTION arrivals_by_h3
+SETTINGS mutations_sync = 1;
