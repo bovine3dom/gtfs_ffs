@@ -1,0 +1,4 @@
+case,resolution,trip_aware,round,seconds,allocated_bytes,gc_seconds,response_bytes,sha256,workers,queue_ms,timing,worker_limit,searches,reused_samples,lane
+long,5,true,0,3.730977509,3425329672,0.122248046,1367042,cdccd26631340e8e27487265dbfe4be08de504e8f31b65f400eafd35ce2f64f9,48,0.024744,shard;dur=1344.744; route;dur=2037.845; encode;dur=11.141; queue;dur=0.025; total;dur=3712.781,48,48,0,bulk
+long,5,true,1,1.648319241,2854163792,0.06490203,1367042,cdccd26631340e8e27487265dbfe4be08de504e8f31b65f400eafd35ce2f64f9,48,0.013504,shard;dur=0.032; route;dur=1638.94; encode;dur=9.048; queue;dur=0.014; total;dur=1648.24,48,48,0,bulk
+long,5,true,2,1.800724382,2854063944,0.189280687,1367042,cdccd26631340e8e27487265dbfe4be08de504e8f31b65f400eafd35ce2f64f9,48,0.028484,shard;dur=0.01; route;dur=1788.938; encode;dur=11.411; queue;dur=0.028; total;dur=1800.632,48,48,0,bulk

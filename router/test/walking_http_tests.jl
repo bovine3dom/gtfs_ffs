@@ -111,7 +111,8 @@ end
                 if window
                     nworkers = min(cld(handler.admission.capacity[2], 2), 5)
                     nworkers = min(nworkers, cld(5, cld(5, nworkers)))
-                    for (name, value) in (("Window-Strategy", "walking_catchup"), ("Searches", "5"), ("Reused-Samples", "0"), ("Workers", string(nworkers)))
+                    @test 1 <= parse(Int, HTTP.header(explicit, "X-Router-Workers")) <= nworkers
+                    for (name, value) in (("Window-Strategy", "walking_catchup"), ("Searches", "5"), ("Reused-Samples", "0"))
                         @test HTTP.header(explicit, "X-Router-$name") == value
                         @test occursin("X-Router-$name", HTTP.header(explicit, "Access-Control-Expose-Headers"))
                     end

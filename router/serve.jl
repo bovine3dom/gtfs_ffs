@@ -112,6 +112,7 @@ function load_handlers(paths; population_path="", trip_shards_path="", max_pendi
     @info "Router networks" default_network
     handlers = Dict{Tuple{String,Int},Any}()
     response_cache = ResponseCache()
+    sample_cache = Reachability.WindowSampleCache()
     population = isempty(population_path) ? nothing : load_population(population_path; progress=true)
     population_signature = isempty(population_path) ? nothing : _startup_signature(population_path)
     graphs = Dict{Tuple{String,Int},Graph}()
@@ -171,7 +172,7 @@ function load_handlers(paths; population_path="", trip_shards_path="", max_pendi
         loader = isnothing(shard_set) ? (() -> graph) :
             ((origin, max_walk_ms) -> trip_shard_acquire!(shard_set, origin, max_walk_ms))
         handlers[(name, resolution)] = make_handler(graph; workspace_pool, admission, progress=true, population,
-            response_cache, startup_state=state, trip_graph_set=shard_set, trip_graph_loader=loader)
+            response_cache, sample_cache, startup_state=state, trip_graph_set=shard_set, trip_graph_loader=loader)
         isnothing(state[]) || startup_cache_save!(startup_cache, state_key, state[])
     end
     for name in unique(first.(specs))

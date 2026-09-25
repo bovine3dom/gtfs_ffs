@@ -4,6 +4,8 @@ This Julia server calculates which H3 cells you can reach within a time budget.
 It uses daily timetables and estimated walking times. It returns the results as Arrow data.
 Use the results to make maps, not to plan turn-by-turn journeys.
 
+For request timers, benchmarks, and NUMA settings, see [Performance](docs/performance.md).
+
 ## Run
 
 Install Julia. Run these commands from this directory:
@@ -121,12 +123,16 @@ Trip-aware windows run independent sample searches in parallel. Routing yields b
 sample waves. A long search can still delay other work. Worker slots are logical
 concurrency limits, not physical CPU affinity or preemption.
 
-A time query uses the short class when it has no window, a budget of at most
-three hours, and a walk limit of at most one hour. Population cache lookup uses
-the short class. A miss uses that class only for at most 16 origins and four
-samples, with the same budget and walk limits. Other queries use the bulk class.
-These are cost estimates, not latency guarantees. A long single-origin window is bulk work.
-An all-cache-hit query does not wait for bulk routing or a workspace lease.
+An unmeasured non-population query uses the short class when it has no window,
+a budget of at most three hours, and a walk limit of at most one hour.
+For trip-aware queries, the initial budget limit is half an hour. Later requests
+can use measured routing costs. This also permits cheap windows in the short class.
+See [Performance](docs/performance.md) for the cost rules.
+Population cache lookup uses the short class. A miss uses that class only for
+at most 16 origins and four samples, with a budget of at most three hours and
+a walk limit of at most one hour. These estimates are not latency guarantees.
+A complete-response or population-total cache hit does not wait for bulk routing.
+A partial window-sample cache hit still uses routing admission.
 
 Use `--max-pending=128` to set the total waiting queue size. The value must be a
 nonnegative integer. A value of `0` disables queueing, not concurrent execution.
@@ -214,8 +220,10 @@ Startup aligns population weights with each prepared walking index.
 Population routing uses CPU threads and `Float64` totals. See [population integration](../kontur_integration.md) for details.
 
 Before it accepts external requests, the server runs synthetic queries to compile the routing and response code.
-This warmup runs 246 queries. It includes routing, all six window modes, both distance modes,
-the three population mode families, Arrow, HTTP, and WebSockets.
+This warmup runs 262 queries. It includes legacy and trip-aware routing,
+all six window modes, both distance modes, the three population mode families,
+Arrow, HTTP, and WebSockets. Synthetic population data uses chained Arrow columns,
+as the production population file does.
 It runs once for all resolutions, then closes its temporary loopback listener.
 Startup logs show the warmup time.
 

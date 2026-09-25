@@ -50,6 +50,12 @@ const R = Reachability
         @test R._pending_event(ws,id,UInt32(1),stats) == 1
         @test R._pending_event(ws,id,UInt32(100),stats) == 0
     end
+    retained = first.(pool.idle)
+    R._with_trip_workspace(UInt64, 1, 1; pool, reuse_limit=0) do ws
+        @test all(old -> old !== ws, retained)
+    end
+    @test R._trip_reuse_limit(100, UInt32(0), UInt32(3_600_000)) == 4 * 1024^2
+    @test R._trip_reuse_limit(100, UInt32(0), UInt32(3_600_001)) == typemax(Int)
     @test pool.bytes == sum(last,pool.idle)
     @test pool.bytes <= pool.limit
     for limit in (0,4096)

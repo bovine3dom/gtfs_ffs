@@ -169,23 +169,31 @@ function _foreach_trip_window_sample!(compute, consume, samples, workers)
 end
 
 function _route_window_trip(graph, origin, departure_ms, budget_ms, window_ms;
-                            step_ms, distance_mode, window_mode, workers)
+                            step_ms, distance_mode, window_mode, workers, sample_cache=nothing)
     mode = _distance_mode(distance_mode)
     ready, _ = query_times(graph, origin, departure_ms, budget_ms)
     step, samples, _ = _window_times(ready, budget_ms, window_ms, step_ms)
     plan = (; source=get(graph.node_id, origin, Int32(0)), ready, budget=UInt32(budget_ms),
             step, samples=Int(samples))
     acc = _window_accumulator(graph, plan, mode == :itinerary; window_mode)
+    hits = Threads.Atomic{Int}(0)
     compute = function (sample, _)
         time = UInt32(Int64(ready) + sample * step)
-        distances = mode == :itinerary ? Vector{Float64}(undef, length(graph.h3)) : nothing
-        labels = _route_at(graph, plan.source, time, time + UInt32(budget_ms), distances)
-        (; labels, distances)
+        search = function ()
+            distances = mode == :itinerary ? Vector{Float64}(undef, length(graph.h3)) : nothing
+            labels = _route_at(graph, plan.source, time, time + UInt32(budget_ms), distances)
+            (; labels, distances)
+        end
+        isnothing(sample_cache) && return search()
+        cache, namespace = sample_cache
+        result, hit = _cached_window_sample(search, cache, (namespace, origin, time, budget_ms, mode))
+        hit && Threads.atomic_add!(hits, 1)
+        return result
     end
     consume = (sample, result) -> _accumulate_window!(acc, plan, (sample, 1), result.labels, result.distances)
     worker_count = _foreach_trip_window_sample!(compute, consume, Int(samples), workers)
-    return _finish_window(acc, plan; searches=Int(samples), origin, cells=graph.h3,
-                          backend="trip", full_searches=Int(samples), repair_searches=0,
+    return _finish_window(acc, plan; searches=Int(samples) - hits[], origin, cells=graph.h3,
+                          backend="trip", full_searches=Int(samples) - hits[], repair_searches=0,
                           profile_lookups=0, routing_expansions=0, workers=worker_count)
 end
 

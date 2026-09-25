@@ -148,7 +148,8 @@ function _walking_route_at(graph, topology, origin, ready::UInt32, cutoff::UInt3
 end
 
 function _walking_route_trip_at(graph, topology, origin, ready::UInt32, cutoff::UInt32, track_distance=true, stats=nothing)
-    _with_trip_workspace(UInt64, length(graph.h3), 1) do ws
+    _with_trip_workspace(UInt64, length(graph.h3), 1;
+            reuse_limit=_trip_reuse_limit(length(graph.h3), ready, cutoff)) do ws
         _walking_trip_workspace(graph, topology, origin, ready, cutoff, track_distance, stats, ws)
     end
 end

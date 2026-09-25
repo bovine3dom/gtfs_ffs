@@ -111,6 +111,7 @@ end
 end
 
 include("trip_population_tests.jl")
+include("performance_tests.jl")
 
 @testset "Invalid duration exclusion" begin
     valid = fixture_table()

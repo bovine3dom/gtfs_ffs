@@ -175,6 +175,11 @@ function _with_scheduled(f, request, s::RequestScheduler, lane, bytes; max_worke
         _acquire_compute!(lease, lane, bytes; max_workers)
         response = f(lease)
         HTTP.setheader(response, "X-Router-Queue-Wait-Ms" => string(lease.wait_ns / 1e6))
+        if haskey(request.context, :router_timings)
+            push!(request.context[:router_timings], "queue" => lease.wait_ns / 1e6)
+            HTTP.setheader(response, "X-Router-Lane" => (lease.lane == 1 ? "short" : "bulk"))
+            HTTP.setheader(response, "X-Router-Response-Cache" => "miss")
+        end
         return response
     catch error
         error isa RouterBusy && return _busy_response()
@@ -187,3 +192,31 @@ function _with_scheduled(f, request, s::RequestScheduler, lane, bytes; max_worke
 end
 
 _short_query(window, budget, walk) = window == 0 && budget <= 10_800_000 && walk <= 3_600_000
+
+# Learn a conservative serial-work estimate, not just parallel wall time.
+# Each handler has a bounded history; departure time is not part of the key.
+struct RouteCostModel
+    lock::ReentrantLock
+    costs::Dict{Any,Float64}
+end
+RouteCostModel() = RouteCostModel(ReentrantLock(), Dict{Any,Float64}())
+const SHORT_ROUTE_WORK_MS = 200.0
+
+function _short_route(model::RouteCostModel, key, fallback)
+    lock(model.lock) do
+        get(model.costs, key, fallback ? 0.0 : Inf) <= SHORT_ROUTE_WORK_MS
+    end
+end
+
+function _record_route_cost!(model::RouteCostModel, key, elapsed_ns, workers)
+    work_ms = elapsed_ns / 1e6 * workers
+    lock(model.lock) do
+        previous = get(model.costs, key, work_ms)
+        # Demote immediately after an expensive departure. Recover gradually.
+        estimate = max(work_ms, 0.25previous + 0.75work_ms)
+        if !haskey(model.costs, key) && length(model.costs) >= 1024
+            delete!(model.costs, first(keys(model.costs)))
+        end
+        model.costs[key] = estimate
+    end
+end

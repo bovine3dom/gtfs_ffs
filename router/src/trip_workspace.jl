@@ -19,11 +19,12 @@ mutable struct TripWorkspace{K}
     best::Vector{UInt32}
     walk::Vector{UInt32}
     transferred::Vector{UInt32}
+    dense_seen::BitVector
 end
 
 TripWorkspace{K}() where K = TripWorkspace(Dict{K,UInt32}(), K[], UInt32[], Float64[],
     UInt64[], UInt32[], BitVector(), Dict{UInt64,UInt32}(), UInt32[], UInt32[], UInt32[], UInt32[], UInt64[], UInt32[], UInt32RadixHeap{UInt32}(),
-    Dict{UInt32,Int}(), Dict{UInt128,UInt32}(), UInt32[], UInt32[], UInt32[])
+    Dict{UInt32,Int}(), Dict{UInt128,UInt32}(), UInt32[], UInt32[], UInt32[], BitVector())
 
 mutable struct TripWorkspacePool
     lock::ReentrantLock
@@ -41,7 +42,7 @@ const TRIP_WORKSPACES = let
     TripWorkspacePool(; limit=mib*1024^2)
 end
 
-function _reset_trip_workspace!(ws, nodes, lanes)
+function _reset_trip_workspace!(ws::TripWorkspace{K}, nodes, lanes) where K
     empty!(ws.ids); empty!(ws.keys); empty!(ws.arrival); empty!(ws.distance)
     empty!(ws.settled); empty!(ws.heads); empty!(ws.event_state); empty!(ws.event_mask)
     empty!(ws.event_time); empty!(ws.event_next); empty!(ws.event_prev)
@@ -52,14 +53,35 @@ function _reset_trip_workspace!(ws, nodes, lanes)
     ws.queue.last = UInt32(0); ws.queue.count = 0
     for array in (ws.best, ws.walk, ws.transferred)
         resize!(array, Base.checked_mul(nodes,lanes))
-        fill!(array, INF)
+        K === UInt128 || fill!(array, INF)
+    end
+    if K === UInt128
+        resize!(ws.dense_seen, nodes)
+        fill!(ws.dense_seen, false)
     end
     ws
 end
 
-function _with_trip_workspace(f, ::Type{K}, nodes, lanes; pool=TRIP_WORKSPACES) where K
+# Population lanes for one node occupy one contiguous block. Initialize only
+# reached nodes, on the task that uses the memory, not the request thread.
+@inline function _trip_dense_node!(ws, node, lanes)
+    if !ws.dense_seen[node]
+        slots = ((node - 1) * lanes + 1):(node * lanes)
+        for array in (ws.best, ws.walk, ws.transferred)
+            fill!(@view(array[slots]), INF)
+        end
+        ws.dense_seen[node] = true
+    end
+end
+
+# A short route must not repeatedly clear a long route's large hash tables.
+_trip_reuse_limit(nodes, ready, cutoff) = cutoff - ready <= 3_600_000 ?
+    max(4 * 1024^2, 64nodes) : typemax(Int)
+
+function _with_trip_workspace(f, ::Type{K}, nodes, lanes;
+        pool=TRIP_WORKSPACES, reuse_limit=typemax(Int)) where K
     ws = lock(pool.lock) do
-        slot = findlast(entry -> entry[1] isa TripWorkspace{K}, pool.idle)
+        slot = findlast(entry -> entry[1] isa TripWorkspace{K} && entry[2] <= reuse_limit, pool.idle)
         isnothing(slot) && return TripWorkspace{K}()
         workspace, bytes = splice!(pool.idle,slot)
         pool.bytes -= bytes

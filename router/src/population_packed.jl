@@ -542,7 +542,9 @@ function _route_population_impl(graph, population::Population, origin, departure
         throw(ArgumentError("walking index does not match graph"))
     isnothing(origin_batch_size) || (origin_batch_size isa Integer && 1 <= origin_batch_size <= 64) ||
         throw(ArgumentError("origin_batch_size must be in 1..64"))
-    prepared = _prepare_population(population, walking_index)
+    # The trip engine uses population weights and the walking index directly.
+    prepared = isnothing(graph.trip_id) || !isnothing(prepared_population) ?
+        _prepare_population(population, walking_index) : nothing
     isnothing(prepared_population) || prepared_population === prepared ||
         throw(ArgumentError("prepared population does not match population and walking index"))
     origins = isnothing(origins) ? H3.API.gridDisk(origin, radius) : origins

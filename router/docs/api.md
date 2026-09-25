@@ -247,6 +247,8 @@ Other union modes can include partially reachable cells, subject to the finite-v
 ## Response Headers
 
 The `X-Router-*` headers report the metric, distance mode, window mode, walking limit, trip-aware mode, and engine statistics.
+Send `X-Router-Timing: true` to get request-stage durations in `Server-Timing`.
+See [Performance](performance.md) for timers, admission rules, and sample-cache reuse.
 `X-Router-Trip-Aware` reports whether the request used trip-aware routing. Trip-aware routing loads weakly connected transit regions on demand. Walking does not cross regions; loaded regions use a shared 30 GiB SLRU cache.
 `X-Router-Backend` is `reference` for time and quantile queries.
 For population queries, it is `shared-population` and `X-Router-Distance` is `not-computed`.

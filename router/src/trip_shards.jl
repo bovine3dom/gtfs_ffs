@@ -416,12 +416,9 @@ end
 
 function _trip_shard_population_cache!(shard::TripShard, population)
     lock(shard.lock) do
-        if isnothing(shard.prepared_population)
-            shard.prepared_population = _prepare_population(population, shard.walking_index)
-        end
         isnothing(shard.population_cache) &&
             (shard.population_cache = PopulationResultCache(shard.graph, population, shard.walking_index))
-        return shard.prepared_population, shard.population_cache
+        return nothing, shard.population_cache
     end
 end
 

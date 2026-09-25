@@ -476,8 +476,8 @@ function _trip_lane_dominance_limit(graph, best, walk, node, mask)
     bits = mask
     while bits != 0
         lane = trailing_zeros(bits) + 1
-        transit_limit = @inbounds _trip_transfer_limit(graph, best[node, lane])
-        walk_limit = @inbounds walk[node, lane]
+        transit_limit = @inbounds _trip_transfer_limit(graph, best[lane, node])
+        walk_limit = @inbounds walk[lane, node]
         if transit_limit == INF || walk_limit == INF
             return INF
         end
@@ -736,7 +736,8 @@ function _route_at(graph::Graph, source::Int32, ready::UInt32, cutoff::UInt32, d
 end
 
 function _route_trip_at(graph::Graph, source::Int32, ready::UInt32, cutoff::UInt32, distances, stats=nothing)
-    _with_trip_workspace(UInt64, length(graph.h3), 1) do ws
+    _with_trip_workspace(UInt64, length(graph.h3), 1;
+            reuse_limit=_trip_reuse_limit(length(graph.h3), ready, cutoff)) do ws
         _route_trip_workspace(graph, source, ready, cutoff, distances, stats, ws)
     end
 end
@@ -886,6 +887,7 @@ end
 
 include("continuation.jl")
 include("graph_resolution.jl")
+include("sample_cache.jl")
 include("window.jl")
 include("catchup.jl")
 include("walking_geometry.jl")
@@ -896,6 +898,7 @@ include("walking_catchup.jl")
 include("population.jl")
 include("population_packed.jl")
 include("population_range.jl")
+include("timing.jl")
 include("scheduler.jl")
 include("admission.jl")
 include("response_cache.jl")
@@ -1061,11 +1064,21 @@ function window_arrow(graph, result, origin, encoding; metric="time", window_mod
 end
 
 function _route_request(graph, walking_index, origin, ready, budget, window, step, max_walk_ms, distance_mode, window_mode;
-        workers::Integer=Threads.nthreads(:default))
+        workers::Integer=Threads.nthreads(:default), sample_cache=nothing)
+    if window > 0 && max_walk_ms == 0 && !haskey(graph.node_id, origin)
+        # No boarding or walking is possible. Do not allocate graph-sized arrays
+        # for a response that contains only the origin.
+        _, samples, _ = _window_times(ready, budget, window, step)
+        return (; h3=UInt64[origin], elapsed_ms=[0.0], reachable_elapsed_ms=[0.0],
+            distance_km=[0.0], reachable_samples=UInt32[samples], sample_count=UInt32(samples),
+            elapsed_sum_ms=UInt64[0], searches=0, reused_samples=samples,
+            backend=isnothing(graph.trip_id) ? "catchup" : "trip", workers=0,
+            full_searches=0, repair_searches=0, profile_lookups=0, routing_expansions=0)
+    end
     if window > 0
         return max_walk_ms > 0 ? route_window_walking_cached(graph, origin, ready, budget, window;
             step_ms=step, max_walk_ms, walking_index, distance_mode, window_mode, workers) :
-            route_window_cached(graph, origin, ready, budget, window; step_ms=step, distance_mode, window_mode, workers)
+            route_window_cached(graph, origin, ready, budget, window; step_ms=step, distance_mode, window_mode, workers, sample_cache)
     elseif max_walk_ms > 0
         return route_walking(graph, origin, ready, budget; max_walk_ms, walking_index, distance_mode)
     elseif distance_mode == :straight_line
@@ -1083,7 +1096,7 @@ end
 function make_handler(graph::Graph; progress::Bool=false, population=nothing,
                       workspace_pool=PopulationWorkspacePool(),
                       admission=RequestAdmission(; memory_bytes=workspace_pool.max_bytes),
-                      response_cache=ResponseCache(), startup_state=nothing,
+                      response_cache=ResponseCache(), sample_cache=WindowSampleCache(), startup_state=nothing,
                       trip_graph_loader=nothing, trip_graph_set=nothing)
     legacy_graph = _without_trip_ids(graph)
     isnothing(population) || graph.resolution > 8 || _population_rollup(population, graph.resolution; progress)
@@ -1117,6 +1130,7 @@ function make_handler(graph::Graph; progress::Bool=false, population=nothing,
     trip_population_cache = Ref{Any}(nothing)
     trip_population_lock = ReentrantLock()
     cache_namespace = gensym(:router_graph)
+    route_costs = RouteCostModel()
     handler = function (request)
         headers = _response_headers()
         query = try
@@ -1144,10 +1158,12 @@ function make_handler(graph::Graph; progress::Bool=false, population=nothing,
         is_population = metric == "accessible_population"
         radius = is_population ? _origin_radius(get(params, "origin_radius", "0")) : 0
         trip_lease = nothing
-        trip_resource = requested_trip_aware &&
-            (!is_population || isnothing(trip_graph_set)) && !isnothing(trip_graph_loader) ?
-            (applicable(trip_graph_loader, origin, max_walk_ms) ?
-                trip_graph_loader(origin, max_walk_ms) : trip_graph_loader()) : nothing
+        trip_resource = _request_stage(request, "shard") do
+            requested_trip_aware &&
+                (!is_population || isnothing(trip_graph_set)) && !isnothing(trip_graph_loader) ?
+                (applicable(trip_graph_loader, origin, max_walk_ms) ?
+                    trip_graph_loader(origin, max_walk_ms) : trip_graph_loader()) : nothing
+        end
         trip_graph, routing_walking_index = if trip_resource isa TripShardLease
             trip_lease = trip_resource
             trip_resource.shard.graph, trip_resource.shard.walking_index
@@ -1213,6 +1229,7 @@ function make_handler(graph::Graph; progress::Bool=false, population=nothing,
                            for pair in headers]
             end
             push!(headers, "X-Router-Queue-Wait-Ms" => "0.0")
+            haskey(request.context, :router_timings) && push!(headers, "X-Router-Response-Cache" => "hit")
             return HTTP.Response(200, headers, body)
         end
         cells = 3UInt128(radius) * (UInt128(radius) + 1) + 1
@@ -1225,8 +1242,14 @@ function make_handler(graph::Graph; progress::Bool=false, population=nothing,
         # Include a scratch allowance. These estimates are not a process RSS bound.
         scratch = max(65536, 128n + 128destinations + 8length(graph.edge_to))
         !is_population && window > 0 && (scratch += 1024n)
-        lane = is_population || (metric == "time" && _short_query(window, budget, max_walk_ms)) ? 1 : 2
-        max_workers = is_population || window == 0 ? 1 : cld(window, min(step, window))
+        cost_key = (trip_aware, origin, budget, window, step, max_walk_ms, distance_mode, window_mode, metric)
+        short_default = _short_query(window, budget, max_walk_ms) && (!trip_aware || budget <= 1_800_000)
+        isolated_window = !is_population && window > 0 && max_walk_ms == 0 && !haskey(routing_graph.node_id, origin)
+        isolated_window && (scratch = 65536)
+        lane = is_population || (scratch <= admission.memory_limit[1] &&
+            (isolated_window || (budget <= 10_800_000 &&
+                _short_route(route_costs, cost_key, short_default)))) ? 1 : 2
+        max_workers = is_population || isolated_window || window == 0 ? 1 : cld(window, min(step, window))
         return _with_scheduled(request, admission, lane, is_population ? Int(metadata) : scratch;
                               max_workers) do lease
                 if metric == "accessible_population"
@@ -1235,6 +1258,7 @@ function make_handler(graph::Graph; progress::Bool=false, population=nothing,
                         origins=nothing, workspace_pool,
                         exclude_origin_population=exclude_origin_population,
                         normalisation, normalisation_param)
+                    probe_started = time_ns()
                     result = if sharded_population
                         _route_population_sharded(trip_graph_set, nothing, population, origin, ready, budget;
                             radius, options, normalisation, normalisation_param,
@@ -1243,6 +1267,8 @@ function make_handler(graph::Graph; progress::Bool=false, population=nothing,
                         _cached_route_population(population_cache, origin, ready, budget;
                             options..., probe_only=true)
                     end
+                    haskey(request.context, :router_timings) && push!(request.context[:router_timings],
+                        "population_probe" => (time_ns() - probe_started) / 1e6)
                     if !hasproperty(result, :h3)
                         count = result.cache_misses
                         samples = window == 0 ? 1 : cld(window, min(step, window))
@@ -1267,13 +1293,15 @@ function make_handler(graph::Graph; progress::Bool=false, population=nothing,
                         end
                         _release_compute!(lease)
                         _acquire_compute!(lease, target, bytes; max_workers=worker_limit)
-                        result = if sharded_population
-                            _route_population_sharded(trip_graph_set, nothing, population, origin, ready, budget;
-                                radius, options, normalisation, normalisation_param,
-                                workers=lease.workers, workspace_wait=() -> _workspace_wait(lease))
-                        else
-                            _cached_route_population(population_cache, origin, ready, budget;
-                                options..., workers=lease.workers, workspace_wait=() -> _workspace_wait(lease))
+                        result = _request_stage(request, "population_route") do
+                            if sharded_population
+                                _route_population_sharded(trip_graph_set, nothing, population, origin, ready, budget;
+                                    radius, options, normalisation, normalisation_param,
+                                    workers=lease.workers, workspace_wait=() -> _workspace_wait(lease))
+                            else
+                                _cached_route_population(population_cache, origin, ready, budget;
+                                    options..., workers=lease.workers, workspace_wait=() -> _workspace_wait(lease))
+                            end
                         end
                     end
                     append!(headers, ["X-Router-Backend" => "shared-population",
@@ -1290,15 +1318,27 @@ function make_handler(graph::Graph; progress::Bool=false, population=nothing,
                         "Content-Type" => "application/vnd.apache.arrow.file"])
                     included = findall(>(0), result.value)
                     return _with_output(request, lease, length(included), encoding; columns=1) do
-                        body = arrow_table(result.h3[included], (value=result.value[included],), encoding)
+                        body = _request_stage(request, "encode") do
+                            arrow_table(result.h3[included], (value=result.value[included],), encoding)
+                        end
                         response_cache_put!(response_cache, cache_key, body, headers)
                         HTTP.Response(200, headers, body)
                     end
                 end
-                result = _route_request(routing_graph, routing_walking_index, origin, ready, budget, window, step, max_walk_ms, distance_mode, window_mode;
-                    workers=lease.workers)
+                route_started = time_ns()
+                result = _request_stage(request, "route") do
+                    _route_request(routing_graph, routing_walking_index, origin, ready, budget, window, step, max_walk_ms, distance_mode, window_mode;
+                        workers=lease.workers, sample_cache=
+                            isnothing(trip_shard) && !isnothing(trip_graph_loader) ? nothing :
+                            (sample_cache, (cache_namespace, isnothing(trip_shard) ? Int32(0) : trip_shard.component)))
+                end
+                # Cached samples do not measure the cost of a new departure.
+                if !hasproperty(result, :reused_samples) || result.reused_samples == 0
+                    _record_route_cost!(route_costs, cost_key, time_ns() - route_started, lease.workers)
+                end
                 push!(headers, "X-Router-Backend" => "reference")
                 return _with_output(request, lease, length(hasproperty(result, :h3) ? result.h3 : routing_graph.h3) + 1, encoding) do
+                encode_started = time_ns()
                 body = if window > 0
                     append!(headers, ["X-Router-Window-Strategy" => string(result.backend),
                         "X-Router-Searches" => string(result.searches),
@@ -1312,6 +1352,8 @@ function make_handler(graph::Graph; progress::Bool=false, population=nothing,
                     arrow_result(routing_graph, result.arrival, origin, ready, encoding;
                         distance_km=result.distance_km, metric, h3=result.h3)
                 end
+                haskey(request.context, :router_timings) && push!(request.context[:router_timings],
+                    "encode" => (time_ns() - encode_started) / 1e6)
                 distance = if straight
                     "origin-destination-great-circle-km"
                 elseif max_walk_ms > 0
@@ -1328,11 +1370,11 @@ function make_handler(graph::Graph; progress::Bool=false, population=nothing,
         end
         end
     end
-    return AdmittedHandler(handler, admission)
+    return AdmittedHandler(_timed_handler(handler), admission)
 end
 
 _response_headers() = ["Access-Control-Allow-Origin" => "*", "Cache-Control" => "no-store",
-    "Access-Control-Expose-Headers" => "X-Router-Backend, X-Router-Trip-Aware, X-Router-Distance, X-Router-Distance-Mode, X-Router-Window-Mode, X-Router-Searches, X-Router-Reused-Samples, X-Router-Metric, X-Router-Window-Strategy, X-Router-Full-Searches, X-Router-Repair-Searches, X-Router-Profile-Lookups, X-Router-Batches, X-Router-Rounds, X-Router-Workers, X-Router-Max-Walk-H, X-Router-Origin-Count, X-Router-Shared-Expansions, X-Router-Query-Expansions, X-Router-Cache-Hits, X-Router-Cache-Misses, X-Router-Queue-Wait-Ms, X-Router-Workspace-Estimated-Bytes, X-Router-Workspace-Retained-Bytes, X-Router-Workspace-Reused-Workers, Retry-After"]
+    "Access-Control-Expose-Headers" => "Server-Timing, X-Router-Lane, X-Router-Response-Cache, X-Router-Backend, X-Router-Trip-Aware, X-Router-Distance, X-Router-Distance-Mode, X-Router-Window-Mode, X-Router-Searches, X-Router-Reused-Samples, X-Router-Metric, X-Router-Window-Strategy, X-Router-Full-Searches, X-Router-Repair-Searches, X-Router-Profile-Lookups, X-Router-Batches, X-Router-Rounds, X-Router-Workers, X-Router-Max-Walk-H, X-Router-Origin-Count, X-Router-Shared-Expansions, X-Router-Query-Expansions, X-Router-Cache-Hits, X-Router-Cache-Misses, X-Router-Queue-Wait-Ms, X-Router-Workspace-Estimated-Bytes, X-Router-Workspace-Retained-Bytes, X-Router-Workspace-Reused-Workers, Retry-After"]
 
 """Dispatch by network (default explicitly supplied) and origin H3 resolution."""
 function make_network_handler(handlers::AbstractDict{Tuple{String,Int}}; default_network::String, admission=nothing)

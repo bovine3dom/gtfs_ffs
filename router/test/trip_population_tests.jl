@@ -20,6 +20,14 @@
         @test parse(Int, HTTP.header(response, "X-Router-Cache-Misses")) > 0
         @test parse(Int, HTTP.header(response, "X-Router-Workers")) == min(3, Threads.nthreads(:default))
 
+        lease = trip_shard_acquire!(shards, a, 0)
+        try
+            @test isnothing(lease.shard.prepared_population)
+            @test !haskey(population.prepared, lease.shard.walking_index)
+        finally
+            Reachability._trip_shard_release!(lease)
+        end
+
         trip_graph = pack_graph(source)
         direct = make_handler(graph; population, trip_graph_loader=() -> trip_graph)
         response = direct(HTTP.Request("GET", query))
