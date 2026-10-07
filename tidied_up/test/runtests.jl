@@ -1,0 +1,29 @@
+using Test
+include("../orchestrate.jl")
+
+@testset "Query limits" begin
+    cfg = parse_args(String[])
+    @test cfg.memory_limit_gib == 8
+    @test cfg.spill_gib == 2
+    @test cfg.threads == 2
+    cfg = parse_args(["--memory-limit-gib", "4", "--spill-gib", "1", "--threads", "1"])
+    @test resource_vars(cfg) == Dict(
+        "MEMORY_BYTES" => "4294967296", "SPILL_BYTES" => "1073741824", "THREADS" => "1")
+    @test_throws ErrorException parse_args(["--threads", "0"])
+    @test_throws ErrorException parse_args(["--memory-limit-gib", "2"])
+    @test_throws ErrorException parse_args(["--spill-gib", "9"])
+
+    vars = merge(resource_vars(cfg), Dict(
+        "RAW_PREFIX" => "test_", "OUTPUT_PREFIX" => "test_real_",
+        "INPUT_GLOB" => "fixture/source=*", "STOP_UUIDS_TABLE" => "test_stop_uuids",
+        "MIN_DATE" => "2026-01-05", "MAX_DATE" => "2026-01-05",
+        "TIMEOUT_SECONDS" => "60", "TIMEOUT_MS" => "60000",
+        "SOURCE_LITERAL" => "'fixture'",
+    ))
+    for template in readdir(SQL_DIR)
+        sql = render_template_text(template, vars)
+        @test occursin("SET max_memory_usage = 4294967296;", sql)
+        @test occursin("SET max_bytes_before_external_sort = 1073741824;", sql)
+        @test occursin("SET max_threads = 1;", sql)
+    end
+end

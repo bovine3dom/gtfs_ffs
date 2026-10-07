@@ -85,6 +85,10 @@ julia --project=tidied_up tidied_up/orchestrate.jl 20260706 \
 
 This reads existing `DATA_ROOT/YYYY-MM-DD/*.gtfs.zip`, extracts them to `source=*`, then continues the normal SQL pipeline.
 
+## Query memory
+
+Queries use an 8 GiB memory limit and two threads. Aggregation and sorting can use temporary disk files above 2 GiB. Set `--memory-limit-gib`, `--spill-gib`, and `--threads` to change these limits. The spill threshold must be less than the query limit. Keep space available for temporary files and memory available for the server's background tasks.
+
 ## Resume or retry stages
 
 The stage order is:

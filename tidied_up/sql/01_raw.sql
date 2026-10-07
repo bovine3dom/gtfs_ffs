@@ -3,7 +3,8 @@
 
 SET receive_timeout = {{TIMEOUT_SECONDS}};
 SET send_timeout = {{TIMEOUT_SECONDS}};
-SET max_threads = 5;
+SET max_threads = {{THREADS}};
+SET max_insert_threads = 1;
 SET max_execution_time = 0;
 SET max_result_rows = 0;
 SET max_result_bytes = 0;
@@ -14,8 +15,10 @@ SET http_receive_timeout = {{TIMEOUT_SECONDS}};
 SET input_format_skip_unknown_fields = 1;
 SET input_format_defaults_for_omitted_fields = 1;
 SET input_format_csv_empty_as_default = 1;
-SET max_bytes_before_external_group_by = '90G';
-SET max_memory_usage = '100G';
+SET max_bytes_before_external_group_by = {{SPILL_BYTES}};
+SET max_bytes_before_external_sort = {{SPILL_BYTES}};
+SET max_memory_usage = {{MEMORY_BYTES}};
+SET join_algorithm = 'auto';
 
 DROP TABLE IF EXISTS {{RAW_PREFIX}}routes;
 DROP TABLE IF EXISTS {{RAW_PREFIX}}trips;

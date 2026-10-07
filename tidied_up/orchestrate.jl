@@ -59,6 +59,9 @@ mutable struct Config
     only_stage::Union{Nothing,String}
     timeout_seconds::Int
     skip_edgelist_sane::Bool
+    memory_limit_gib::Int
+    spill_gib::Int
+    threads::Int
 end
 
 function usage()
@@ -87,6 +90,9 @@ function usage()
       --download-transitous       Opt in to grabber.sh. Do not use for normal/toy runs.
       --extract-only              Extract existing DATA_ROOT/YYYY-MM-DD/*.gtfs.zip files; skip downloads.
       --execute                   Run clickhouse-client and stop UUID generation. Without this, only render SQL.
+      --memory-limit-gib N        Query memory limit in GiB. Default: 8.
+      --spill-gib N               Spill aggregation and sorting to disk at N GiB. Default: 2.
+      --threads N                 Query threads. Default: 2.
       --help                      Show this help.
     """)
 end
@@ -114,6 +120,9 @@ function parse_args(args)
         nothing,
         parse(Int, get(ENV, "CLICKHOUSE_TIMEOUT_SECONDS", string(DEFAULT_TIMEOUT_SECONDS))),
         false,
+        8,
+        2,
+        2,
     )
 
     date_was_set = false
@@ -176,6 +185,12 @@ function parse_args(args)
             cfg.timeout_seconds = parse_positive_int(take_value(arg), arg)
         elseif startswith(arg, "--timeout-seconds=")
             cfg.timeout_seconds = parse_positive_int(arg[19:end], "--timeout-seconds")
+        elseif arg == "--memory-limit-gib"
+            cfg.memory_limit_gib = parse_positive_int(take_value(arg), arg)
+        elseif arg == "--spill-gib"
+            cfg.spill_gib = parse_positive_int(take_value(arg), arg)
+        elseif arg == "--threads"
+            cfg.threads = parse_positive_int(take_value(arg), arg)
         elseif arg == "--skip-edgelist-sane"
             cfg.skip_edgelist_sane = true
         elseif arg == "--execute"
@@ -198,7 +213,16 @@ function parse_args(args)
         i += 1
     end
 
+    cfg.spill_gib < cfg.memory_limit_gib || error("--spill-gib must be less than --memory-limit-gib")
     return cfg
+end
+
+function resource_vars(cfg::Config)
+    return Dict(
+        "MEMORY_BYTES" => string(big(cfg.memory_limit_gib) * 1024^3),
+        "SPILL_BYTES" => string(big(cfg.spill_gib) * 1024^3),
+        "THREADS" => string(cfg.threads),
+    )
 end
 
 function parse_positive_int(raw::AbstractString, flag::AbstractString)
@@ -632,8 +656,7 @@ function output_prefix_for(raw_prefix::AbstractString, mode::AbstractString)
     error("Unknown mode: $mode")
 end
 
-function main()
-    cfg = parse_args(ARGS)
+function main(cfg = parse_args(ARGS))
     dstr = date_str(cfg.target_date)
     data_dir = joinpath(cfg.data_root, date_dir_name(cfg.target_date))
     raw_prefix = "transitous_everything_$(dstr)_"
@@ -663,6 +686,7 @@ function main()
         "TIMEOUT_MS" => string(cfg.timeout_seconds * 1000),
     )
 
+    merge!(base_vars, resource_vars(cfg))
     raw_sql = render_template("01_raw.sql", base_vars, joinpath(temp_dir, "01_raw.sql"))
     maybe_run_sql_stage(cfg, "raw", raw_sql)
 
@@ -700,8 +724,10 @@ function main()
     println(">>> Orchestration complete. SQL is in $temp_dir")
 end
 
-if "--execute" in ARGS
-    include("stop_uuid_generator.jl")
+if abspath(PROGRAM_FILE) == @__FILE__
+    cfg = parse_args(ARGS)
+    if cfg.execute && should_run_stage(cfg, "stop-uuids")
+        include("stop_uuid_generator.jl")
+    end
+    main(cfg)
 end
-
-main()
