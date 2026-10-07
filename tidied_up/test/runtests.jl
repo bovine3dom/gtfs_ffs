@@ -6,6 +6,10 @@ include("../orchestrate.jl")
     @test cfg.memory_limit_gib == 8
     @test cfg.spill_gib == 2
     @test cfg.threads == 2
+    @test cfg.trip_buckets == 64
+    @test parse_args(["--trip-buckets", "1"]).trip_buckets == 1
+    @test_throws ErrorException parse_args(["--trip-buckets", "0"])
+    @test_throws ErrorException parse_args(["--trip-buckets", "257"])
     cfg = parse_args(["--memory-limit-gib", "4", "--spill-gib", "1", "--threads", "1"])
     @test resource_vars(cfg) == Dict(
         "MEMORY_BYTES" => "4294967296", "SPILL_BYTES" => "1073741824", "THREADS" => "1")
@@ -18,7 +22,7 @@ include("../orchestrate.jl")
         "INPUT_GLOB" => "fixture/source=*", "STOP_UUIDS_TABLE" => "test_stop_uuids",
         "MIN_DATE" => "2026-01-05", "MAX_DATE" => "2026-01-05",
         "TIMEOUT_SECONDS" => "60", "TIMEOUT_MS" => "60000",
-        "SOURCE_LITERAL" => "'fixture'",
+        "SOURCE_LITERAL" => "'fixture'", "TRIP_BUCKETS" => "4", "BUCKET" => "0",
     ))
     for template in readdir(SQL_DIR)
         sql = render_template_text(template, vars)

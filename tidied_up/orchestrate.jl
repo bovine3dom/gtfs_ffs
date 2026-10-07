@@ -62,6 +62,7 @@ mutable struct Config
     memory_limit_gib::Int
     spill_gib::Int
     threads::Int
+    trip_buckets::Int
 end
 
 function usage()
@@ -93,6 +94,7 @@ function usage()
       --memory-limit-gib N        Query memory limit in GiB. Default: 8.
       --spill-gib N               Spill aggregation and sorting to disk at N GiB. Default: 2.
       --threads N                 Query threads. Default: 2.
+      --trip-buckets N            Raw trip partitions (1–256). Default: 64.
       --help                      Show this help.
     """)
 end
@@ -123,6 +125,7 @@ function parse_args(args)
         8,
         2,
         2,
+        64,
     )
 
     date_was_set = false
@@ -191,6 +194,8 @@ function parse_args(args)
             cfg.spill_gib = parse_positive_int(take_value(arg), arg)
         elseif arg == "--threads"
             cfg.threads = parse_positive_int(take_value(arg), arg)
+        elseif arg == "--trip-buckets"
+            cfg.trip_buckets = parse_positive_int(take_value(arg), arg)
         elseif arg == "--skip-edgelist-sane"
             cfg.skip_edgelist_sane = true
         elseif arg == "--execute"
@@ -214,6 +219,7 @@ function parse_args(args)
     end
 
     cfg.spill_gib < cfg.memory_limit_gib || error("--spill-gib must be less than --memory-limit-gib")
+    cfg.trip_buckets <= 256 || error("--trip-buckets must be at most 256")
     return cfg
 end
 
@@ -402,6 +408,18 @@ function clickhouse_client_cmd(sql_file::AbstractString, timeout_seconds::Int)
     clickhouse_port = parse(Int, get(ENV, "CLICKHOUSE_NATIVE_PORT", "9000"))
     clickhouse_host = get(ENV, "CLICKHOUSE_HOST", "localhost")
     return `clickhouse-client --host=$clickhouse_host --port=$clickhouse_port --user=$clickhouse_user --password=$clickhouse_password --database=$clickhouse_db --receive_timeout=$timeout_seconds --send_timeout=$timeout_seconds --max_execution_time=0 --max_result_rows=0 --max_result_bytes=0 --queries-file=$sql_file`
+end
+
+function run_raw_stage(cfg::Config, vars::Dict{String,String}, temp_dir::AbstractString)
+    raw_sql = render_template("01_raw.sql", vars, joinpath(temp_dir, "01_raw.sql"))
+    maybe_run_sql_stage(cfg, "raw", raw_sql)
+    should_run_stage(cfg, "raw") || return
+    for bucket in 0:cfg.trip_buckets-1
+        bucket_vars = merge(vars, Dict("BUCKET" => string(bucket)))
+        sql = render_template("01_trip_routes.sql", bucket_vars,
+                              joinpath(temp_dir, "01_trip_routes_$bucket.sql"))
+        run_sql_file(sql, cfg.execute, cfg.timeout_seconds)
+    end
 end
 
 function run_sql_file(sql_file::AbstractString, execute::Bool, timeout_seconds::Int)
@@ -684,11 +702,11 @@ function main(cfg = parse_args(ARGS))
         "STOP_UUIDS_TABLE" => "$(raw_prefix)stop_uuids",
         "TIMEOUT_SECONDS" => string(cfg.timeout_seconds),
         "TIMEOUT_MS" => string(cfg.timeout_seconds * 1000),
+        "TRIP_BUCKETS" => string(cfg.trip_buckets),
     )
 
     merge!(base_vars, resource_vars(cfg))
-    raw_sql = render_template("01_raw.sql", base_vars, joinpath(temp_dir, "01_raw.sql"))
-    maybe_run_sql_stage(cfg, "raw", raw_sql)
+    run_raw_stage(cfg, base_vars, temp_dir)
 
     if should_run_stage(cfg, "stop-uuids") && cfg.execute
         conn = con()

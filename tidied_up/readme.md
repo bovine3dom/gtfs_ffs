@@ -89,6 +89,18 @@ This reads existing `DATA_ROOT/YYYY-MM-DD/*.gtfs.zip`, extracts them to `source=
 
 Queries use an 8 GiB memory limit and two threads. Aggregation and sorting can use temporary disk files above 2 GiB. Set `--memory-limit-gib`, `--spill-gib`, and `--threads` to change these limits. The spill threshold must be less than the query limit. Keep space available for temporary files and memory available for the server's background tasks.
 
+Raw trips, stop times, and route-pattern IDs use 64 disk partitions, keyed by a hash of `(source, trip_id)`. Route-pattern calculation processes one partition at a time. Use `--trip-buckets N` to set 1–256 partitions when rebuilding raw tables.
+
+Run the tests with:
+
+```sh
+julia tidied_up/test/runtests.jl
+# Use an isolated database on a local test server:
+julia tidied_up/test/buckets.jl /path/to/clickhouse/user_files
+```
+
+The database test uses `CLICKHOUSE_*` connection settings and requires permission to create a temporary database.
+
 ## Resume or retry stages
 
 The stage order is:

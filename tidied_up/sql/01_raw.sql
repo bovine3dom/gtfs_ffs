@@ -5,6 +5,7 @@ SET receive_timeout = {{TIMEOUT_SECONDS}};
 SET send_timeout = {{TIMEOUT_SECONDS}};
 SET max_threads = {{THREADS}};
 SET max_insert_threads = 1;
+SET max_partitions_per_insert_block = {{TRIP_BUCKETS}};
 SET max_execution_time = 0;
 SET max_result_rows = 0;
 SET max_result_bytes = 0;
@@ -67,6 +68,7 @@ SETTINGS use_hive_partitioning = 1;
 
 CREATE TABLE {{RAW_PREFIX}}trips
 ENGINE MergeTree
+PARTITION BY sipHash64(source, trip_id) % {{TRIP_BUCKETS}}
 ORDER BY (source, route_id, service_id, trip_id)
 AS
 SELECT
@@ -249,6 +251,7 @@ CREATE TABLE {{RAW_PREFIX}}stop_times
     local_zone_id String
 )
 ENGINE = MergeTree
+PARTITION BY sipHash64(source, trip_id) % {{TRIP_BUCKETS}}
 ORDER BY (source, trip_id, stop_id, arrival_time, departure_time)
 SETTINGS allow_nullable_key = 1;
 
@@ -287,16 +290,11 @@ FROM file('{{INPUT_GLOB}}/stop_times.txt', 'CSVWithNames', '
 SETTINGS use_hive_partitioning = 1;
 
 CREATE TABLE {{RAW_PREFIX}}trip_route_uuids
+(
+    source LowCardinality(String),
+    trip_id String,
+    sane_route_id UUID
+)
 ENGINE = MergeTree
-ORDER BY (source, trip_id)
-AS
-SELECT
-    source,
-    trip_id,
-    reinterpretAsUUID(sipHash128Reference(
-        arrayMap(x -> x.2, arraySort(
-            groupArray((departure_time, xxh3(stop_id)))
-        ))
-    )) AS sane_route_id
-FROM {{RAW_PREFIX}}stop_times
-GROUP BY source, trip_id;
+PARTITION BY sipHash64(source, trip_id) % {{TRIP_BUCKETS}}
+ORDER BY (source, trip_id);
