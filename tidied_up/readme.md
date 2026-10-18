@@ -91,6 +91,36 @@ Queries use an 8 GiB memory limit and two threads. Aggregation and sorting can u
 
 Raw trips, stop times, and route-pattern IDs use 64 disk partitions, keyed by a hash of `(source, trip_id)`. Route-pattern calculation processes one partition at a time. Use `--trip-buckets N` to set 1–256 partitions when rebuilding raw tables.
 
+All three edge builders also use `--trip-buckets`. Each insert selects one
+hash bucket within one staging source before window functions, trip arrays,
+or population expansion. A trip is never split between batches. Batches run
+in sequence. One large source therefore no longer creates one large insert.
+
+New `stop_times_one_day_even_saner2` tables have the same hash partitions.
+Existing unpartitioned tables still work, but each batch can scan the table.
+A different bucket count also works for edges, but can reduce partition pruning.
+Do not change the raw bucket count in the middle of raw ingestion.
+
+### Other memory costs
+
+- Raw file loading, selectors, service-date expansion, and stop joins are not
+  manually batched. They still use the query limits and spill settings.
+- Stop statistics must combine results across trips. Do not append independent
+  trip-bucket results to these tables. Two statistics queries now keep unique
+  route stops, not one stop entry per departure. The terminal-distance query
+  uses distinct route stops and an aggregate instead of a sorted stop-time array.
+  Equal terminal times use stop sequence and trip ID as tie-breakers.
+- The population join can still read the full population table in each batch.
+  Other joins and distinct sets also need memory. Spilling is not a guarantee
+  that a query will fit its memory limit.
+- Stop clustering stores a union-find structure in Julia. The ClickHouse query
+  limit does not limit Julia memory.
+- Existing `us%` and `ca%` exclusions use the staging source name. They do not
+  identify those original feeds inside a combined `source=nigiri` bundle.
+
+This is not a full-scale memory benchmark. Monitor memory and temporary disk
+space during a full import.
+
 Run the tests with:
 
 ```sh
@@ -129,7 +159,13 @@ julia --project=tidied_up tidied_up/orchestrate.jl 20260706 \
   --execute
 ```
 
-The heavy edge stages `fantasy-edgelist-sane`, `fantasy-edgelist-fahrtle2`, `real-edgelist-sane`, and `real-edgelist-fahrtle2` are executed as one table-initialisation query plus one insert query per source. That keeps each query smaller and makes it clearer which source is slow or failing.
+Each `edgelist-sane`, `edgelist-fahrtle`, and `edgelist-fahrtle2` stage first
+recreates its output table. It then inserts each source and trip-hash bucket.
+This applies to both timetable modes. Log filenames include the bucket number.
+On failure, retry the whole stage. Do not run an individual failed insert again:
+it can have written partial rows. A stage retry removes that partial output.
+Previously completed stages remain unchanged. Do not run two imports with the
+same database and table date at the same time.
 
 If you only need the timetable/router output and not the population-weighted `edgelist_sane` table, skip it:
 

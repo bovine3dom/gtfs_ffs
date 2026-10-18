@@ -36,6 +36,7 @@ WITH trip_data AS (
         )) AS stops
     FROM {{OUTPUT_PREFIX}}stop_times_one_day_even_saner2
     WHERE source = {{SOURCE_LITERAL}}
+      AND sipHash64(source, trip_id) % {{TRIP_BUCKETS}} = {{BUCKET}}
     GROUP BY source, trip_id, sane_route_id
 )
 SELECT

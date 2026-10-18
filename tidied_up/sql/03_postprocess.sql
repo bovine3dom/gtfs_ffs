@@ -5,6 +5,7 @@ SET receive_timeout = {{TIMEOUT_SECONDS}};
 SET send_timeout = {{TIMEOUT_SECONDS}};
 SET max_threads = {{THREADS}};
 SET max_insert_threads = 1;
+SET max_partitions_per_insert_block = {{TRIP_BUCKETS}};
 SET max_execution_time = 0;
 SET max_result_rows = 0;
 SET max_result_bytes = 0;
@@ -16,6 +17,7 @@ SET join_algorithm = 'auto';
 DROP TABLE IF EXISTS {{OUTPUT_PREFIX}}stop_times_one_day_even_saner2;
 CREATE TABLE {{OUTPUT_PREFIX}}stop_times_one_day_even_saner2
 ENGINE = MergeTree
+PARTITION BY sipHash64(source, trip_id) % {{TRIP_BUCKETS}}
 ORDER BY (source, sane_route_id, trip_id, departure_time)
 SETTINGS allow_nullable_key = 1
 AS
@@ -113,7 +115,7 @@ FROM
             source,
             sane_route_id,
             geoDistance(max(stop_lat), max(stop_lon), min(stop_lat), min(stop_lon)) / 1000 AS crow_km,
-            groupArray(stop_uuid) AS stops
+            groupUniqArray(stop_uuid) AS stops
         FROM {{OUTPUT_PREFIX}}stop_times_one_day_even_saner2
         GROUP BY source, sane_route_id
     )
@@ -189,7 +191,7 @@ FROM
                 source,
                 sane_route_id,
                 geoDistance(max(stop_lat), max(stop_lon), min(stop_lat), min(stop_lon)) / 1000 AS crow_km,
-                groupArray((stop_id, source, stop_uuid)) AS stops
+                groupUniqArray((stop_id, source, stop_uuid)) AS stops
             FROM {{OUTPUT_PREFIX}}stop_times_one_day_even_saner2
             GROUP BY source, sane_route_id
         )
@@ -239,32 +241,23 @@ SELECT
 FROM
 (
     SELECT
-        max(dist_to_end_km) AS crow_km,
-        stop_id,
-        source,
-        stop_uuid
+        max(geoDistance(s.stop_lat, s.stop_lon, t.terminal.1, t.terminal.2) / 1000) AS crow_km,
+        s.stop_id AS stop_id,
+        s.source AS source,
+        s.stop_uuid AS stop_uuid
     FROM
     (
-        SELECT
-            sane_route_id,
-            s_tuple.1 AS stop_id,
-            s_tuple.2 AS source,
-            s_tuple.3 AS stop_uuid,
-            geoDistance(s_tuple.4, s_tuple.5, term_lat, term_lon) / 1000 AS dist_to_end_km
-        FROM
-        (
-            SELECT
-                source,
-                sane_route_id,
-                arraySort(t -> t.6, groupArray((stop_id, source, stop_uuid, stop_lat, stop_lon, arrival_time))) AS stops_sorted,
-                stops_sorted[-1].4 AS term_lat,
-                stops_sorted[-1].5 AS term_lon
-            FROM {{OUTPUT_PREFIX}}stop_times_one_day_even_saner2
-            GROUP BY source, sane_route_id
-        )
-        ARRAY JOIN stops_sorted AS s_tuple
-    )
-    GROUP BY stop_id, source, stop_uuid
+        SELECT DISTINCT source, sane_route_id, stop_id, stop_uuid, stop_lat, stop_lon
+        FROM {{OUTPUT_PREFIX}}stop_times_one_day_even_saner2
+    ) s
+    INNER JOIN
+    (
+        SELECT source, sane_route_id,
+            argMax(tuple(stop_lat, stop_lon), tuple(arrival_time, stop_sequence, trip_id)) AS terminal
+        FROM {{OUTPUT_PREFIX}}stop_times_one_day_even_saner2
+        GROUP BY source, sane_route_id
+    ) t ON s.source = t.source AND s.sane_route_id = t.sane_route_id
+    GROUP BY s.stop_id, s.source, s.stop_uuid
 ) bs
 LEFT JOIN
 (

@@ -56,6 +56,7 @@ FROM
             geoToH3(stop_lat, stop_lon, 9) AS h3_9
         FROM {{OUTPUT_PREFIX}}stop_times_one_day_even_saner2
         WHERE source = {{SOURCE_LITERAL}}
+          AND sipHash64(source, trip_id) % {{TRIP_BUCKETS}} = {{BUCKET}}
           AND source NOT LIKE 'us%'
           AND source NOT LIKE 'ca%'
     ) st

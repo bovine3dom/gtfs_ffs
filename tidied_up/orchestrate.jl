@@ -94,7 +94,7 @@ function usage()
       --memory-limit-gib N        Query memory limit in GiB. Default: 8.
       --spill-gib N               Spill aggregation and sorting to disk at N GiB. Default: 2.
       --threads N                 Query threads. Default: 2.
-      --trip-buckets N            Raw trip partitions (1–256). Default: 64.
+      --trip-buckets N            Trip-route and edge batches (1–256). Default: 64.
       --help                      Show this help.
     """)
 end
@@ -408,7 +408,8 @@ function clickhouse_client_cmd(sql_file::AbstractString, timeout_seconds::Int)
     clickhouse_password = get(ENV, "CLICKHOUSE_PASSWORD", "")
     clickhouse_port = parse(Int, get(ENV, "CLICKHOUSE_NATIVE_PORT", "9000"))
     clickhouse_host = get(ENV, "CLICKHOUSE_HOST", "localhost")
-    return `clickhouse-client --host=$clickhouse_host --port=$clickhouse_port --user=$clickhouse_user --password=$clickhouse_password --database=$clickhouse_db --receive_timeout=$timeout_seconds --send_timeout=$timeout_seconds --max_execution_time=0 --max_result_rows=0 --max_result_bytes=0 --queries-file=$sql_file`
+    password_args = isempty(clickhouse_password) ? String[] : ["--password=$clickhouse_password"]
+    return `clickhouse-client --host=$clickhouse_host --port=$clickhouse_port --user=$clickhouse_user $password_args --database=$clickhouse_db --receive_timeout=$timeout_seconds --send_timeout=$timeout_seconds --max_execution_time=0 --max_result_rows=0 --max_result_bytes=0 --queries-file=$sql_file`
 end
 
 function run_raw_stage(cfg::Config, vars::Dict{String,String}, temp_dir::AbstractString)
@@ -438,7 +439,8 @@ function clickhouse_query_cmd(query::AbstractString, timeout_seconds::Int)
     clickhouse_password = get(ENV, "CLICKHOUSE_PASSWORD", "")
     clickhouse_port = parse(Int, get(ENV, "CLICKHOUSE_NATIVE_PORT", "9000"))
     clickhouse_host = get(ENV, "CLICKHOUSE_HOST", "localhost")
-    return `clickhouse-client --host=$clickhouse_host --port=$clickhouse_port --user=$clickhouse_user --password=$clickhouse_password --database=$clickhouse_db --receive_timeout=$timeout_seconds --send_timeout=$timeout_seconds --max_execution_time=0 --max_result_rows=0 --max_result_bytes=0 --format=TabSeparatedRaw --query=$query`
+    password_args = isempty(clickhouse_password) ? String[] : ["--password=$clickhouse_password"]
+    return `clickhouse-client --host=$clickhouse_host --port=$clickhouse_port --user=$clickhouse_user $password_args --database=$clickhouse_db --receive_timeout=$timeout_seconds --send_timeout=$timeout_seconds --max_execution_time=0 --max_result_rows=0 --max_result_bytes=0 --format=TabSeparatedRaw --query=$query`
 end
 
 function clickhouse_query_lines(query::AbstractString, timeout_seconds::Int)
@@ -489,9 +491,12 @@ function run_source_split_stage(cfg::Config, stage::AbstractString, vars::Dict{S
     for source in sources
         source_vars = copy(vars)
         source_vars["SOURCE_LITERAL"] = sql_literal(source)
-        source_file = joinpath(temp_dir, "03_$(mode)_$(suffix)_$(safe_file_component(source)).sql")
-        source_sql = render_template(insert_template, source_vars, source_file)
-        run_sql_file(source_sql, cfg.execute, cfg.timeout_seconds)
+        for bucket in 0:cfg.trip_buckets-1
+            source_vars["BUCKET"] = string(bucket)
+            source_file = joinpath(temp_dir, "03_$(mode)_$(suffix)_$(safe_file_component(source))_bucket$(bucket).sql")
+            source_sql = render_template(insert_template, source_vars, source_file)
+            run_sql_file(source_sql, cfg.execute, cfg.timeout_seconds)
+        end
     end
 end
 
@@ -741,6 +746,9 @@ function main(cfg = parse_args(ARGS))
                 run_edgelist_sane_stage(cfg, stage, mode_vars, temp_dir, mode)
             elseif suffix == "edgelist-fahrtle2"
                 run_edgelist_fahrtle2_stage(cfg, stage, mode_vars, temp_dir, mode)
+            elseif suffix == "edgelist-fahrtle"
+                run_source_split_stage(cfg, stage, mode_vars, temp_dir, mode, suffix,
+                    "03_edgelist_fahrtle_init.sql", "03_edgelist_fahrtle_insert.sql")
             else
                 maybe_run_sql_stage(cfg, stage, post_sqls[suffix])
             end

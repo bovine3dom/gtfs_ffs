@@ -16,6 +16,17 @@ include("provenance.jl")
     end
 end
 
+@testset "Edge batch filters precede trip operations" begin
+    for suffix in ("sane", "fahrtle", "fahrtle2")
+        sql = read(joinpath(SQL_DIR, "03_edgelist_$(suffix)_insert.sql"), String)
+        @test occursin(r"FROM \{\{OUTPUT_PREFIX\}\}stop_times_one_day_even_saner2\s+WHERE source = \{\{SOURCE_LITERAL\}\}\s+AND sipHash64\(source, trip_id\) % \{\{TRIP_BUCKETS\}\} = \{\{BUCKET\}\}", sql)
+    end
+    sql = read(joinpath(SQL_DIR, "03_postprocess.sql"), String)
+    @test occursin("PARTITION BY sipHash64(source, trip_id) % {{TRIP_BUCKETS}}", sql)
+    @test occursin("groupUniqArray(stop_uuid)", sql)
+    @test !occursin("arraySort(t -> t.6, groupArray", sql)
+end
+
 @testset "Query limits" begin
     cfg = parse_args(String[])
     @test cfg.memory_limit_gib == 8

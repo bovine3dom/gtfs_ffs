@@ -53,6 +53,70 @@ try
                 """)
             @test occursin("Parts: 1/4", plan)
         end
+
+        @testset "All edge builders preserve whole trips" begin
+            query("""
+                CREATE TABLE test_stop_uuids ENGINE=MergeTree ORDER BY h3 AS
+                SELECT h3, toInt64(row_number() OVER (ORDER BY h3)) AS stop_uuid
+                FROM (SELECT DISTINCT geoToH3(stop_lat, stop_lon, 11) AS h3 FROM b4_stops)
+                """)
+            query("""
+                CREATE TABLE population_h3 ENGINE=MergeTree ORDER BY h3 AS
+                SELECT DISTINCT arrayJoin(h3kRing(geoToH3(stop_lat, stop_lon, 9), 4)) AS h3,
+                    toUInt8(9) AS res, toUInt64(100) AS population FROM b4_stops
+                """)
+            for mode in ("real", "fantasy")
+                cfg = parse_args(["--execute", "--trip-buckets", "4"])
+                vars = merge(resource_vars(cfg), Dict(
+                    "RAW_PREFIX" => "b4_", "OUTPUT_PREFIX" => "edge_$(mode)_",
+                    "STOP_UUIDS_TABLE" => "test_stop_uuids", "TRIP_BUCKETS" => "4",
+                    "MIN_DATE" => "2026-01-05", "MAX_DATE" => "2026-01-06",
+                    "TIMEOUT_SECONDS" => "60", "TIMEOUT_MS" => "60000",
+                ))
+                mktempdir() do temp
+                    for name in ("02_service_dates.sql", "02_select_$mode.sql")
+                        run_sql_file(render_template(name, vars, joinpath(temp, name)), true, 60)
+                    end
+                    paths = render_postprocess_templates(vars, temp, mode)
+                    run_sql_file(paths["even-saner"], true, 60)
+                    table = vars["OUTPUT_PREFIX"] * "stop_times_one_day_even_saner2"
+                    # Add a stop with the same arrival time but a different sequence.
+                    query("""
+                        INSERT INTO $table
+                        SELECT * REPLACE (toUInt32(4) AS stop_sequence)
+                        FROM $table WHERE stop_sequence = 3
+                        """)
+                    for suffix in ("sane", "fahrtle", "fahrtle2")
+                        stage = "edgelist-" * suffix
+                        run_sql_file(paths[stage], true, 60)
+                        output = vars["OUTPUT_PREFIX"] * "edgelist_" * suffix
+                        expected = query("SELECT * FROM $output ORDER BY ALL")
+                        @test !isempty(expected)
+                        for buckets in (1, 4, 16)
+                            cfg.trip_buckets = buckets
+                            vars["TRIP_BUCKETS"] = string(buckets)
+                            run_source_split_stage(cfg, "$mode-$stage", vars, temp, mode, stage,
+                                "03_edgelist_$(suffix)_init.sql", "03_edgelist_$(suffix)_insert.sql")
+                            @test query("SELECT * FROM $output ORDER BY ALL") == expected
+                        end
+                    end
+                    statistics = ("stop-statistics", "stop-statistics-unmerged2", "stop-statistics-unmerged3")
+                    before = Dict{String,String}()
+                    for suffix in statistics
+                        run_sql_file(paths[suffix], true, 60)
+                        output = vars["OUTPUT_PREFIX"] * replace(suffix, "-" => "_")
+                        before[suffix] = query("SELECT * FROM $output ORDER BY ALL")
+                    end
+                    # Repeated departures must not change route-distance statistics.
+                    query("INSERT INTO $table SELECT s.* FROM $table s CROSS JOIN numbers(10) copies")
+                    for suffix in statistics
+                        run_sql_file(paths[suffix], true, 60)
+                        output = vars["OUTPUT_PREFIX"] * replace(suffix, "-" => "_")
+                        @test query("SELECT * FROM $output ORDER BY ALL") == before[suffix]
+                    end
+                end
+            end
+        end
     end
 finally
     query("DROP DATABASE IF EXISTS $database SYNC")
