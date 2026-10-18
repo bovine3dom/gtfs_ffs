@@ -66,15 +66,54 @@ FROM file('{{INPUT_GLOB}}/routes.txt', 'CSVWithNames', '
 ')
 SETTINGS use_hive_partitioning = 1;
 
--- These files are optional for feeds without source metadata.
+-- Ordinary attribution rows are credits, not source groups.
+DROP TABLE IF EXISTS {{RAW_PREFIX}}attributions;
+CREATE TABLE {{RAW_PREFIX}}attributions
+ENGINE = MergeTree
+ORDER BY (source, attribution_id, route_id)
+AS
+SELECT DISTINCT *
+FROM file('{{INPUT_GLOB}}/attributions.txt', 'CSVWithNames', '
+    source String, attribution_id String, agency_id String, route_id String,
+    trip_id String, organization_name String, is_producer String,
+    is_operator String, is_authority String, attribution_url String,
+    attribution_email String, attribution_phone String
+')
+SETTINGS use_hive_partitioning = 1, engine_file_empty_if_not_exists = 1;
+
+SELECT throwIf(count() > 0, 'Invalid Nigiri source attribution')
+FROM {{RAW_PREFIX}}attributions
+WHERE startsWith(attribution_id, 'nigiri:') AND (
+    NOT match(attribution_id, '^nigiri:[0-9]+:[0-9]+:[0-9]+$')
+    OR splitByChar(':', attribution_id)[3] != route_id
+    OR organization_name = '' OR is_producer != '1'
+    OR agency_id != '' OR trip_id != ''
+);
+
+SELECT throwIf(count() > 0, 'Conflicting Nigiri attribution IDs')
+FROM (
+    SELECT source, attribution_id
+    FROM {{RAW_PREFIX}}attributions
+    WHERE startsWith(attribution_id, 'nigiri:')
+    GROUP BY source, attribution_id
+    HAVING count() != 1
+);
+
+-- Keep support for older exports with two CSV files.
 DROP TABLE IF EXISTS {{RAW_PREFIX}}route_sources;
 CREATE TABLE {{RAW_PREFIX}}route_sources
 ENGINE = MergeTree
 ORDER BY (source, route_id)
 AS
-SELECT DISTINCT source, route_id, origin_source
-FROM file('{{INPUT_GLOB}}/route_sources.csv', 'CSVWithNames',
-          'source String, route_id String, origin_source String')
+SELECT DISTINCT source, route_id, origin_source FROM (
+    SELECT source, route_id, origin_source
+    FROM file('{{INPUT_GLOB}}/route_sources.csv', 'CSVWithNames',
+              'source String, route_id String, origin_source String')
+    UNION ALL
+    SELECT source, route_id, splitByChar(':', attribution_id)[2] AS origin_source
+    FROM {{RAW_PREFIX}}attributions
+    WHERE startsWith(attribution_id, 'nigiri:')
+)
 SETTINGS use_hive_partitioning = 1, engine_file_empty_if_not_exists = 1;
 
 DROP TABLE IF EXISTS {{RAW_PREFIX}}sources;
@@ -82,9 +121,16 @@ CREATE TABLE {{RAW_PREFIX}}sources
 ENGINE = MergeTree
 ORDER BY (source, origin_source, source_file)
 AS
-SELECT DISTINCT source, origin_source, source_file
-FROM file('{{INPUT_GLOB}}/sources.csv', 'CSVWithNames',
-          'source String, origin_source String, source_file String')
+SELECT DISTINCT source, origin_source, source_file FROM (
+    SELECT source, origin_source, source_file
+    FROM file('{{INPUT_GLOB}}/sources.csv', 'CSVWithNames',
+              'source String, origin_source String, source_file String')
+    UNION ALL
+    SELECT source, splitByChar(':', attribution_id)[2] AS origin_source,
+           organization_name AS source_file
+    FROM {{RAW_PREFIX}}attributions
+    WHERE startsWith(attribution_id, 'nigiri:')
+)
 SETTINGS use_hive_partitioning = 1, engine_file_empty_if_not_exists = 1;
 
 SELECT throwIf(count() > 0, 'Empty or conflicting route source metadata')

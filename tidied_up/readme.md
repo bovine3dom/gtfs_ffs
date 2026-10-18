@@ -163,18 +163,30 @@ Use `--mode fantasy`, `--mode real`, or `--mode both` to choose.
 
 ## Original sources and selected dates
 
-Directory and ZIP staging keep `route_sources.csv` and `sources.csv` from the
-Nigiri export. Supply both files, or neither file. Raw tables with these names
-keep the route mapping and source file names. A source can have more than one
-file. These file rows do not increase the trip count.
+Directory and ZIP staging keep `attributions.txt` from the Nigiri export.
+Source rows use the ID `nigiri:<source>:<route>:<file-index>`. The `route_id`
+column links each row to a route. `organization_name` contains the recorded
+filename or path. This is a project convention, not a standard GTFS meaning
+for organization names. Missing filenames use `unknown-source-<source>`.
+
+The raw `attributions` table keeps credits, including the dataset-wide OSM row.
+Only IDs with the `nigiri:` prefix define source groups. Ordinary organization
+credits and the `osm` row do not define groups. Invalid or conflicting Nigiri
+IDs cause an error. One source can have several file rows; these rows do not
+increase the trip count.
+
+The consumer also reads the old `route_sources.csv` and `sources.csv` files.
+Supply both old files, or neither file. Raw tables with these names contain the
+combined source mappings. New exports need only `attributions.txt`. If old and
+new metadata disagree about a route's source, ingestion stops.
 
 `source` remains the name of the staging directory. `origin_source` is the
 original source ID from the export. Use both columns as the source key. For a
-feed without these CSV files, `origin_source` is an empty string. Source ID `0`
+feed without source metadata, `origin_source` is an empty string. Source ID `0`
 is not an empty string. SQL checks reject conflicting route mappings, missing
 mappings for trips in a feed with metadata, and missing source file metadata.
-Two empty CSV files are equivalent to no metadata. Do not remove the metadata
-from a combined export.
+Empty source metadata is equivalent to no metadata. Ordinary credits alone do
+not identify original feeds. Do not remove source metadata from a combined export.
 
 Each selection stage first builds `valid_service_dates`. It applies calendar
 weekdays and date exceptions within `--min-date` and `--max-date`, inclusive.
@@ -200,7 +212,7 @@ Existing raw trip tables do not have `origin_source`. Rebuild raw tables in an
 approved test database before you test these selectors. Do not resume selection
 against the old raw schema.
 
-The offline tests check CSV staging, ZIP staging, date limits, and SQL rendering.
+The offline tests check metadata staging, ZIP staging, date limits, and SQL rendering.
 They do not execute SQL. Database tests for trip counts, date exceptions, ties,
 missing dates, and combined feeds still require an approved isolated database.
 No database access is needed for:

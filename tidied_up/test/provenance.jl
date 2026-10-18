@@ -7,12 +7,14 @@
         copy_gtfs_dir(src, legacy)
         @test !isfile(joinpath(legacy, "sources.csv"))
         metadata = Dict(
+            "attributions.txt" => "attribution_id,route_id,organization_name,is_producer,attribution_url\nnigiri:0:0:0,0,first.zip/stop_times.txt,1,\nosm,,OpenStreetMap contributors,1,https://www.openstreetmap.org/copyright\n",
             "route_sources.csv" => "route_id,origin_source\nr1,0\nr2,2\n",
             "sources.csv" => "origin_source,source_file\n0,first.zip/stop_times.txt\n0,second.zip/stop_times.txt\n2,\"file,with-comma.zip/stop_times.txt\"\n",
         )
         write(joinpath(src, "route_sources.csv"), metadata["route_sources.csv"])
         @test_throws ErrorException copy_gtfs_dir(src, joinpath(tmp, "partial"))
         write(joinpath(src, "sources.csv"), metadata["sources.csv"])
+        write(joinpath(src, "attributions.txt"), metadata["attributions.txt"])
         write(joinpath(src, "unrelated.csv"), "do not copy\n")
         target = joinpath(tmp, "combined")
         copy_gtfs_dir(src, target)
@@ -22,6 +24,13 @@
         @test !isfile(joinpath(target, "unrelated.csv"))
         @test read(joinpath(target, "trips.txt"), String) == read(joinpath(src, "trips.txt"), String)
 
+        rm(joinpath(src, "route_sources.csv"))
+        rm(joinpath(src, "sources.csv"))
+        attributed = joinpath(tmp, "attributed")
+        copy_gtfs_dir(src, attributed)
+        @test read(joinpath(attributed, "attributions.txt"), String) == metadata["attributions.txt"]
+        @test !isfile(joinpath(attributed, "sources.csv"))
+
         # Use the Python standard library to make a nested test archive.
         python = Sys.which("python3")
         if python !== nothing && (Sys.which("7za") !== nothing || Sys.which("unzip") !== nothing)
@@ -30,9 +39,8 @@
             run(`$python -c $script $src $archive`)
             extracted = joinpath(tmp, "extracted")
             extract_zip(archive, extracted)
-            for (file, contents) in metadata
-                @test read(joinpath(extracted, file), String) == contents
-            end
+            @test read(joinpath(extracted, "attributions.txt"), String) == metadata["attributions.txt"]
+            @test !isfile(joinpath(extracted, "route_sources.csv"))
         else
             @test_skip "ZIP staging needs python3 and an extractor"
         end
@@ -45,6 +53,11 @@ end
     raw = read(joinpath(SQL_DIR, "01_raw.sql"), String)
     @test occursin("SELECT DISTINCT source, route_id, origin_source", raw)
     @test occursin("HAVING count() != 1", raw)
+    @test occursin("Invalid Nigiri source attribution", raw)
+    @test occursin("Conflicting Nigiri attribution IDs", raw)
+    @test occursin("splitByChar(':', attribution_id)[2] AS origin_source", raw)
+    @test occursin("WHERE startsWith(attribution_id, 'nigiri:')", raw)
+    @test occursin("organization_name AS source_file", raw)
     @test occursin("Missing route source metadata for trips", raw)
     @test occursin("Missing source file metadata for trips", raw)
     @test occursin("ifNull(rs.origin_source, '') AS origin_source", raw)
