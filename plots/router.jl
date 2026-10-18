@@ -17,8 +17,8 @@ function find_earliest_arrivals(df::GroupedDataFrame, start_uuid::Int64, initial
         empty!(processing_queue)
 
         Threads.@threads for (current_uuid, current_arrival_at_stop) in current_batch_to_process
-            !haskey(gdf, (current_uuid,)) && continue
-            t = gdf[(current_uuid,)]
+            !haskey(df, (current_uuid,)) && continue
+            t = df[(current_uuid,)]
             potential_departures = @view t[(cutoff_time .>= t.next_arrival) .&& (t.departure_time .>= current_arrival_at_stop), :]
 
             for depart in eachrow(potential_departures)

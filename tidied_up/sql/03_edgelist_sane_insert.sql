@@ -42,9 +42,9 @@ FROM
     FROM
     (
         SELECT
-            lagInFrame(stop_uuid, 1, stop_uuid) OVER (PARTITION BY source, trip_id ORDER BY arrival_time DESC ROWS BETWEEN 1 PRECEDING AND CURRENT ROW) AS next_stop,
-            lagInFrame(arrival_time, 1, arrival_time) OVER (PARTITION BY source, trip_id ORDER BY arrival_time DESC ROWS BETWEEN 1 PRECEDING AND CURRENT ROW) AS next_arrival,
-            lagInFrame(h3_9, 1, h3_9) OVER (PARTITION BY source, trip_id ORDER BY arrival_time DESC ROWS BETWEEN 1 PRECEDING AND CURRENT ROW) AS next_h3_9,
+            lagInFrame(stop_uuid, 1, stop_uuid) OVER (PARTITION BY source, trip_id ORDER BY stop_sequence DESC ROWS BETWEEN 1 PRECEDING AND CURRENT ROW) AS next_stop,
+            lagInFrame(arrival_time, 1, arrival_time) OVER (PARTITION BY source, trip_id ORDER BY stop_sequence DESC ROWS BETWEEN 1 PRECEDING AND CURRENT ROW) AS next_arrival,
+            lagInFrame(h3_9, 1, h3_9) OVER (PARTITION BY source, trip_id ORDER BY stop_sequence DESC ROWS BETWEEN 1 PRECEDING AND CURRENT ROW) AS next_h3_9,
             source,
             trip_id,
             stop_uuid,

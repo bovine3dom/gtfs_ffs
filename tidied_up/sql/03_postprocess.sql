@@ -64,9 +64,9 @@ FROM
     FROM
     (
         SELECT
-            lagInFrame(stop_uuid, 1, stop_uuid) OVER (PARTITION BY source, trip_id ORDER BY arrival_time DESC ROWS BETWEEN 1 PRECEDING AND CURRENT ROW) AS next_stop,
-            lagInFrame(arrival_time, 1, arrival_time) OVER (PARTITION BY source, trip_id ORDER BY arrival_time DESC ROWS BETWEEN 1 PRECEDING AND CURRENT ROW) AS next_arrival,
-            lagInFrame(h3_9, 1, h3_9) OVER (PARTITION BY source, trip_id ORDER BY arrival_time DESC ROWS BETWEEN 1 PRECEDING AND CURRENT ROW) AS next_h3_9,
+            lagInFrame(stop_uuid, 1, stop_uuid) OVER (PARTITION BY source, trip_id ORDER BY stop_sequence DESC ROWS BETWEEN 1 PRECEDING AND CURRENT ROW) AS next_stop,
+            lagInFrame(arrival_time, 1, arrival_time) OVER (PARTITION BY source, trip_id ORDER BY stop_sequence DESC ROWS BETWEEN 1 PRECEDING AND CURRENT ROW) AS next_arrival,
+            lagInFrame(h3_9, 1, h3_9) OVER (PARTITION BY source, trip_id ORDER BY stop_sequence DESC ROWS BETWEEN 1 PRECEDING AND CURRENT ROW) AS next_h3_9,
             source,
             trip_id,
             stop_uuid,
@@ -366,20 +366,20 @@ FROM
     FROM
     (
         SELECT
-            lagInFrame(stop_uuid, 1, stop_uuid) OVER (PARTITION BY source, trip_id ORDER BY arrival_time DESC ROWS BETWEEN 1 PRECEDING AND CURRENT ROW) AS next_stop,
-            lagInFrame(arrival_time, 1, arrival_time) OVER (PARTITION BY source, trip_id ORDER BY arrival_time DESC ROWS BETWEEN 1 PRECEDING AND CURRENT ROW) AS next_arrival,
-            lagInFrame(stop_lat, 1, stop_lat) OVER (PARTITION BY source, trip_id ORDER BY arrival_time DESC ROWS BETWEEN 1 PRECEDING AND CURRENT ROW) AS next_lat,
-            lagInFrame(stop_lon, 1, stop_lon) OVER (PARTITION BY source, trip_id ORDER BY arrival_time DESC ROWS BETWEEN 1 PRECEDING AND CURRENT ROW) AS next_lon,
-            first_value(stop_uuid) OVER (PARTITION BY source, trip_id ORDER BY arrival_time DESC ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW) AS final_stop,
-            first_value(arrival_time) OVER (PARTITION BY source, trip_id ORDER BY arrival_time DESC ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW) AS final_arrival,
-            first_value(stop_lat) OVER (PARTITION BY source, trip_id ORDER BY arrival_time DESC ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW) AS final_lat,
-            first_value(stop_lon) OVER (PARTITION BY source, trip_id ORDER BY arrival_time DESC ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW) AS final_lon,
-            first_value(stop_name) OVER (PARTITION BY source, trip_id ORDER BY arrival_time DESC ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW) AS final_name,
-            last_value(stop_uuid) OVER (PARTITION BY source, trip_id ORDER BY arrival_time DESC ROWS BETWEEN CURRENT ROW AND UNBOUNDED FOLLOWING) AS initial_stop,
-            last_value(arrival_time) OVER (PARTITION BY source, trip_id ORDER BY arrival_time DESC ROWS BETWEEN CURRENT ROW AND UNBOUNDED FOLLOWING) AS initial_arrival,
-            last_value(stop_lat) OVER (PARTITION BY source, trip_id ORDER BY arrival_time DESC ROWS BETWEEN CURRENT ROW AND UNBOUNDED FOLLOWING) AS initial_lat,
-            last_value(stop_lon) OVER (PARTITION BY source, trip_id ORDER BY arrival_time DESC ROWS BETWEEN CURRENT ROW AND UNBOUNDED FOLLOWING) AS initial_lon,
-            last_value(stop_name) OVER (PARTITION BY source, trip_id ORDER BY arrival_time DESC ROWS BETWEEN CURRENT ROW AND UNBOUNDED FOLLOWING) AS initial_name,
+            lagInFrame(stop_uuid, 1, stop_uuid) OVER (PARTITION BY source, trip_id ORDER BY stop_sequence DESC ROWS BETWEEN 1 PRECEDING AND CURRENT ROW) AS next_stop,
+            lagInFrame(arrival_time, 1, arrival_time) OVER (PARTITION BY source, trip_id ORDER BY stop_sequence DESC ROWS BETWEEN 1 PRECEDING AND CURRENT ROW) AS next_arrival,
+            lagInFrame(stop_lat, 1, stop_lat) OVER (PARTITION BY source, trip_id ORDER BY stop_sequence DESC ROWS BETWEEN 1 PRECEDING AND CURRENT ROW) AS next_lat,
+            lagInFrame(stop_lon, 1, stop_lon) OVER (PARTITION BY source, trip_id ORDER BY stop_sequence DESC ROWS BETWEEN 1 PRECEDING AND CURRENT ROW) AS next_lon,
+            first_value(stop_uuid) OVER (PARTITION BY source, trip_id ORDER BY stop_sequence DESC ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW) AS final_stop,
+            first_value(arrival_time) OVER (PARTITION BY source, trip_id ORDER BY stop_sequence DESC ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW) AS final_arrival,
+            first_value(stop_lat) OVER (PARTITION BY source, trip_id ORDER BY stop_sequence DESC ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW) AS final_lat,
+            first_value(stop_lon) OVER (PARTITION BY source, trip_id ORDER BY stop_sequence DESC ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW) AS final_lon,
+            first_value(stop_name) OVER (PARTITION BY source, trip_id ORDER BY stop_sequence DESC ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW) AS final_name,
+            last_value(stop_uuid) OVER (PARTITION BY source, trip_id ORDER BY stop_sequence DESC ROWS BETWEEN CURRENT ROW AND UNBOUNDED FOLLOWING) AS initial_stop,
+            last_value(arrival_time) OVER (PARTITION BY source, trip_id ORDER BY stop_sequence DESC ROWS BETWEEN CURRENT ROW AND UNBOUNDED FOLLOWING) AS initial_arrival,
+            last_value(stop_lat) OVER (PARTITION BY source, trip_id ORDER BY stop_sequence DESC ROWS BETWEEN CURRENT ROW AND UNBOUNDED FOLLOWING) AS initial_lat,
+            last_value(stop_lon) OVER (PARTITION BY source, trip_id ORDER BY stop_sequence DESC ROWS BETWEEN CURRENT ROW AND UNBOUNDED FOLLOWING) AS initial_lon,
+            last_value(stop_name) OVER (PARTITION BY source, trip_id ORDER BY stop_sequence DESC ROWS BETWEEN CURRENT ROW AND UNBOUNDED FOLLOWING) AS initial_name,
             source,
             trip_id,
             stop_uuid,
@@ -420,7 +420,7 @@ WITH trip_data AS (
         any(route_color) AS route_color,
         any(route_text_color) AS route_text_color,
         any(trip_headsign) AS trip_headsign,
-        arraySort(x -> x.1, groupArray(
+        arraySort(x -> x.2, groupArray(
             (
                 if(toUInt32(arrival_time) > 0, arrival_time, departure_time),
                 stop_sequence,

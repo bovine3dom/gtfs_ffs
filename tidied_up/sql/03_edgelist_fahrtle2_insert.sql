@@ -22,7 +22,7 @@ WITH trip_data AS (
         any(route_color) AS route_color,
         any(route_text_color) AS route_text_color,
         any(trip_headsign) AS trip_headsign,
-        arraySort(x -> x.1, groupArray(
+        arraySort(x -> x.2, groupArray(
             (
                 if(toUInt32(arrival_time) > 0, arrival_time, departure_time),
                 stop_sequence,

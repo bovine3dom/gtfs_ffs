@@ -2,6 +2,20 @@ using Test
 include("../orchestrate.jl")
 include("provenance.jl")
 
+@testset "Edges follow stop sequence, including equal arrival times" begin
+    for name in ("03_postprocess.sql", "03_edgelist_sane_insert.sql", "03_edgelist_fahrtle2_insert.sql")
+        sql = read(joinpath(SQL_DIR, name), String)
+        @test !occursin("ORDER BY arrival_time DESC", sql)
+        @test !occursin("arraySort(x -> x.1", sql)
+        if name != "03_edgelist_sane_insert.sql"
+            @test occursin("arraySort(x -> x.2", sql)
+        end
+        if name != "03_edgelist_fahrtle2_insert.sql"
+            @test occursin("ORDER BY stop_sequence DESC", sql)
+        end
+    end
+end
+
 @testset "Query limits" begin
     cfg = parse_args(String[])
     @test cfg.memory_limit_gib == 8
