@@ -66,6 +66,35 @@ FROM file('{{INPUT_GLOB}}/routes.txt', 'CSVWithNames', '
 ')
 SETTINGS use_hive_partitioning = 1;
 
+-- These files are optional for feeds without source metadata.
+DROP TABLE IF EXISTS {{RAW_PREFIX}}route_sources;
+CREATE TABLE {{RAW_PREFIX}}route_sources
+ENGINE = MergeTree
+ORDER BY (source, route_id)
+AS
+SELECT DISTINCT source, route_id, origin_source
+FROM file('{{INPUT_GLOB}}/route_sources.csv', 'CSVWithNames',
+          'source String, route_id String, origin_source String')
+SETTINGS use_hive_partitioning = 1, engine_file_empty_if_not_exists = 1;
+
+DROP TABLE IF EXISTS {{RAW_PREFIX}}sources;
+CREATE TABLE {{RAW_PREFIX}}sources
+ENGINE = MergeTree
+ORDER BY (source, origin_source, source_file)
+AS
+SELECT DISTINCT source, origin_source, source_file
+FROM file('{{INPUT_GLOB}}/sources.csv', 'CSVWithNames',
+          'source String, origin_source String, source_file String')
+SETTINGS use_hive_partitioning = 1, engine_file_empty_if_not_exists = 1;
+
+SELECT throwIf(count() > 0, 'Empty or conflicting route source metadata')
+FROM (
+    SELECT source, route_id
+    FROM {{RAW_PREFIX}}route_sources
+    GROUP BY source, route_id
+    HAVING count() != 1 OR route_id = '' OR countIf(origin_source = '') > 0
+);
+
 CREATE TABLE {{RAW_PREFIX}}trips
 ENGINE MergeTree
 PARTITION BY sipHash64(source, trip_id) % {{TRIP_BUCKETS}}
@@ -74,6 +103,7 @@ AS
 SELECT
     toLowCardinality(assumeNotNull(tt.source)) AS source,
     tt.route_id route_id,
+    ifNull(rs.origin_source, '') AS origin_source,
     service_id,
     trip_id,
     trip_headsign,
@@ -96,7 +126,23 @@ FROM file('{{INPUT_GLOB}}/trips.txt', 'CSVWithNames', '
     wheelchair_accessible String,
     bikes_allowed String
 ') tt
+LEFT JOIN {{RAW_PREFIX}}route_sources rs
+    ON tt.source = rs.source AND tt.route_id = rs.route_id
 SETTINGS use_hive_partitioning = 1;
+
+-- Do not treat an incomplete combined feed as a single original source.
+SELECT throwIf(count() > 0, 'Missing route source metadata for trips')
+FROM {{RAW_PREFIX}}trips
+WHERE origin_source = '' AND source IN (
+    SELECT source FROM {{RAW_PREFIX}}route_sources
+    UNION DISTINCT SELECT source FROM {{RAW_PREFIX}}sources
+);
+
+SELECT throwIf(count() > 0, 'Missing source file metadata for trips')
+FROM {{RAW_PREFIX}}trips
+WHERE origin_source != '' AND (source, origin_source) NOT IN (
+    SELECT source, origin_source FROM {{RAW_PREFIX}}sources
+);
 
 CREATE TABLE {{RAW_PREFIX}}shapes
 ENGINE = MergeTree

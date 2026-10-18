@@ -220,6 +220,7 @@ function parse_args(args)
 
     cfg.spill_gib < cfg.memory_limit_gib || error("--spill-gib must be less than --memory-limit-gib")
     cfg.trip_buckets <= 256 || error("--trip-buckets must be at most 256")
+    cfg.min_date <= cfg.max_date || error("--min-date must not exceed --max-date")
     return cfg
 end
 
@@ -529,10 +530,14 @@ const GTFS_HEADERS = Dict(
 
 function copy_gtfs_dir(src::AbstractString, target::AbstractString)
     root = find_gtfs_root(src)
+    sidecars = ("route_sources.csv", "sources.csv")
+    present = map(file -> isfile(joinpath(root, file)), sidecars)
+    any(present) && !all(present) && error("Source metadata needs both route_sources.csv and sources.csv")
     mkpath(target)
     for file in readdir(root)
         src_file = joinpath(root, file)
-        isfile(src_file) && endswith(file, ".txt") && cp(src_file, joinpath(target, file); force=true)
+        keep = endswith(file, ".txt") || file in sidecars
+        isfile(src_file) && keep && cp(src_file, joinpath(target, file); force=true)
     end
     for (file, header) in GTFS_HEADERS
         target_file = joinpath(target, file)
@@ -726,6 +731,9 @@ function main(cfg = parse_args(ARGS))
         selector_sql = render_template(selector_template, mode_vars, joinpath(temp_dir, "02_select_$(mode).sql"))
         post_sqls = render_postprocess_templates(mode_vars, temp_dir, mode)
 
+        service_dates_sql = render_template("02_service_dates.sql", mode_vars,
+                                            joinpath(temp_dir, "02_service_dates_$(mode).sql"))
+        maybe_run_sql_stage(cfg, "$(mode)-select", service_dates_sql)
         maybe_run_sql_stage(cfg, "$(mode)-select", selector_sql)
         for suffix in POSTPROCESS_TABLE_STAGES
             stage = "$(mode)-$(suffix)"

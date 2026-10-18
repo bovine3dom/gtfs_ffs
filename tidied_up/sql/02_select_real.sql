@@ -1,5 +1,5 @@
 -- Rendered by tidied_up/orchestrate.jl.
--- Real timetable: one coherent best calendar day per source.
+-- Real timetable: best day per original source, by active trip count.
 
 SET receive_timeout = {{TIMEOUT_SECONDS}};
 SET send_timeout = {{TIMEOUT_SECONDS}};
@@ -13,90 +13,64 @@ SET max_bytes_before_external_sort = {{SPILL_BYTES}};
 SET max_memory_usage = {{MEMORY_BYTES}};
 SET join_algorithm = 'auto';
 
-DROP TABLE IF EXISTS {{OUTPUT_PREFIX}}valid_trips_lookup;
-CREATE TABLE {{OUTPUT_PREFIX}}valid_trips_lookup
-ENGINE = MergeTree()
-ORDER BY (source, trip_id)
+DROP TABLE IF EXISTS {{OUTPUT_PREFIX}}selected_days;
+CREATE TABLE {{OUTPUT_PREFIX}}selected_days
+ENGINE = MergeTree
+ORDER BY (source, origin_source)
 AS
 WITH
-    toDate('{{MIN_DATE}}') AS min_date,
-    toDate('{{MAX_DATE}}') AS max_date,
-    valid_service_dates AS (
-        SELECT
-            source,
-            service_id,
-            check_date
-        FROM
-        (
-            SELECT
-                source,
-                service_id,
-                arrayJoin(
-                    arrayMap(x -> toDate(x),
-                        range(toUInt32(greatest(start_date, min_date)), toUInt32(least(end_date, max_date)) + 1)
-                    )
-                ) AS check_date,
-                monday, tuesday, wednesday, thursday, friday, saturday, sunday
-            FROM {{RAW_PREFIX}}calendar
-            WHERE end_date >= min_date AND start_date <= max_date
-        )
-        WHERE
-            CASE toDayOfWeek(check_date)
-                WHEN 1 THEN monday WHEN 2 THEN tuesday WHEN 3 THEN wednesday
-                WHEN 4 THEN thursday WHEN 5 THEN friday WHEN 6 THEN saturday
-                WHEN 7 THEN sunday ELSE 0
-            END = 1
-
-        UNION DISTINCT
-
-        SELECT source, service_id, date AS check_date
-        FROM {{RAW_PREFIX}}calendar_dates
-        WHERE exception_type = 1 AND date BETWEEN min_date AND max_date
-
-        EXCEPT
-
-        SELECT source, service_id, date AS check_date
-        FROM {{RAW_PREFIX}}calendar_dates
-        WHERE exception_type = 2 AND date BETWEEN min_date AND max_date
+    service_trip_counts AS (
+        SELECT t.source, t.origin_source, t.service_id, count() AS trip_count
+        FROM {{RAW_PREFIX}}trips t
+        GROUP BY t.source, t.origin_source, t.service_id
     ),
-    services_per_source_per_day AS (
-        SELECT
-            source,
-            check_date,
-            count() AS num_active_services
-        FROM valid_service_dates
-        GROUP BY source, check_date
+    day_counts AS (
+        SELECT c.source, c.origin_source, v.check_date, sum(c.trip_count) AS active_trip_count
+        FROM service_trip_counts c
+        INNER JOIN {{OUTPUT_PREFIX}}valid_service_dates v
+            ON c.source = v.source AND c.service_id = v.service_id
+        GROUP BY c.source, c.origin_source, v.check_date
     ),
-    ranked_days_per_source AS (
+    best_days AS (
         SELECT
-            source,
-            check_date,
-            num_active_services,
-            row_number() OVER (PARTITION BY source ORDER BY num_active_services DESC, check_date ASC) AS rn
-        FROM services_per_source_per_day
-    ),
-    best_days_per_source AS (
-        SELECT
-            source,
-            check_date AS best_date_for_this_source
-        FROM ranked_days_per_source
-        WHERE rn = 1
-    ),
-    active_services_final AS (
-        SELECT
-            v.source,
-            v.service_id
-        FROM valid_service_dates v
-        JOIN best_days_per_source bds
-            ON v.source = bds.source
-            AND v.check_date = bds.best_date_for_this_source
+            source, origin_source,
+            argMin(toNullable(d.check_date),
+                   tuple(-toInt64(d.active_trip_count), d.check_date)) AS selected_date,
+            max(d.active_trip_count) AS active_trip_count,
+            toNullable(min(d.check_date)) AS first_active_date,
+            toNullable(max(d.check_date)) AS last_active_date
+        FROM day_counts d
+        GROUP BY source, origin_source
     )
+SELECT
+    g.source AS source,
+    g.origin_source AS origin_source,
+    b.selected_date AS selected_date,
+    ifNull(b.active_trip_count, 0) AS active_trip_count,
+    b.first_active_date AS first_active_date,
+    b.last_active_date AS last_active_date,
+    toDate('{{MIN_DATE}}') AS search_start_date,
+    toDate('{{MAX_DATE}}') AS search_end_date,
+    if(ifNull(b.active_trip_count, 0) = 0, 'no_active_trips', 'selected') AS status
+FROM (SELECT DISTINCT source, origin_source FROM service_trip_counts) g
+LEFT JOIN best_days b ON g.source = b.source AND g.origin_source = b.origin_source;
+
+DROP TABLE IF EXISTS {{OUTPUT_PREFIX}}valid_trips_lookup;
+CREATE TABLE {{OUTPUT_PREFIX}}valid_trips_lookup
+ENGINE = MergeTree
+ORDER BY (source, trip_id)
+AS
 SELECT DISTINCT
-    t.source,
-    t.trip_id
+    t.source AS source,
+    t.origin_source AS origin_source,
+    t.trip_id AS trip_id,
+    b.selected_date AS selected_date
 FROM {{RAW_PREFIX}}trips t
-INNER JOIN active_services_final asf
-    ON t.source = asf.source AND t.service_id = asf.service_id;
+INNER JOIN {{OUTPUT_PREFIX}}selected_days b
+    ON t.source = b.source AND t.origin_source = b.origin_source
+INNER JOIN {{OUTPUT_PREFIX}}valid_service_dates v
+    ON t.source = v.source AND t.service_id = v.service_id
+    AND v.check_date = b.selected_date;
 
 DROP TABLE IF EXISTS {{OUTPUT_PREFIX}}stop_times_one_day_sane;
 CREATE TABLE {{OUTPUT_PREFIX}}stop_times_one_day_sane
@@ -106,6 +80,8 @@ SETTINGS allow_nullable_key = 1
 AS
 SELECT
     st.source AS source,
+    vt.origin_source AS origin_source,
+    vt.selected_date AS selected_date,
     tru.sane_route_id AS sane_route_id,
     st.trip_id AS trip_id,
     st.stop_id AS stop_id,

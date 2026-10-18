@@ -156,7 +156,55 @@ If `--input-root` does not include `source=*`, the orchestrator appends it.
 
 By default both products are rendered/built:
 
-- fantasy: best day per unique route within source. This keeps the historical silent names like `transitous_everything_20260105_edgelist_fahrtle2`.
-- real: best coherent calendar day per source. These tables are explicit, for example `transitous_everything_20260105_real_edgelist_fahrtle2`.
+- fantasy: the day with the most active trips for each route pattern and original source. The table names do not change, for example `transitous_everything_20260105_edgelist_fahrtle2`.
+- real: the day with the most active trips for each original source. The table names include `real`, for example `transitous_everything_20260105_real_edgelist_fahrtle2`.
 
 Use `--mode fantasy`, `--mode real`, or `--mode both` to choose.
+
+## Original sources and selected dates
+
+Directory and ZIP staging keep `route_sources.csv` and `sources.csv` from the
+Nigiri export. Supply both files, or neither file. Raw tables with these names
+keep the route mapping and source file names. A source can have more than one
+file. These file rows do not increase the trip count.
+
+`source` remains the name of the staging directory. `origin_source` is the
+original source ID from the export. Use both columns as the source key. For a
+feed without these CSV files, `origin_source` is an empty string. Source ID `0`
+is not an empty string. SQL checks reject conflicting route mappings, missing
+mappings for trips in a feed with metadata, and missing source file metadata.
+Two empty CSV files are equivalent to no metadata. Do not remove the metadata
+from a combined export.
+
+Each selection stage first builds `valid_service_dates`. It applies calendar
+weekdays and date exceptions within `--min-date` and `--max-date`, inclusive.
+The selector counts active trips, not active service IDs. If two dates have the
+same count, it selects the earlier date. Fantasy mode makes a separate choice
+for each route pattern within each original source.
+
+Each output prefix has a `selected_days` table. It records:
+
+- `source` and `origin_source`;
+- `sane_route_id` in fantasy mode;
+- `selected_date` and `active_trip_count`;
+- `first_active_date` and `last_active_date` within the search limits;
+- `search_start_date` and `search_end_date`;
+- `status`: `selected` or `no_active_trips`.
+
+Groups with trips but no active date have null dates and a zero count. The date
+range is not the full feed coverage if the search limits exclude active dates.
+`valid_trips_lookup` and `stop_times_one_day_sane` also keep `origin_source` and
+`selected_date`. Later edge tables do not yet keep these columns.
+
+Existing raw trip tables do not have `origin_source`. Rebuild raw tables in an
+approved test database before you test these selectors. Do not resume selection
+against the old raw schema.
+
+The offline tests check CSV staging, ZIP staging, date limits, and SQL rendering.
+They do not execute SQL. Database tests for trip counts, date exceptions, ties,
+missing dates, and combined feeds still require an approved isolated database.
+No database access is needed for:
+
+```sh
+julia --startup-file=no tidied_up/test/runtests.jl
+```

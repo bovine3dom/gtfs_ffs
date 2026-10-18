@@ -1,5 +1,6 @@
 using Test
 include("../orchestrate.jl")
+include("provenance.jl")
 
 @testset "Query limits" begin
     cfg = parse_args(String[])
