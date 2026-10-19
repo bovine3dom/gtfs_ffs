@@ -84,19 +84,15 @@ end
 dist(l, r) = begin
     (lat_l, lng_l) = cellToPos(l)
     (lat_r, lng_r) = cellToPos(r)
-    dist_rad = (lat_l - lat_r)^2 + (lng_l - lng_r)^2
-    return 6371 * acos(dist_rad)
+    h = sin((lat_r - lat_l) / 2)^2 + cos(lat_l) * cos(lat_r) * sin((lng_r - lng_l) / 2)^2
+    return 2 * 6371 * asin(sqrt(clamp(h, 0, 1)))
 end
 
 row = rand(eachrow(only_big))
 find_destination(row) = begin
-    not_found = true
-    while not_found
-        candidate_df = @view only_big[only_big.cluster_id .∈ Ref(row.cluster_id), :]
-        candidate = sample(eachrow(candidate_df), Weights(candidate_df.weight))
-        dist(row.h3, candidate.h3) > 100 && return candidate
-        not_found = false # lol
-    end
+    candidate_df = filter(candidate -> candidate.cluster_id == row.cluster_id && dist(row.h3, candidate.h3) > 100, only_big)
+    isempty(candidate_df) && return nothing
+    return sample(eachrow(candidate_df), Weights(candidate_df.weight))
 end
 
 weight_df = select_df(con(), """
@@ -116,10 +112,11 @@ dropmissing!(only_big)
 
 n = 365 # in practice we mess around with this so often that who cares if we only have a year
 days = Array{@NamedTuple{start_lat::Float64, start_lon::Float64, finish_lat::Float64, finish_lon::Float64}, 1}()
-for i in 1:n
+while length(days) < n
     row = sample(eachrow(only_big), Weights(only_big.weight))
     full_row = first(df[df.h3 .== row.h3, :])
     finish = find_destination(row)
+    isnothing(finish) && continue
     full_finish = first(df[df.h3 .== finish.h3, :])
     push!(days, (start_lat=full_row.stop_lat, start_lon=full_row.stop_lon, finish_lat=full_finish.stop_lat, finish_lon=full_finish.stop_lon))
 end
