@@ -176,6 +176,17 @@ LEFT JOIN {{RAW_PREFIX}}route_sources rs
     ON tt.source = rs.source AND tt.route_id = rs.route_id
 SETTINGS use_hive_partitioning = 1;
 
+ALTER TABLE {{RAW_PREFIX}}trips
+ADD PROJECTION trip_shape_lookup
+(
+    SELECT source, trip_id, shape_id
+    ORDER BY (source, trip_id)
+);
+
+ALTER TABLE {{RAW_PREFIX}}trips
+MATERIALIZE PROJECTION trip_shape_lookup
+SETTINGS mutations_sync = 1;
+
 -- Do not treat an incomplete combined feed as a single original source.
 SELECT throwIf(count() > 0, 'Missing route source metadata for trips')
 FROM {{RAW_PREFIX}}trips

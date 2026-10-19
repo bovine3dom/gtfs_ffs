@@ -33,6 +33,18 @@ try
                 end
                 @test query("SELECT count() FROM b$(buckets)_stop_times") == "36"
                 @test query("SELECT count() FROM b$(buckets)_trip_route_uuids") == "12"
+                @test query("""
+                    SELECT sum(rows) FROM system.projection_parts
+                    WHERE database = currentDatabase() AND table = 'b$(buckets)_trips'
+                        AND name = 'trip_shape_lookup' AND active
+                    """) == "12"
+                @test query("""
+                    SELECT source, trip_id, shape_id FROM b$(buckets)_trips ORDER BY ALL
+                    SETTINGS optimize_use_projections = 1
+                    """) == query("""
+                    SELECT source, trip_id, shape_id FROM b$(buckets)_trips ORDER BY ALL
+                    SETTINGS optimize_use_projections = 0
+                    """)
                 @test query("SELECT count() FROM b$(buckets)_stop_times WHERE toHour(arrival_time) = 1 AND toDayOfMonth(arrival_time) = 2") == "12"
             end
             for table in ("trips", "stop_times", "trip_route_uuids")

@@ -85,6 +85,33 @@ julia --project=tidied_up tidied_up/orchestrate.jl 20260706 \
 
 This reads existing `DATA_ROOT/YYYY-MM-DD/*.gtfs.zip`, extracts them to `source=*`, then continues the normal SQL pipeline.
 
+## Trip-to-shape lookup
+
+Raw ingestion adds and materializes the `trip_shape_lookup` projection on the
+trips table. It stores `source`, `trip_id`, and `shape_id`, ordered by
+`(source, trip_id)`. The ingestion process waits for materialization to finish.
+ClickHouse can use this projection for covered trip-to-shape queries. Queries
+that need other trip columns may still read the base table.
+
+Existing tables are not changed by a code update. To add the projection without
+repeating raw ingestion, run these statements in the intended database:
+
+```sql
+ALTER TABLE transitous_everything_20261018_trips
+ADD PROJECTION IF NOT EXISTS trip_shape_lookup
+(
+    SELECT source, trip_id, shape_id
+    ORDER BY (source, trip_id)
+);
+
+ALTER TABLE transitous_everything_20261018_trips
+MATERIALIZE PROJECTION trip_shape_lookup
+SETTINGS mutations_sync = 1;
+```
+
+Materialization uses background mutation resources and additional disk space.
+Do not run it at the same time as a raw-table rebuild.
+
 ## Query memory
 
 Queries use an 8 GiB memory limit and two threads. Aggregation and sorting can use temporary disk files above 2 GiB. Set `--memory-limit-gib`, `--spill-gib`, and `--threads` to change these limits. The spill threshold must be less than the query limit. Keep space available for temporary files and memory available for the server's background tasks.
