@@ -50,6 +50,12 @@ end
         "TIMEOUT_SECONDS" => "60", "TIMEOUT_MS" => "60000",
         "SOURCE_LITERAL" => "'fixture'", "TRIP_BUCKETS" => "4", "BUCKET" => "0",
     ))
+    source_queries = Dict(source_name_queries(vars, 4))
+    @test count(startswith("map_stops_"), keys(source_queries)) == 4
+    @test count(startswith("stop_times_"), keys(source_queries)) == 4
+    @test occursin("sipHash64(source, trip_id) % 4 = 0", source_queries["stop_times_0"])
+    @test occursin("test_named_trips AS test_trips", source_queries["create_trips"])
+    @test occursin("max_memory_usage = 4294967296", source_queries["map_routes"])
     for template in readdir(SQL_DIR)
         sql = render_template_text(template, vars)
         @test occursin("SET max_memory_usage = 4294967296;", sql)

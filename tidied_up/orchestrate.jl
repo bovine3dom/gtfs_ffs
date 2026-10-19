@@ -2,6 +2,7 @@
 
 using Dates
 using SHA
+include("source_names.jl")
 
 const PROJECT_ROOT = dirname(@__DIR__)
 const SQL_DIR = joinpath(@__DIR__, "sql")
@@ -416,6 +417,7 @@ function run_raw_stage(cfg::Config, vars::Dict{String,String}, temp_dir::Abstrac
     raw_sql = render_template("01_raw.sql", vars, joinpath(temp_dir, "01_raw.sql"))
     maybe_run_sql_stage(cfg, "raw", raw_sql)
     should_run_stage(cfg, "raw") || return
+    run_source_names(cfg, vars, temp_dir)
     for bucket in 0:cfg.trip_buckets-1
         bucket_vars = merge(vars, Dict("BUCKET" => string(bucket)))
         sql = render_template("01_trip_routes.sql", bucket_vars,

@@ -119,7 +119,7 @@ Queries use an 8 GiB memory limit and two threads. Aggregation and sorting can u
 Raw trips, stop times, and route-pattern IDs use 64 disk partitions, keyed by a hash of `(source, trip_id)`. Route-pattern calculation processes one partition at a time. Use `--trip-buckets N` to set 1–256 partitions when rebuilding raw tables.
 
 All three edge builders also use `--trip-buckets`. Each insert selects one
-hash bucket within one staging source before window functions, trip arrays,
+hash bucket within one source before window functions, trip arrays,
 or population expansion. A trip is never split between batches. Batches run
 in sequence. One large source therefore no longer creates one large insert.
 
@@ -142,8 +142,8 @@ Do not change the raw bucket count in the middle of raw ingestion.
   that a query will fit its memory limit.
 - Stop clustering stores a union-find structure in Julia. The ClickHouse query
   limit does not limit Julia memory.
-- Existing `us%` and `ca%` exclusions use the staging source name. They do not
-  identify those original feeds inside a combined `source=nigiri` bundle.
+- Existing `us%` and `ca%` exclusions use the new source value. Attribution
+  paths that start with these prefixes are now excluded from `edgelist_sane`.
 
 This is not a full-scale memory benchmark. Monitor memory and temporary disk
 space during a full import.
@@ -154,6 +154,7 @@ Run the tests with:
 julia tidied_up/test/runtests.jl
 # Use an isolated database on a local test server:
 julia tidied_up/test/buckets.jl /path/to/clickhouse/user_files
+julia tidied_up/test/source_names.jl /path/to/clickhouse/user_files
 ```
 
 The database test uses `CLICKHOUSE_*` connection settings and requires permission to create a temporary database.
@@ -235,21 +236,38 @@ for organization names. Missing filenames use `unknown-source-<source>`.
 The raw `attributions` table keeps credits, including the dataset-wide OSM row.
 Only IDs with the `nigiri:` prefix define source groups. Ordinary organization
 credits and the `osm` row do not define groups. Invalid or conflicting Nigiri
-IDs cause an error. One source can have several file rows; these rows do not
-increase the trip count.
+IDs cause an error. Repeated identical attribution rows do not duplicate trips.
+If a source has several recorded filenames, each filename becomes a namespace.
 
 The consumer also reads the old `route_sources.csv` and `sources.csv` files.
 Supply both old files, or neither file. Raw tables with these names contain the
 combined source mappings. New exports need only `attributions.txt`. If old and
 new metadata disagree about a route's source, ingestion stops.
 
-`source` remains the name of the staging directory. `origin_source` is the
-original source ID from the export. Use both columns as the source key. For a
-feed without source metadata, `origin_source` is an empty string. Source ID `0`
-is not an empty string. SQL checks reject conflicting route mappings, missing
-mappings for trips in a feed with metadata, and missing source file metadata.
-Empty source metadata is equivalent to no metadata. Ordinary credits alone do
-not identify original feeds. Do not remove source metadata from a combined export.
+After raw loading, `source` becomes the recorded attribution path, for example
+`ad_Andorra-Bus.gtfs.zip/stop_times.txt`. The path is not shortened. This change
+applies to routes, trips, stop times, shapes, stops, agencies, calendars, source
+metadata, and credits. Derived tables then use the same values. Joins continue
+to use `(source, entity_id)`; there is no separate staging-source column.
+
+The loader propagates names from routes to trips and their referenced entities.
+Shared shapes, stops, agencies, and services receive a row in each source that
+uses them. Station parents and children are included. Unreferenced entities in
+an attributed bundle are omitted because they have no assigned feed. Ordinary
+feeds without source metadata keep their staging source and all their records.
+Dataset-wide credits, including OSM, are copied to each attributed source.
+
+`origin_source` remains the original numeric source ID. For feeds without source
+metadata it is an empty string. The existing metadata checks remain unchanged;
+no new filename-uniqueness checks are added. Ordinary organization credits do
+not rename sources. The old CSV metadata also supplies source paths.
+
+Source replacement builds temporary mappings and copies of the raw tables.
+Trip and stop-time copies use hash batches. Allow disk space for the temporary
+copies as well as the input tables. The loader replaces raw tables only after
+all copies finish, then computes route-pattern IDs. If this raw stage fails,
+restart the whole raw stage. Do not query a dataset while its raw tables are
+being replaced.
 
 Each selection stage first builds `valid_service_dates`. It applies calendar
 weekdays and date exceptions within `--min-date` and `--max-date`, inclusive.
@@ -271,9 +289,9 @@ range is not the full feed coverage if the search limits exclude active dates.
 `valid_trips_lookup` and `stop_times_one_day_sane` also keep `origin_source` and
 `selected_date`. Later edge tables do not yet keep these columns.
 
-Existing raw trip tables do not have `origin_source`. Rebuild raw tables in an
-approved test database before you test these selectors. Do not resume selection
-against the old raw schema.
+Existing tables are not renamed by a code update or a downstream-stage retry.
+To use attribution names, rebuild raw and derived tables together in an
+approved database. Do not combine new raw tables with old derived tables.
 
 The offline tests check metadata staging, ZIP staging, date limits, and SQL rendering.
 They do not execute SQL. Database tests for trip counts, date exceptions, ties,
